@@ -265,33 +265,13 @@ public class BrokerService {
         );
     }
 
-   /* public List<StockBar> getStockBars(String symbol, int limit) throws Exception {
-        log.info("getStockBars symbol: " + symbol);
-
-        OffsetDateTime endTime = OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(15);
-        OffsetDateTime startTime = endTime.minusMinutes(1);
-        var response = alpacaAPIBroker().marketData().stock().stockBars(
-                symbol,
-                "1Day",
-                startTime,
-                endTime,
-                (long) limit,
-                StockAdjustment.RAW,
-                null,
-                StockFeed.IEX,
-                null,
-                null,
-                null
-        );
-
-        Map<String,List<StockBar>> barsMap = response.getBars();
-
-        if (response.getBars() != null && response.getBars().containsKey(symbol)) {
-            log.info("getStockBars symbol: " + symbol);
-            return response.getBars().get(symbol);
+    public TradeAccount getAccount(UUID accountId) {
+        log.info("getAccount accountId: " + accountId);
+        try {
+            return brokerAPI().broker().accounts().getTradingAccount(accountId);
+        } catch (ApiException e) {
+            log.error("getAccount accountId: " + accountId, e);
+            throw new RuntimeException(e);
         }
-
-        log.info("getStockBars symbol5555555: " + symbol);
-        return Collections.emptyList();
-    }*/
+    }
 }

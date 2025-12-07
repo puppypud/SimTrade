@@ -125,4 +125,16 @@ public class broker_user {
             return ResponseEntity.internalServerError().body("❌ Server Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/account/{accountId}")
+    public ResponseEntity<?> getAccountInfo(
+            @PathVariable("accountId") UUID accountId) {
+        try {
+            TradeAccount account = brokerService.getAccount(accountId);
+
+            return ResponseEntity.ok(account); // ส่งกลับข้อมูลทั้งหมด
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
 }
