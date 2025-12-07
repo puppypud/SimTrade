@@ -26,3 +26,18 @@ export interface OrderResponse {
   status: string;
   // ... field อื่นๆ ตามที่ Backend ส่งมา
 }
+ 
+export interface AccountInfo {
+  id: string;
+  accountNumber: string;
+  status: string;
+  currency: string;
+  buyingPower: number;          // อำนาจซื้อ
+  cash: number;                 // เงินสด
+  portfolioValue: number;       // มูลค่าพอร์ตรวม
+  equity: number;               // มูลค่าสินทรัพย์สุทธิ (มักเท่ากับ portfolioValue)
+  lastEquity: number;           // มูลค่าเมื่อปิดตลาดวันก่อน (เอาไว้เทียบกำไรวันนี้)
+  longMarketValue: number;      // มูลค่าหุ้นขาขึ้นที่ถืออยู่
+  daytradeCount: number;        // จำนวนครั้งที่เทรดจบในวัน
+  createdAt: string;
+}

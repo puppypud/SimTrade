@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest,AccountInfo} from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
   // 1. ซื้อหุ้น (ตรงกับ @PostMapping("/order/user"))
@@ -35,6 +35,11 @@ export const brokerService = {
     const response = await apiClient.get('/broker/order/get/all-order', {
       params: { accountId }
     });
+    return response.data;
+  },
+
+  getAccountInfo: async (accountId: string) => {                        //ใช้ตอน get แบบ มี value ตามช่อง url 
+    const response = await apiClient.get(`/broker/account/${accountId}`);
     return response.data;
   }
 };
