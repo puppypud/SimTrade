@@ -1,134 +1,187 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation'; 
 import { brokerService } from '@/src/app/services/brokerService';
 import StockLWChart from '@/src/app/components/ui/Chart';
 import { StockBar } from './types/broker';
 
-// Helper Function: แปลงวันที่จาก Backend (Array/String/Number) ให้เป็น Timestamp
-const parseDate = (dateVal: any): number => {
-  if (!dateVal) return 0;
-  
-  // กรณี 1: เป็น Array [2023, 12, 30, 10, 0] (ค่า Default ของ Java Local/OffsetDateTime)
-  if (Array.isArray(dateVal)) {
-    const [year, month, day, hour, minute, second] = dateVal;
-    // Month ใน JS เริ่มที่ 0 (Jan) แต่ Java เริ่มที่ 1
-    return new Date(year, month - 1, day, hour || 0, minute || 0, second || 0).getTime();
-  }
-
-  // กรณี 2: เป็น Timestamp Number
-  if (typeof dateVal === 'number') {
-    // ถ้าตัวเลขน้อยๆ (เช่น 17xxxxxxxxx) อาจเป็น Seconds ให้คูณ 1000
-    return dateVal < 10000000000 ? dateVal * 1000 : dateVal;
-  }
-
-  // กรณี 3: เป็น String ISO ("2023-12-01T...")
-  return new Date(dateVal).getTime();
-};
+const TIMEFRAMES = ['1D', '5D', '1M', '6M', '1Y', '5Y']; 
 
 export default function TradePage() {
-  const [symbolInput, setSymbolInput] = useState('');
-  const [viewType, setViewType] = useState('1D'); // Default เป็น 1 Day
-  
+  const router = useRouter();
+  const searchParams = useSearchParams(); 
+  const symbolFromUrl = searchParams.get('symbol'); 
+
+  const [searchInput, setSearchInput] = useState(''); // State สำหรับ Input Search (ถ้ามีในอนาคต หรือ UI อื่นใช้)
+  const [viewType, setViewType] = useState('1D');
   const [chartData, setChartData] = useState<[number, number][]>([]);
   const [currentSymbol, setCurrentSymbol] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  
+  // State เก็บราคาอ้างอิง (Previous Close หรือ Open) เพื่อคำนวณสี
+  const [dayOpen, setDayOpen] = useState<number | undefined>(undefined);
 
-  const handleShowChart = async () => {
-    if (!symbolInput.trim()) return;
-
-    setIsLoading(true);
-    try {
-      // 1. เรียก API ด้วย Symbol และ ViewType ที่เลือก
-      const bars: any[] = await brokerService.getStockBars(symbolInput.toUpperCase(), viewType);
-      
-      console.log("Raw Data form Backend:", bars); // Debug ดูข้อมูลดิบ
-
-      // 2. แปลงข้อมูลพร้อมใช้ Helper parseDate แก้ปัญหาวันที่
-      const formattedData: [number, number][] = bars
-        .map((bar: StockBar): [number, number] => {
-          const x = new Date(bar.t).getTime();
-          const y = Number(bar.c); // หรือ parseFloat(bar.c)
-          return [x, y];
-        })
-        .filter((d): d is [number, number] => !isNaN(d[0]) && !isNaN(d[1]));
-
-      // เรียงลำดับเวลาจากอดีต -> ปัจจุบัน (สำคัญมากสำหรับกราฟ)
-      formattedData.sort((a, b) => a[0] - b[0]);
-
-      setChartData(formattedData);
-      setCurrentSymbol(symbolInput.toUpperCase());
-
-    } catch (error) {
-      console.error(error);
-      alert('Failed to load chart data');
-    } finally {
-      setIsLoading(false);
+  // ฟังก์ชัน Search (เผื่อใช้ หรือเชื่อมกับ UI เดิม)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && searchInput.trim()) {
+      router.push(`/?symbol=${searchInput.toUpperCase()}`);
     }
   };
 
-  return (
-    <div className="p-10 bg-gray-100 min-h-screen text-black">
-      <h1 className="text-3xl font-bold mb-6">Trade Stock</h1>
+  const fetchData = useCallback(async (sym: string, vType: string) => {
+    if (!sym) return;
+    
+    try {
+      if (chartData.length === 0) setIsLoading(true);
 
-      {/* Input Section */}
-      <div className="bg-white p-6 rounded-lg shadow-md mb-6 flex flex-wrap gap-4 items-end">
+      console.log(`Fetching data for ${sym} (${vType})...`);
+      const bars: any[] = await brokerService.getStockBars(sym, vType);
+      
+      // 1. เรียงลำดับเวลาให้ถูกต้อง
+      bars.sort((a: any, b: any) => new Date(a.t).getTime() - new Date(b.t).getTime());
+
+      let formattedData: [number, number][] = [];
+      let referencePrice = undefined;
+
+      if (vType === '1D' && bars.length > 0) {
+        // หา "วันที่ของข้อมูลล่าสุด" (Today)
+        const lastBar = bars[bars.length - 1];
+        const lastBarDate = new Date(lastBar.t).toDateString();
+
+        // -------------------------------------------------------------
+        // 🔥 LOGIC ที่ถูกต้อง: แยกข้อมูลวันนี้ vs เมื่อวาน เพื่อหาราคาอ้างอิง
+        // -------------------------------------------------------------
         
-        {/* ช่องกรอก Symbol */}
-        <div>
-          <label className="block text-sm font-bold mb-2 text-gray-700">Symbol</label>
-          <input
-            type="text"
-            placeholder="e.g. AAPL"
-            className="border p-2 rounded w-40 text-black uppercase focus:ring-2 focus:ring-blue-500 outline-none"
-            value={symbolInput}
-            onChange={(e) => setSymbolInput(e.target.value)}
-          />
+        // ข้อมูลของวันนี้ (ที่จะเอาไปวาดกราฟ)
+        const todayBars = bars.filter((b: any) => new Date(b.t).toDateString() === lastBarDate);
+        
+        // ข้อมูลของวันก่อนหน้า (เพื่อหาราคาปิดเมื่อวาน)
+        const prevBars = bars.filter((b: any) => new Date(b.t).toDateString() !== lastBarDate);
+
+        // หา Reference Price (ราคาฐานสำหรับคำนวณ เขียว/แดง)
+        if (prevBars.length > 0) {
+            // ✅ กรณี 1: มีข้อมูลเมื่อวาน -> ใช้ "ราคาปิดเมื่อวาน" (Previous Close)
+            referencePrice = Number(prevBars[prevBars.length - 1].c);
+        } else if (todayBars.length > 0) {
+            // ⚠️ กรณี 2: ไม่มีข้อมูลเมื่อวาน -> ใช้ "ราคาเปิดวันนี้" แทน
+            referencePrice = Number(todayBars[0].o);
+        }
+
+        // กรองข้อมูลที่จะแสดงในกราฟ (เฉพาะของวันนี้)
+        // ตัด Pre-market (ก่อน 21:30) ทิ้ง เพื่อให้กราฟสวยเริ่มที่ตลาดเปิด
+        const marketOpenTime = new Date(lastBar.t);
+        marketOpenTime.setHours(21, 30, 0, 0); 
+        
+        const marketHoursBars = todayBars.filter((b: any) => new Date(b.t).getTime() >= marketOpenTime.getTime());
+
+        if (marketHoursBars.length > 0) {
+             formattedData = marketHoursBars.map((b: any) => [new Date(b.t).getTime(), Number(b.c)]);
+             
+             // ถ้ายังไม่มี Reference Price ให้ใช้ Open ของแท่งแรกสุดของช่วง Market Hours เป็นฐาน
+             if (referencePrice === undefined) {
+                 referencePrice = Number(marketHoursBars[0].o);
+             }
+        } else {
+             // ถ้ายังไม่ถึง 21:30 หรือไม่มีข้อมูลช่วงตลาดเปิด ให้แสดงข้อมูลที่มีไปก่อน
+             formattedData = todayBars.map((b: any) => [new Date(b.t).getTime(), Number(b.c)]);
+        }
+
+      } else if (bars.length > 0) {
+        // สำหรับ Timeframe อื่นๆ ใช้ราคาเปิดของแท่งแรกสุด
+        referencePrice = Number(bars[0].o);
+        formattedData = bars.map((b: any) => [new Date(b.t).getTime(), Number(b.c)]);
+      }
+
+      setChartData(formattedData);
+      setDayOpen(referencePrice); // ส่งค่าราคาฐานที่ถูกต้องไป
+      setIsLoading(false);
+
+    } catch (error) {
+      console.error("Fetch error:", error);
+      setIsLoading(false);
+    }
+  }, []); 
+
+  // ... (useEffects เหมือนเดิม)
+  useEffect(() => {
+    if (symbolFromUrl) {
+      setCurrentSymbol(symbolFromUrl);
+      setSearchInput(symbolFromUrl); // Sync input
+      fetchData(symbolFromUrl, viewType);
+    }
+  }, [symbolFromUrl, fetchData]); 
+
+  useEffect(() => {
+    if (currentSymbol) {
+      fetchData(currentSymbol, viewType);
+    }
+  }, [viewType, currentSymbol, fetchData]);
+
+  useEffect(() => {
+    if (!currentSymbol || viewType !== '1D') return;
+    const intervalId = setInterval(() => {
+        fetchData(currentSymbol, viewType);
+    }, 120000); 
+    return () => clearInterval(intervalId);
+  }, [currentSymbol, viewType, fetchData]);
+
+
+  return (
+    <div className="p-10 bg-gray-50 min-h-screen text-black font-sans">
+      
+      <div className="max-w-6xl mx-auto">
+        
+        {/* Container หลักของกราฟ (UI สีขาวแบบเดิม) */}
+        <div className="relative bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+            
+            {/* Timeframe Selector (มุมขวาบน) */}
+            <div className="absolute top-6 right-6 z-10 flex bg-gray-100 p-1 rounded-lg">
+                {TIMEFRAMES.map((tf) => (
+                    <button
+                        key={tf}
+                        onClick={() => setViewType(tf)}
+                        className={`
+                            px-4 py-1.5 text-xs font-bold rounded-md transition-all duration-200
+                            ${viewType === tf 
+                                ? 'bg-white text-blue-600 shadow-sm' 
+                                : 'text-gray-500 hover:text-gray-900 hover:bg-gray-200'
+                            }
+                        `}
+                    >
+                        {tf}
+                    </button>
+                ))}
+            </div>
+
+            {/* ส่วนแสดงผลกราฟ */}
+            <div className="p-2">
+                {chartData.length > 0 ? (
+                    <StockLWChart 
+                        chartData={chartData} 
+                        symbol={currentSymbol} 
+                        timeframe={viewType}
+                        dayOpenPrice={dayOpen} // ✅ ส่งราคาฐานที่คำนวณถูกต้องไปให้กราฟ
+                    />
+                ) : (
+                    <div className="h-[400px] flex flex-col items-center justify-center text-gray-400 bg-gray-50/50">
+                        {isLoading ? (
+                           <div className="animate-pulse flex flex-col items-center">
+                              <div className="h-4 w-4 bg-blue-500 rounded-full mb-2 animate-bounce"></div>
+                              Loading...
+                           </div>
+                        ) : (
+                           <>
+                             <svg className="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                             <p>Search for a symbol in the navbar to start</p>
+                           </>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
 
-        {/* Dropdown เลือก ViewType (Days) */}
-        <div>
-          <label className="block text-sm font-bold mb-2 text-gray-700">Timeframe</label>
-          <select 
-            value={viewType}
-            onChange={(e) => setViewType(e.target.value)}
-            className="border p-2 rounded w-32 text-black focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-          >
-            <option value="1D">1 Day</option>
-            <option value="5D">5 Days</option>
-            <option value="1M">1 Month</option>
-            <option value="6M">6 Months</option>
-            <option value="1Y">1 Year</option>
-            <option value="5Y">5 Years</option>
-          </select>
-        </div>
-
-        <button
-          onClick={handleShowChart}
-          disabled={isLoading}
-          className={`font-bold p-2 px-6 rounded h-[42px] transition-colors ${
-             isLoading 
-               ? 'bg-gray-400 cursor-not-allowed' 
-               : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-        >
-          {isLoading ? 'Loading...' : 'Show Chart'}
-        </button>
       </div>
-
-      {/* Display Chart */}
-      {chartData.length > 0 ? (
-          <StockLWChart 
-             chartData={chartData} 
-             symbol={currentSymbol} 
-             timeframe={viewType} // *** เพิ่มบรรทัดนี้ ส่ง 1D, 5D เข้าไป
-          />
-      ) : (
-          <div className="h-[350px] flex items-center justify-center bg-white rounded border border-gray-300 text-gray-400 shadow-sm">
-             {isLoading ? 'Fetching Data...' : 'Please enter a symbol and select timeframe'}
-          </div>
-      )}
-
     </div>
   );
 }
