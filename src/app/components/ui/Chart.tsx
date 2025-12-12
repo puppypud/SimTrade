@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
-// 1. Import AreaSeries เข้ามาเพิ่ม (สำหรับ v5)
-import { createChart, ColorType, IChartApi, Time, AreaSeries } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, Time, AreaSeries, TickMarkType, CrosshairMode } from 'lightweight-charts';
 
 interface StockLWChartProps {
-  chartData: [number, number][]; // [Time (ms), Price]
+  chartData: [number, number][];
   symbol: string;
   timeframe: string;
 }
@@ -14,7 +13,6 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<IChartApi | null>(null);
 
-  // คำนวณค่าเริ่มต้นและสีของกราฟ
   const { startPrice, endPrice, isProfit, baseColor } = useMemo(() => {
     if (!chartData || chartData.length === 0) {
         return { startPrice: 0, endPrice: 0, isProfit: true, baseColor: '#10b981' };
@@ -26,15 +24,17 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
         startPrice: start,
         endPrice: end,
         isProfit: profit,
-        baseColor: profit ? '#10b981' : '#ef4444' // Emerald vs Red
+        baseColor: profit ? '#10b981' : '#ef4444'
     };
   }, [chartData]);
 
   const [displayPrice, setDisplayPrice] = useState(endPrice);
+  const [displayTime, setDisplayTime] = useState<string | null>(null);
   
   useEffect(() => {
     setDisplayPrice(endPrice);
-  }, [endPrice]);
+    setDisplayTime(null);
+  }, [endPrice, chartData]);
 
   useEffect(() => {
     if (!chartContainerRef.current || chartData.length === 0) return;
@@ -50,26 +50,48 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
         vertLines: { visible: false },
         horzLines: { visible: false },
       },
-      rightPriceScale: { visible: false },
-      timeScale: { visible: false },
+      rightPriceScale: {
+        visible: true,
+        borderColor: '#e5e7eb',
+      },
+      timeScale: {
+        visible: true,
+        timeVisible: true,
+        secondsVisible: false,
+        borderColor: '#e5e7eb',
+        tickMarkFormatter: (time: number) => {
+            const date = new Date(time * 1000);
+            return date.toLocaleTimeString('th-TH', { 
+              timeZone: 'Asia/Bangkok', 
+              hour: '2-digit', 
+              minute: '2-digit',
+              hour12: false
+            });
+        },
+      },
       crosshair: {
+        mode: CrosshairMode.Normal,
         vertLine: {
             visible: true,
-            labelVisible: false,
+            labelVisible: true,
             style: 0,
             width: 1,
             color: '#9ca3af',
+            labelBackgroundColor: '#4b5563',
         },
         horzLine: {
-            visible: false,
-            labelVisible: false 
+            visible: true,
+            labelVisible: true,
+            style: 0,
+            width: 1,
+            color: '#9ca3af',
+            labelBackgroundColor: '#4b5563',
         }
       },
       handleScale: false,
       handleScroll: false,
     });
 
-    // 2. แก้ไขตรงนี้: ใช้ addSeries(AreaSeries, options) แทน addAreaSeries(options)
     const newSeries = chart.addSeries(AreaSeries, {
       lineColor: baseColor,
       topColor: baseColor,
@@ -83,9 +105,18 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
     }));
     
     newSeries.setData(formattedData);
-    chart.timeScale().fitContent();
 
-    // Event เลื่อนเมาส์
+    if (timeframe === '1D' && formattedData.length > 0) {
+        const firstDataTime = formattedData[0].time as number;
+        const marketCloseTime = firstDataTime + 23400; 
+        chart.timeScale().setVisibleRange({
+            from: firstDataTime as Time,
+            to: marketCloseTime as Time,
+        });
+    } else {
+        chart.timeScale().fitContent();
+    }
+
     chart.subscribeCrosshairMove((param) => {
         if (
             param.point === undefined ||
@@ -96,12 +127,25 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
             param.point.y > chartContainerRef.current!.clientHeight
         ) {
             setDisplayPrice(endPrice);
+            setDisplayTime(null);
         } else {
             const dataPoint = param.seriesData.get(newSeries);
             if (dataPoint) {
-                // ต้อง Cast Type ให้ตรงกับชนิดของข้อมูลที่เราใช้
                 const value = (dataPoint as { value: number; time: Time }).value;
+                const time = param.time as number;
+                
                 setDisplayPrice(value);
+                
+                const dateObj = new Date(time * 1000);
+                const timeStr = dateObj.toLocaleString('th-TH', {
+                    timeZone: 'Asia/Bangkok',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                });
+                setDisplayTime(timeStr);
             }
         }
     });
@@ -119,7 +163,7 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
         window.removeEventListener('resize', handleResize);
         chart.remove();
     };
-  }, [chartData, baseColor, endPrice]);
+  }, [chartData, baseColor, endPrice, timeframe]);
 
   const change = displayPrice - startPrice;
   const percent = startPrice !== 0 ? (change / startPrice) * 100 : 0;
@@ -129,19 +173,35 @@ const StockLWChart = ({ chartData, symbol, timeframe }: StockLWChartProps) => {
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
       <div className="mb-4">
-        <h2 className="text-gray-500 font-bold text-sm tracking-wider">{symbol}</h2>
-        <div className="flex items-baseline gap-3">
-            <h1 className={`text-4xl font-extrabold ${textColor}`}>
-                ${displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </h1>
-        </div>
-        <div className={`text-sm font-semibold mt-1 ${textColor} flex items-center gap-1`}>
-            <span>
-                {sign}{change.toFixed(2)} ({sign}{percent.toFixed(2)}%)
-            </span>
-            <span className="text-gray-400 font-normal ml-1">
-                {timeframe === '1D' ? 'Today' : `Past ${timeframe}`}
-            </span>
+        <div className="flex justify-between items-start">
+            <div>
+                <h2 className="text-gray-500 font-bold text-sm tracking-wider">{symbol}</h2>
+                
+                {/* 1. ราคาหุ้น (ตัวใหญ่) */}
+                <h1 className={`text-4xl font-extrabold ${textColor}`}>
+                    ${displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h1>
+
+                {/* 2. ส่วนแสดงข้อมูลรอง: เรียง Change% ไว้ก่อน แล้วตามด้วย เวลา */}
+                <div className="mt-1 flex items-center gap-3 text-sm">
+                    
+                    {/* ส่วนนี้จะแสดง % เสมอ (เปลี่ยนค่าไปตามจุดที่เมาส์ชี้) */}
+                    <span className={`font-bold ${textColor}`}>
+                        {sign}{change.toFixed(2)} ({sign}{percent.toFixed(2)}%)
+                    </span>
+
+                    {/* ส่วนนี้จะสลับระหว่าง "เวลาที่ชี้" กับ "Today" */}
+                    {displayTime ? (
+                        <span className="text-gray-500 font-medium border-l border-gray-300 pl-3">
+                            ราคา ณ: {displayTime}
+                        </span>
+                    ) : (
+                        <span className="text-gray-400 font-normal border-l border-gray-300 pl-3">
+                            {timeframe === '1D' ? 'วันนี้' : `Past ${timeframe}`}
+                        </span>
+                    )}
+                </div>
+            </div>
         </div>
       </div>
       <div ref={chartContainerRef} className="w-full h-[300px]" />
