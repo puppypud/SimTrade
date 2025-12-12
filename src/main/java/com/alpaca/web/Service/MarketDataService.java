@@ -14,12 +14,12 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
+import java.time.*;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -38,6 +38,8 @@ public class MarketDataService {
 
     @Value("***REDACTED_OLD_TRADING_SECRET***")
     private String apiSecret;
+    // 1. เพิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
+    private final ZoneId NY_ZONE = ZoneId.of("America/New_York");
 
     public List<StockBar> getStockBars(String symbol,String viewType) {
         String cleanSymbol = symbol.trim();
@@ -47,12 +49,16 @@ public class MarketDataService {
         String timeframe;
         int limit = 1000; // default
         log.info("Fetching StockBars (Manual REST) for: " + cleanSymbol);
-
+        // ดึงเวลาปัจจุบันในนิวยอร์ก
+        ZonedDateTime nowNY = ZonedDateTime.now(NY_ZONE);
         switch (viewType.toUpperCase()) {
 
             case "1D":
-                timeframe = "2Min";
-                startTime = endTime.minusDays(1);
+                timeframe = "1Min";
+                //startTime = endTime.minusDays(1);
+                ZonedDateTime targetOpen = nowNY.toLocalDate().atTime(9,30).atZone(NY_ZONE);
+                // ถอยไปเริ่มที่ "เมื่อวาน" เวลา 09:30 แทน
+                startTime = targetOpen.minusDays(1).toOffsetDateTime();
                 break;
 
             case "1W":
@@ -82,7 +88,7 @@ public class MarketDataService {
                 break;
 
             case "5Y":
-                timeframe = "1Day";
+                timeframe = "1Month";
                 startTime = endTime.minusYears(5);
                 break;
 
@@ -92,8 +98,8 @@ public class MarketDataService {
                 break;
         }
 
-
-        String rawDate = startTime.toString();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        String rawDate = startTime.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
 
         log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
@@ -123,12 +129,13 @@ public class MarketDataService {
                 if (barsData != null) {
                     for (Map<String, Object> barMap : barsData) {
                         StockBar bar = new StockBar();
-
+                        String tStr = (String) barMap.get("t");
+                        OffsetDateTime odt = OffsetDateTime.parse(tStr);
                         // Mapping field เอง manual
 
                         // เวลา (Time) - อันเดิมถูกแล้วถ้า String เป็น format ISO-8601
-                        bar.setT(OffsetDateTime.parse((String) barMap.get("t")));
-
+                        //bar.setT(OffsetDateTime.parse((String) barMap.get("t")));
+                        bar.setT(odt.withOffsetSameInstant(ZoneOffset.of("+07:00")));
                         // ราคา (Prices) - ต้องแปลงเป็น Double
                         bar.setO(Double.valueOf(barMap.get("o").toString())); // Open
                         bar.setH(Double.valueOf(barMap.get("h").toString())); // High
