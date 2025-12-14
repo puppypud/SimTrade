@@ -4,17 +4,24 @@ import { StockBar, BuyStockRequest,AccountInfo} from '@/src/app/types/broker'; /
 export const brokerService = {
   // 1. ซื้อหุ้น (ตรงกับ @PostMapping("/order/user"))
   buyStock: async (data: BuyStockRequest) => {
-    // เนื่องจาก Backend รับเป็น @RequestParam (Query Param) ไม่ใช่ JSON Body
-    // เราต้องส่งเป็น params หรือ FormData (แต่ดูจาก Java โค้ดน่าจะเป็น Query Param)
+    const params: any = {
+      accountId: data.accountId,
+      symbol: data.symbol,
+      orderSide: data.OrderSide,
+      orderType: data.OrderType,
+      timeInForce: data.TimeInForce
+    };
+
+    if (data.notional && data.notional > 0) {
+      params.notional = data.notional;
+      params.type = 'MARKET'; 
+      params.tif = 'DAY';
+    } else {
+      params.qty = data.qty;
+    }
+
     const response = await apiClient.post('/broker/order/user', null, {
-      params: {
-        accountId: data.accountId,
-        symbol: data.symbol,
-        qty: data.qty,
-        OrderSide: data.OrderSide,
-        OrderType: data.OrderType,
-        TimeInForce: data.TimeInForce
-      }
+      params: params
     });
     return response.data;
   },

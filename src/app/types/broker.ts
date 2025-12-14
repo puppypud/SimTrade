@@ -14,10 +14,11 @@ export interface StockBar {
 export interface BuyStockRequest {     //กลับมาแก้ OrderSide OrderType TimeInForce ที่หลัง 
   accountId: string;
   symbol: string;
-  qty: number;
-  OrderSide: 'BUY' | 'SELL';
-  OrderType: 'MARKET' | 'LIMIT';
-  TimeInForce: 'DAY' | 'GTC';
+  qty?: number;
+  notional?: number;
+  OrderSide: 'BUY' | 'SELL' ;
+  OrderType: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT' | 'TRAILING_STOP';
+  TimeInForce: 'DAY' | 'GTC' | 'IOC' | 'FOK';
 }
 
 // สำหรับ Response (ถ้ามี)
