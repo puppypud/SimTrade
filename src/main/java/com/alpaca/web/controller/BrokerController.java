@@ -2,10 +2,8 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
-import net.jacobpeterson.alpaca.openapi.marketdata.ApiException;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import org.slf4j.Logger;
-import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,14 +17,14 @@ import java.util.UUID;
 @RestController
 @RequestMapping("broker")
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost"})
-public class broker_user {
+public class BrokerController {
 
-    private final Logger log = LoggerFactory.getLogger(broker_user.class);
+    private final Logger log = LoggerFactory.getLogger(BrokerController.class);
     private final BrokerService brokerService;       // แนะนำให้ใช้ตัวเล็กนำหน้า (camelCase)
     private final MarketDataService marketDataService; // 1. เพิ่มตัวแปร Service
 
-    // 2. เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้  ต้องประกาศ@Service
-    public broker_user( BrokerService brokerService, MarketDataService marketDataService) {
+    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้  ต้องประกาศ@Service
+    public BrokerController(BrokerService brokerService, MarketDataService marketDataService) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
     }
@@ -36,7 +34,8 @@ public class broker_user {
     public ResponseEntity <?> buyStockForUser(
         @RequestParam("accountId") UUID accountId,
         @RequestParam("symbol") String symbol,
-        @RequestParam("qty") BigDecimal qty,
+        @RequestParam(value = "qty", required = false) BigDecimal qty,          // แก้เป็น optional
+        @RequestParam(value = "notional", required = false) BigDecimal notional,
         @RequestParam("OrderSide")String orderSideStr,
         @RequestParam("OrderType")String orderTypeStr,
         @RequestParam("TimeInForce")String timeInForceStr) throws Exception{
@@ -52,15 +51,21 @@ public class broker_user {
             Order order = brokerService.createOrder(
                     accountId,
                     symbol.toUpperCase(),
-                    qty,
+                    qty,        // ส่ง qty (อาจเป็น null)
+                    notional,   // ส่ง notional (อาจเป็น null)
                     side,
                     type,
                     Time
             );
-            return ResponseEntity.ok("Order created successfully"+order.toString());
-        }catch (Exception e){
-            e.printStackTrace();
-            return ResponseEntity.internalServerError().body("error"+e.getMessage());
+            return ResponseEntity.ok("Order created successfully: " + order.getId());
+
+        } catch (IllegalArgumentException e) {
+            // ดักจับ Error กรณีใส่มาทั้งคู่ หรือไม่ใส่เลย (จาก logic ใน service)
+            log.error("Validation Error: {}", e.getMessage());
+            return ResponseEntity.badRequest().body("❌ Validation Error: " + e.getMessage());
+        } catch (Exception e) {
+            log.error("Internal Error", e);
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
 
@@ -84,12 +89,12 @@ public class broker_user {
             @PathVariable("orderId") String orderId
     ){
         try {
-            getSingleOrder(accountId, orderId);
-            return ResponseEntity.ok("order successfully getting" + orderId);
-        }catch (Exception e){
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Order ID: " + orderId + " not found. Error: " + e.getMessage());
+            // ต้องเรียก Service ไม่ใช่เรียก Method ตัวเอง
+            Order order = brokerService.getSingleOrder(accountId, orderId);
+            return ResponseEntity.ok(order);
+        } catch (Exception e){
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Order ID: " + orderId + " not found.");
         }
-
     }
 
     @GetMapping("/order/get/all-order")

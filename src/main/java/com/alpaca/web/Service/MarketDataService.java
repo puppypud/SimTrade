@@ -44,62 +44,61 @@ public class MarketDataService {
     public List<StockBar> getStockBars(String symbol,String viewType) {
         String cleanSymbol = symbol.trim();
         // --- 1. คำนวณ Start Date และ Timeframe ตาม viewType ---
-        OffsetDateTime endTime = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime startTime; // ประกาศไว้ก่อน
+
+        ZonedDateTime startTime;
         String timeframe;
         int limit = 1000; // default
         log.info("Fetching StockBars (Manual REST) for: " + cleanSymbol);
         // ดึงเวลาปัจจุบันในนิวยอร์ก
         ZonedDateTime nowNY = ZonedDateTime.now(NY_ZONE);
+        ZonedDateTime targetOpen = nowNY.toLocalDate().atTime(9, 30).atZone(NY_ZONE);
         switch (viewType.toUpperCase()) {
 
             case "1D":
                 timeframe = "1Min";
-                //startTime = endTime.minusDays(1);
-                ZonedDateTime targetOpen = nowNY.toLocalDate().atTime(9,30).atZone(NY_ZONE);
                 // ถอยไปเริ่มที่ "เมื่อวาน" เวลา 09:30 แทน
-                startTime = targetOpen.minusDays(1).toOffsetDateTime();
+                startTime = targetOpen.minusDays(2);
                 break;
 
             case "1W":
                 // ดู 1 สัปดาห์
                 timeframe = "1Hour"; // หรือ 1Hour
-                startTime = endTime.minusWeeks(1);
+                startTime = targetOpen.minusWeeks(1);
                 break;
 
             case "5D":
                 timeframe = "15Min";
-                startTime = endTime.minusDays(5);
+                startTime = targetOpen.minusDays(5);
                 break;
 
             case "1M":
                 timeframe = "1Day";
-                startTime = endTime.minusMonths(1);
+                startTime = targetOpen.minusMonths(1);
                 break;
 
             case "6M":
                 timeframe = "1Day";
-                startTime = endTime.minusMonths(6);
+                startTime = targetOpen.minusMonths(6);
                 break;
 
             case "1Y":
                 timeframe = "1Day";
-                startTime = endTime.minusYears(1);
+                startTime = targetOpen.minusYears(1);
                 break;
 
             case "5Y":
                 timeframe = "1Month";
-                startTime = endTime.minusYears(5);
+                startTime = targetOpen.minusYears(5);
                 break;
 
             default: // ค่า Default
                 timeframe = "2min";
-                startTime = endTime.minusDays(1);
+                startTime = targetOpen.minusDays(2);
                 break;
         }
-
+        OffsetDateTime startZDT = startTime.toOffsetDateTime();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
-        String rawDate = startTime.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
+        String rawDate = startZDT.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
 
         log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
@@ -148,6 +147,7 @@ public class MarketDataService {
                         String volStr = barMap.get("v").toString();
                         bar.setV(Double.valueOf(volStr).longValue());
                         stockBars.add(bar);
+
                     }
                 }
                 return stockBars;

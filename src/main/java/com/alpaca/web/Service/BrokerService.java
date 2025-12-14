@@ -1,6 +1,7 @@
 package com.alpaca.web.Service;
 
 import io.github.cdimascio.dotenv.Dotenv;
+import jakarta.annotation.PostConstruct;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType;
 
@@ -50,10 +51,18 @@ public class BrokerService {
     Dotenv dotenv = Dotenv.load();
     String brokerApiKey = dotenv.get("BROKER_API_KEY");
     String brokerApiSecret = dotenv.get("BROKER_API_SECRET");
+    private AlpacaAPI brokerAPI;
 
-    // ⭐ นี่คือจุดสำคัญ! สร้าง Bean เพื่อส่งไปให้ Controller ใช้งาน
-    private AlpacaAPI brokerAPI() {
-        return new AlpacaAPI(brokerApiKey, brokerApiSecret, BrokerAPIEndpointType.SANDBOX);
+    @PostConstruct
+    public void init() {
+        String brokerApiKey = dotenv.get("BROKER_API_KEY");
+        String brokerApiSecret = dotenv.get("BROKER_API_SECRET");
+        this.brokerAPI = new AlpacaAPI(brokerApiKey, brokerApiSecret, BrokerAPIEndpointType.SANDBOX);
+        log.info("Alpaca Broker API Initialized");
+    }
+
+    public AlpacaAPI getApi() {
+        return this.brokerAPI;
     }
 
     private static final Logger log = LoggerFactory.getLogger(BrokerService.class);
@@ -64,14 +73,12 @@ public class BrokerService {
     String savedAccountId = "cccc73bb-c37e-4987-b059-075da0dfee8a"; //เป็น hardcode สำหรับ user
     String AccountNumber = "9967544SW"; //hardcode สำหรับ user
 
-    // --- ฟังก์ชันสำหรับขั้นตอนที่ 1: สร้าง User และปริ้นท์ ID ---
-    public static void createAndPrintID(AlpacaAPI api) {
+    public Account createAccount() {
         try {
-            System.out.println("กำลังสร้างบัญชีลูกค้าใหม่...");
+            log.info("กำลังสร้างบัญชีลูกค้าใหม่...");
 
-            // ข้อมูลสมมติ (ใน Sandbox ใช้ข้อมูลปลอมได้ แต่ Format ต้องถูก)
             Contact contact = new Contact()
-                    .emailAddress("user_test_" + System.currentTimeMillis() + "@example.com")
+                    .emailAddress("user_" + System.currentTimeMillis() + "@example.com")
                     .phoneNumber("555-666-7777")
                     .streetAddress(Arrays.asList("123 Test St"))
                     .city("New York").state("NY").postalCode("10001");
@@ -91,169 +98,85 @@ public class BrokerService {
                     .identity(identity)
                     .disclosures(disclosures)
                     .agreements(Arrays.asList(
-                            // ใน .agreements(Arrays.asList(...))
-                            new Agreement()
-                                    .agreement(AgreementType.MARGIN_AGREEMENT) // ✅ ใช้ Enum ของ AgreementType (ชื่ออาจเป็น MARGIN หรือ MARGIN_AGREEMENT ลองกด . ดูครับ)
-                                    .signedAt(OffsetDateTime.now())            // ✅ ส่งเป็น Object เวลา (ไม่ต้องแปลงเป็น String)
-                                    .ipAddress("127.0.0.1"),
-
-                            new Agreement()
-                                    .agreement(AgreementType.ACCOUNT_AGREEMENT)
-                                    .signedAt(OffsetDateTime.now())
-                                    .ipAddress("127.0.0.1"),
-
-                            new Agreement()
-                                    .agreement(AgreementType.CUSTOMER_AGREEMENT)
-                                    .signedAt(OffsetDateTime.now())
-                                    .ipAddress("127.0.0.1")
+                            new Agreement().agreement(AgreementType.MARGIN_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.ACCOUNT_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.CUSTOMER_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1")
                     ));
 
-            // ยิง API ไปสร้าง
-            Account account = api.broker().accounts().createAccount(request);
-
-            System.out.println("\n########################################");
-            System.out.println("Successful:");
-            System.out.println("Account ID: " + account.getId().toString());
-            System.out.println("########################################\n");
+            Account account = brokerAPI.broker().accounts().createAccount(request);
+            log.info("Success: Account ID: {}", account.getId());
+            return account;
 
         } catch (Exception e) {
-            System.err.println("fail: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Create account fail", e);
+            throw new RuntimeException(e);
         }
     }
 
     // --- ฟังก์ชันสำหรับขั้นตอนที่ 2: สั่งซื้อหุ้นให้ User ---
-    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, OrderSide side, OrderType type, TimeInForce tif) throws  ApiException {
-
-        log.info("Creating Order: Account={} Symbol={} Qty={}", accountId, symbol, qty);
-        return brokerAPI().broker().trading().createOrderForAccount(
-                            accountId,
-                new CreateOrderRequest()
-                        .symbol(symbol)
-                        .qty(qty)
-                        .side(side)
-                        .type(type)
-                        .timeInForce(tif)
-        );
+    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif) throws ApiException {
+        log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
+        CreateOrderRequest request = new CreateOrderRequest()
+                .symbol(symbol)
+                .side(side);
+        if (qty != null && notional == null) {
+            request.qty(qty);
+            request.type(type);       // ใช้ Type ตามที่ส่งมา (Limit/Market)
+            request.timeInForce(tif); // ใช้ TIF ตามที่ส่งมา
+        } else if (notional != null && qty == null) {
+            request.notional(notional);
+            log.warn("Overriding OrderType to MARKET and TIF to DAY for Notional order");  //กฎของ Alpaca:ได้แค่ 2 เงื่อนไข คือ ราคาตลาด กับ ระยะเวลา 1 วัน
+            request.type(OrderType.MARKET);
+            request.timeInForce(TimeInForce.DAY);
+        } else {
+            throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' หรือ 'notional' ห้ามใส่ทั้งคู่หรือปล่อยว่าง");
+        }
+        return brokerAPI.broker().trading().createOrderForAccount(accountId, request);
     }
+
 
     // --- ฟังก์ชันสำหรับเติมเงินเข้าบัญชี (Journal Cash) ---
-    public static void fundAccount(AlpacaAPI api, String accountIdStr, double amount) {
-        try {
-            // 🔹 เอา Firm Account ID ที่หาได้มาใส่ตรงนี้
-            String firmAccountId = "f34e892f-10ab-3c84-810f-bcbb24f5b975";
-            System.out.println("money $" + amount + " acc: " + accountIdStr);
 
-            // ✅ แก้ไขตรงนี้: เปลี่ยน JournalData เป็น CreateJournalRequest
-            CreateJournalRequest journalRequest = new CreateJournalRequest()
-                    .entryType(JournalEntryType.JNLC) // ใส่เป็น String "JNLC" ได้เลย (หรือถ้ามี Enum ให้ใช้ CreateJournalRequest.EntryTypeEnum.JNLC)
-                    .toAccount(UUID.fromString(accountIdStr))
-                    .fromAccount(UUID.fromString(firmAccountId))
-                    .amount(String.valueOf(amount))
-                    .description("fixture:executed");
-
-            // ยิง API โอนเงิน
-            api.broker().journals().createJournal(journalRequest);
-
-            System.out.println("✅ เติมเงินสำเร็จ! พร้อมเทรดแล้ว");
-
-        } catch (Exception e) {
-            System.err.println("❌ เติมเงินไม่สำเร็จ: " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
 
     // ⭐ ฟังก์ชันเติมเงินเข้า Firm Account แบบถูกวิธี (ใช้ Funding API)
-    public static void fundFirmAccountProperly(AlpacaAPI api, double amount) {
+    public void fundAccount(UUID toAccountId, double amount) {
         try {
-            UUID firmId = UUID.fromString(FIRM_ACCOUNT_ID);
-            System.out.println("🏦 กำลังดำเนินการเติมเงินเข้า Firm Account (" + firmId + ")...");
+            log.info("Funding account {} with ${}", toAccountId, amount);
 
-            // -------------------------------------------------------
-            // 1. หา ACH Relationship เดิมก่อน (แก้ปัญหา 409 Conflict)
-            // -------------------------------------------------------
-            UUID relationshipId = null;
+            CreateJournalRequest journalRequest = new CreateJournalRequest()
+                    .entryType(JournalEntryType.JNLC)
+                    .toAccount(toAccountId)
+                    .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID)) // ใช้จากตัวแปร class
+                    .amount(String.valueOf(amount)) // แปลง double เป็น String เพราะ ต้องใช้ string
+                    .description("fixture:executed");
 
-            try {
-                // ดึงรายการ ACH Relationship ทั้งหมดของ Account นี้
-                List<ACHRelationship> existingRels = api.broker().funding().getAccountACHRelationships(firmId, null);
-
-                if (!existingRels.isEmpty()) {
-                    // ✅ กรณีเจอของเก่า: ใช้ ID ตัวแรกเลย
-                    ACHRelationship oldRel = existingRels.get(0);
-                    relationshipId = oldRel.getId();
-                    System.out.println("🔁 พบการเชื่อมต่อธนาคารเดิมอยู่แล้ว (ใช้ Relationship ID: " + relationshipId + ")");
-                }
-            } catch (Exception e) {
-                System.out.println("⚠️ ไม่สามารถดึงข้อมูล Relationship เดิมได้ (อาจจะยังไม่มี): " + e.getMessage());
-            }
-
-            // -------------------------------------------------------
-            // 2. ถ้ายังไม่มี ID (แปลว่ายังไม่เคยเชื่อม) -> ให้สร้างใหม่
-            // -------------------------------------------------------
-            if (relationshipId == null) {
-                System.out.println("🆕 ไม่พบการเชื่อมต่อเดิม กำลังสร้างใหม่...");
-
-                CreateACHRelationshipRequest bankData = new CreateACHRelationshipRequest()
-                        .accountOwnerName("Test Firm Admin")
-                        .bankAccountType(CreateACHRelationshipRequest.BankAccountTypeEnum.CHECKING)
-                        .bankAccountNumber("1234567890")
-                        .bankRoutingNumber("110000000") // Sandbox Magic Number
-                        .nickname("Sandbox Bank Link");
-
-                ACHRelationship newRel = api.broker().funding().createACHRelationshipForAccount(firmId, bankData);
-                relationshipId = newRel.getId();
-                System.out.println("🔗 สร้างการเชื่อมต่อใหม่สำเร็จ (Relationship ID: " + relationshipId + ")");
-            }
-
-            // -------------------------------------------------------
-            // 3. สั่งโอนเงิน (Transfer) โดยใช้ relationshipId ที่หามาได้
-            // -------------------------------------------------------
-            CreateTransferRequest transferData = new CreateTransferRequest()
-                    .transferType(TransferType.ACH)
-                    .relationshipId(relationshipId) // ✅ ใช้ ID ที่ถูกต้องแน่นอน
-                    .amount(BigDecimal.valueOf(amount))
-                    .direction(TransferDirection.INCOMING)
-                    .timing(TransferTiming.IMMEDIATE);
-
-            Transfer transfer = api.broker().funding().createTransferForAccount(firmId, transferData);
-
-            System.out.println("✅ ส่งคำสั่งโอนเงินสำเร็จ! (Transfer ID: " + transfer.getId() + ")");
-            System.out.println("💰 เงินจำนวน $" + amount + " จะเข้า Firm Account เร็วๆ นี้");
+            brokerAPI.broker().journals().createJournal(journalRequest);
+            log.info("ติมเงินสำเร็จ!");
 
         } catch (Exception e) {
-            System.err.println("❌ เติมเงินไม่สำเร็จ: " + e.getMessage());
-            e.printStackTrace();
+            log.error("เติมเงินไม่สำเร็จ", e);
         }
     }
 
     public void cancelOrderForAccount(UUID accountId, String orderId) throws Exception {
         log.info("cancelOrderForAccount accountId: " + accountId + " orderId: " + orderId);
-
-        brokerAPI().broker().trading().deleteOrderForAccount(
-                accountId,
-                orderId
-        );
-
+        brokerAPI.broker().trading().deleteOrderForAccount(accountId, orderId);
     }
 
     public Order getSingleOrder(UUID accountId, String orderId) throws Exception {
         log.info("OrderService: Retrieving single order {} for account {}", orderId, accountId);
 
-        return brokerAPI().broker().trading().getOrderForAccount(
-                accountId,
-                orderId
-        );
+        return brokerAPI.broker().trading().getOrderForAccount(accountId, orderId);
     }
 
-    public List<Order> getAllOrders(UUID accountId,String status , Integer limit ,String symbols) throws Exception {
+    public List<Order> getAllOrders(UUID accountId, String status, Integer limit, String symbols) throws Exception {
         log.info("getAllOrders accountId: " + accountId);
         log.info("getAllOrders status: " + status);
         log.info("getAllOrders limit: " + limit);
-        return brokerAPI().broker().trading().getAllOrdersForAccount(
-           accountId,
-           status,
-           limit,
+        return brokerAPI.broker().trading().getAllOrdersForAccount(
+                accountId,
+                status,
+                limit,
                 null,
                 null,
                 null,
@@ -266,12 +189,13 @@ public class BrokerService {
     }
 
     public TradeAccount getAccount(UUID accountId) {
-        log.info("getAccount accountId: " + accountId);
         try {
-            return brokerAPI().broker().accounts().getTradingAccount(accountId);
+            // หมายเหตุ: method getTradingAccount ของ Broker API คืนค่าเป็น TradeAccount
+            return brokerAPI.broker().accounts().getTradingAccount(accountId);
         } catch (ApiException e) {
-            log.error("getAccount accountId: " + accountId, e);
+            log.error("getAccount error", e);
             throw new RuntimeException(e);
         }
     }
 }
+
