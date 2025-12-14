@@ -31,20 +31,8 @@ export default function TradePage() {
     <div className="p-10 bg-gray-50 min-h-screen text-black font-sans">
       <div className="max-w-6xl mx-auto">
         
-        {/* Input Search Example (ถ้ายังต้องการมี) */}
-        {/* <div className="mb-6">
-             <input 
-                type="text" 
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Search symbol (e.g. AAPL)..."
-                className="w-full p-3 rounded-xl border border-gray-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-             />
-        </div> */}
-
         {currentSymbol ? (
-            // ✅ เหลือแค่นี้! Component จัดการตัวเองทั้งหมด
+            //Component จัดการตัวเองทั้งหมด
             <StockLWChart symbol={currentSymbol} />
         ) : (
             <div className="h-[400px] flex flex-col items-center justify-center text-gray-400 bg-white rounded-3xl shadow-xl border border-gray-100">
