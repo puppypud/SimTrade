@@ -7,9 +7,9 @@ export const brokerService = {
     const params: any = {
       accountId: data.accountId,
       symbol: data.symbol,
-      orderSide: data.OrderSide,
-      orderType: data.OrderType,
-      timeInForce: data.TimeInForce
+      OrderSide: data.OrderSide,
+      OrderType: data.OrderType,
+      TimeInForce: data.TimeInForce
     };
 
     if (data.notional && data.notional > 0) {

@@ -24,9 +24,7 @@ interface StockLWChartProps {
 }
 
 const StockLWChart = ({ symbol }: StockLWChartProps) => {
-  // ---------------------------------------------------------------------------
-  // 1. STATE MANAGEMENT (ย้ายมาจาก Page)
-  // ---------------------------------------------------------------------------
+
   const [viewType, setViewType] = useState("1D");
   const [chartData, setChartData] = useState<[number, number][]>([]);
   const [dayOpenPrice, setDayOpenPrice] = useState<number | undefined>(
