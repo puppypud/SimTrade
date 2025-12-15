@@ -142,4 +142,17 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/positions/{accountId}")
+    public ResponseEntity<?> getPositionInfo(
+            @PathVariable("accountId") UUID accountId
+    ){
+        try{
+            List<Position> positions = brokerService.getPositions(accountId);
+            return ResponseEntity.ok(positions);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("❌ Failed to get positions. Error: " + e.getMessage());
+        }
+    }
 }

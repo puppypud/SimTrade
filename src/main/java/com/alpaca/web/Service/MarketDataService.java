@@ -57,7 +57,7 @@ public class MarketDataService {
             case "1D":
                 timeframe = "1Min";
                 // ถอยไปเริ่มที่ "เมื่อวาน" เวลา 09:30 แทน
-                startTime = targetOpen.minusDays(2);
+                startTime = targetOpen.minusDays(1);
                 break;
 
             case "1W":

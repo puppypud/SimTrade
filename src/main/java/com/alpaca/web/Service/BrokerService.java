@@ -197,5 +197,10 @@ public class BrokerService {
             throw new RuntimeException(e);
         }
     }
+
+    public List<Position> getPositions(UUID accountId) throws Exception {   //ดึง order หรือ หุ้นที่ user ถืออยู่
+        log.info("getPositions accountId: " + accountId);
+        return brokerAPI.broker().trading().getPositionsForAccount(accountId);
+    }
 }
 
