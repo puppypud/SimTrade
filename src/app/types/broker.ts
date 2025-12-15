@@ -42,3 +42,22 @@ export interface AccountInfo {
   daytradeCount: number;        // จำนวนครั้งที่เทรดจบในวัน
   createdAt: string;
 }
+export interface Position {
+  assetId: string;
+  symbol: string;
+  exchange: string;
+  assetClass: string;
+  avgEntryPrice: string; // API ส่งมาเป็น String
+  qty: string;           // API ส่งมาเป็น String
+  side: string;
+  marketValue: number;
+  costBasis: number;
+  unrealizedPl: number;
+  unrealizedPlpc: number;
+  unrealizedIntradayPl: number;
+  unrealizedIntradayPlpc: number;
+  currentPrice: number;
+  lastdayPrice: number;
+  changeToday: number;
+  
+}
