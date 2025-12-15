@@ -158,7 +158,7 @@ public class BrokerService {
                     .description("fixture:executed");
 
             brokerAPI.broker().journals().createJournal(journalRequest);
-            log.info("ติมเงินสำเร็จ!");
+            log.info("เติมเงินสำเร็จ!");
 
         } catch (Exception e) {
             log.error("เติมเงินไม่สำเร็จ", e);
@@ -208,6 +208,19 @@ public class BrokerService {
     public List<Position> getPositions(UUID accountId) throws Exception {   //ดึง order หรือ หุ้นที่ user ถืออยู่
         log.info("getPositions accountId: " + accountId);
         return brokerAPI.broker().trading().getPositionsForAccount(accountId);
+    }
+
+    public List<Account> getAllAccounts() throws Exception {
+        log.info("Admin: Fetching all accounts...");
+
+        return brokerAPI.broker().accounts().getAllAccounts(
+                null, // query (Search by name/email)
+                null, // createdAfter
+                null, // createdBefore
+                null, // status (เช่น "ACTIVE", "ACCOUNT_UPDATED")
+                "desc", // sort (desc = ใหม่สุดขึ้นก่อน)
+                "contact,identity"
+        );
     }
 }
 

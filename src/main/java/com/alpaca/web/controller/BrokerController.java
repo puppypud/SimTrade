@@ -190,4 +190,29 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/admin/users")
+    public ResponseEntity<?> getAllUsers() {
+        try {
+            // เรียกใช้ Service ที่เราเพิ่งสร้าง
+            List<Account> accounts = brokerService.getAllAccounts();
+            return ResponseEntity.ok(accounts);
+        } catch (Exception e) {
+            log.error("Failed to fetch all users", e);
+            return ResponseEntity.internalServerError().body("❌ Error fetching users: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/create-account")
+    public ResponseEntity<?> createNewAccount() {
+        try {
+            // เรียกใช้ method ที่คุณเขียนไว้ใน Service
+            Account newAccount = brokerService.createAccount();
+
+            // ส่งข้อมูล Account ที่สร้างเสร็จแล้วกลับไปให้คนเรียก
+            return ResponseEntity.ok(newAccount);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error creating account: " + e.getMessage());
+        }
+    }
 }
