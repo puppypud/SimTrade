@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -31,22 +32,38 @@ public class BrokerController {
 
 
     @PostMapping("/order/user")
-    public ResponseEntity <?> buyStockForUser(
-        @RequestParam("accountId") UUID accountId,
-        @RequestParam("symbol") String symbol,
-        @RequestParam(value = "qty", required = false) BigDecimal qty,          // แก้เป็น optional
-        @RequestParam(value = "notional", required = false) BigDecimal notional,
-        @RequestParam("OrderSide")String orderSideStr,
-        @RequestParam("OrderType")String orderTypeStr,
-        @RequestParam("TimeInForce")String timeInForceStr) throws Exception{
-
+    public ResponseEntity<?> buyStockForUser(
+            @RequestParam("accountId") UUID accountId,
+            @RequestParam("symbol") String symbol,
+            @RequestParam(value = "qty", required = false) BigDecimal qty,          // แก้เป็น optional
+            @RequestParam(value = "notional", required = false) BigDecimal notional,
+            @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice,
+            @RequestParam("OrderSide") String orderSideStr,
+            @RequestParam("OrderType") String orderTypeStr,
+            @RequestParam("TimeInForce") String timeInForceStr) throws Exception {
         try {
+            // --- เริ่มต้น Validation ---
+            // เรียกใช้ Service ภายใน (ไม่ได้ยิงผ่าน HTTP) เพื่อเช็คสภาพคล่อง
+            Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
+
+            // ถ้าเป็นคำสั่งซื้อ (BUY) และเป็น Market Order ลองเช็คว่ามีคนขายไหม (Ask > 0)
+            if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
+                if (quote.containsKey("askPrice")) {
+                    double currentAsk = Double.parseDouble(quote.get("askPrice").toString());
+                    // ถ้า Ask เป็น 0 แปลว่าไม่มีคนขาย หรือตลาดปิด
+                    if (currentAsk == 0) {
+                        return ResponseEntity.badRequest().body("❌ ไม่สามารถซื้อได้ในขณะนี้ (ไม่มีสภาพคล่อง/ตลาดปิด)");
+                    }
+                }
+            }
+            // --- จบ Validation ---
+
             OrderSide side = OrderSide.valueOf(orderSideStr);
             OrderType type = OrderType.valueOf(orderTypeStr);
             TimeInForce Time = TimeInForce.valueOf(timeInForceStr);
 
-            log.info("OrderSide "+side+" "+type+" "+Time);
-            log.info("order is "+side+" "+" to account is " + accountId);
+            log.info("OrderSide " + side + " " + type + " " + Time);
+            log.info("order is " + side + " " + " to account is " + accountId);
 
             Order order = brokerService.createOrder(
                     accountId,
@@ -55,7 +72,8 @@ public class BrokerController {
                     notional,   // ส่ง notional (อาจเป็น null)
                     side,
                     type,
-                    Time
+                    Time,
+                    limitPrice
             );
             return ResponseEntity.ok("Order created successfully: " + order.getId());
 
@@ -70,47 +88,47 @@ public class BrokerController {
     }
 
     @PostMapping("/order/cancel")
-    public ResponseEntity <?> cancelOrderForAccount(
+    public ResponseEntity<?> cancelOrderForAccount(
             @RequestParam("accountId") UUID accountId,
-            @RequestParam("orderId")  String orderId){
+            @RequestParam("orderId") String orderId) {
         log.info("cancelOrderForAccount accountId: " + accountId + " orderId: " + orderId);
-        try{
+        try {
             brokerService.cancelOrderForAccount(accountId, orderId);
             return ResponseEntity.ok("order successfully cancelled" + orderId);
-        }catch (Exception e){
-            log.error("error"+e.getMessage());
+        } catch (Exception e) {
+            log.error("error" + e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Cancellation Failed. Error: " + e.getMessage());
         }
     }
 
     @GetMapping("/order/{orderId}")
-    public ResponseEntity <?> getSingleOrder(
-            @RequestParam("accountId")UUID accountId,
+    public ResponseEntity<?> getSingleOrder(
+            @RequestParam("accountId") UUID accountId,
             @PathVariable("orderId") String orderId
-    ){
+    ) {
         try {
             // ต้องเรียก Service ไม่ใช่เรียก Method ตัวเอง
             Order order = brokerService.getSingleOrder(accountId, orderId);
             return ResponseEntity.ok(order);
-        } catch (Exception e){
+        } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Order ID: " + orderId + " not found.");
         }
     }
 
     @GetMapping("/order/get/all-order")
-    public ResponseEntity <?> getAllOrders(
+    public ResponseEntity<?> getAllOrders(
             @RequestParam("accountId") UUID accountId,
-            @RequestParam(value = "status", required = false,defaultValue = "all") String status,
-            @RequestParam(value = "limit", required = false,defaultValue = "50" ) Integer limit,
+            @RequestParam(value = "status", required = false, defaultValue = "all") String status,
+            @RequestParam(value = "limit", required = false, defaultValue = "50") Integer limit,
             @RequestParam(value = "symbols", required = false) String symbols
 
-    ){
+    ) {
 
         try {
 
-            List<Order> orders = brokerService.getAllOrders(accountId,status,limit,symbols);
+            List<Order> orders = brokerService.getAllOrders(accountId, status, limit, symbols);
             return ResponseEntity.ok(orders);
-        }catch (Exception e){
+        } catch (Exception e) {
             log.error("Failed to get all orders for account {}", accountId, e);
             return ResponseEntity.internalServerError().body("❌ Failed to retrieve orders. Error: " + e.getMessage());
         }
@@ -123,7 +141,7 @@ public class BrokerController {
             @RequestParam("viewType") String viewType
     ) {
         try {
-            List<StockBar> stockBars = marketDataService.getStockBars(symbols,viewType);
+            List<StockBar> stockBars = marketDataService.getStockBars(symbols, viewType);
             return ResponseEntity.ok(stockBars);
 
         } catch (Exception e) {
@@ -146,13 +164,30 @@ public class BrokerController {
     @GetMapping("/positions/{accountId}")
     public ResponseEntity<?> getPositionInfo(
             @PathVariable("accountId") UUID accountId
-    ){
-        try{
+    ) {
+        try {
             List<Position> positions = brokerService.getPositions(accountId);
             return ResponseEntity.ok(positions);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("❌ Failed to get positions. Error: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/quote")
+    public ResponseEntity<?> getLatestQuote(
+            @RequestParam("symbol") String symbol) {
+        try {
+            // เรียก snapshot ทีเดียวได้ครบ
+            Map<String, Object> data = marketDataService.getLatestQuote(symbol);
+
+            if (data.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ ไม่พบข้อมูลหุ้น: " + symbol);
+            }
+            return ResponseEntity.ok(data);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
 }

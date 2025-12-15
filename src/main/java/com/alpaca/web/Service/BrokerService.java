@@ -114,7 +114,7 @@ public class BrokerService {
     }
 
     // --- ฟังก์ชันสำหรับขั้นตอนที่ 2: สั่งซื้อหุ้นให้ User ---
-    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif) throws ApiException {
+    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ) throws ApiException {
         log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
         CreateOrderRequest request = new CreateOrderRequest()
                 .symbol(symbol)
@@ -123,6 +123,13 @@ public class BrokerService {
             request.qty(qty);
             request.type(type);       // ใช้ Type ตามที่ส่งมา (Limit/Market)
             request.timeInForce(tif); // ใช้ TIF ตามที่ส่งมา
+            if (type == OrderType.LIMIT || type == OrderType.STOP_LIMIT) {
+                if (limitPrice != null) {
+                    request.limitPrice(limitPrice);
+                } else {
+                    throw new IllegalArgumentException("Limit Order ต้องใส่ราคา (Limit Price) เสมอ");
+                }
+            }
         } else if (notional != null && qty == null) {
             request.notional(notional);
             log.warn("Overriding OrderType to MARKET and TIF to DAY for Notional order");  //กฎของ Alpaca:ได้แค่ 2 เงื่อนไข คือ ราคาตลาด กับ ระยะเวลา 1 วัน

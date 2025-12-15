@@ -41,14 +41,13 @@ public class MarketDataService {
     // 1. เพิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
     private final ZoneId NY_ZONE = ZoneId.of("America/New_York");
 
-    public List<StockBar> getStockBars(String symbol,String viewType) {
+    public List<StockBar> getStockBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim();
         // --- 1. คำนวณ Start Date และ Timeframe ตาม viewType ---
 
         ZonedDateTime startTime;
         String timeframe;
         int limit = 1000; // default
-        log.info("Fetching StockBars (Manual REST) for: " + cleanSymbol);
         // ดึงเวลาปัจจุบันในนิวยอร์ก
         ZonedDateTime nowNY = ZonedDateTime.now(NY_ZONE);
         ZonedDateTime targetOpen = nowNY.toLocalDate().atTime(9, 30).atZone(NY_ZONE);
@@ -92,7 +91,7 @@ public class MarketDataService {
                 break;
 
             default: // ค่า Default
-                timeframe = "2min";
+                timeframe = "2Min";
                 startTime = targetOpen.minusDays(2);
                 break;
         }
@@ -100,7 +99,8 @@ public class MarketDataService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
         String rawDate = startZDT.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
 
-        log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
+        //log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
+
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
         // URL: https://data.alpaca.markets/v2/stocks/{symbol}/bars?timeframe=1Day&limit={limit}&feed=iex
         String urlString = String.format(
@@ -164,5 +164,59 @@ public class MarketDataService {
         return Collections.emptyList();
     }
 
+    public Map<String, Object> getLatestQuote(String symbol) {
+        String cleanSymbol = symbol.trim().toUpperCase();
+
+        // ใช้ Endpoint snapshot (บังคับ feed=iex)
+        String urlString = String.format(
+                "https://data.alpaca.markets/v2/stocks/%s/snapshot?feed=iex",
+                cleanSymbol
+        );
+
+        URI uri = URI.create(urlString);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
+            // Alpaca Snapshot response structure: { "symbol": "AAPL", "latestTrade": {...}, "latestQuote": {...}, ... }
+            if (response.getBody() != null) {
+                Map<String, Object> body = response.getBody();
+
+                Map<String, Object> result = new java.util.HashMap<>();
+                result.put("symbol", body.get("symbol"));
+
+                // 1. ดึงข้อมูล Last Trade (สำหรับโชว์ราคาตัวใหญ่ให้ตรงกราฟ)
+                if (body.containsKey("latestTrade")) {
+                    Map<String, Object> trade = (Map<String, Object>) body.get("latestTrade");
+                    result.put("price", trade.get("p"));      // Price
+                    result.put("tradeTime", trade.get("t"));  // Time
+                }
+
+                // 2. ดึงข้อมูล Latest Quote (สำหรับโชว์ Bid/Ask)
+                if (body.containsKey("latestQuote")) {
+                    Map<String, Object> quote = (Map<String, Object>) body.get("latestQuote");
+                    result.put("askPrice", quote.get("ap"));
+                    result.put("askSize", quote.get("as"));
+                    result.put("bidPrice", quote.get("bp"));
+                    result.put("bidSize", quote.get("bs"));
+                }
+
+                // 3. (แถม) ข้อมูล % Change ของวัน (dailyBar) ถ้ามี
+                if (body.containsKey("dailyBar")) {
+                    Map<String, Object> daily = (Map<String, Object>) body.get("dailyBar");
+                    result.put("openPrice", daily.get("o"));
+                    // เอาไว้คำนวณ % change ที่ Frontend: (price - openPrice) / openPrice * 100
+                }
+
+                return result;
+            }
+        } catch (Exception e) {
+            log.error("❌ Error fetching snapshot for {}: {}", cleanSymbol, e.getMessage());
+        }
+        return Collections.emptyMap();
+    }
 
 }
