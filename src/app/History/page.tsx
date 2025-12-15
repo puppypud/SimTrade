@@ -2,6 +2,7 @@
 
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
+import CancelOrderButton from "@/src/app/components/features/cancelOrder"; // [เพิ่ม] import ปุ่ม
 
 const formatDate = (dateString: string) => {
   if (!dateString) return "-";
@@ -40,14 +41,24 @@ const getStatusColor = (status: string) => {
       return "bg-gray-50 text-gray-600 border-gray-200";
   }
 };
-
+// [เพิ่ม] รายชื่อสถานะที่อนุญาตให้กดยกเลิกได้
+const CANCELLABLE_STATUSES = [
+  "NEW",
+  "ACCEPTED",
+  "PENDING_NEW",
+  "ACCEPTED_FOR_BIDDING",
+  "PARTIALLY_FILLED",
+];
 export default async function HistoryPage() {
   const accountId = "cccc73bb-c37e-4987-b059-075da0dfee8a";
   let orders: Order[] = [];
 
   try {
     orders = await brokerService.getAllOrders(accountId);
-    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    orders.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } catch (e) {
     console.error("Failed to fetch orders", e);
     return (
@@ -62,7 +73,9 @@ export default async function HistoryPage() {
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Order History</h1>
-          <p className="text-gray-500 mt-1 text-sm">ประวัติคำสั่งซื้อขายย้อนหลัง</p>
+          <p className="text-gray-500 mt-1 text-sm">
+            ประวัติคำสั่งซื้อขายย้อนหลัง
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
@@ -70,19 +83,39 @@ export default async function HistoryPage() {
             <table className="w-full text-left text-sm text-gray-600">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-700">Date/Time</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">Symbol</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">Side / Type</th> {/* รวมหัวตาราง */}
-                  <th className="px-6 py-4 font-semibold text-gray-700">Status</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">Filled Qty</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">Avg Price</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">Total Value</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">
+                    Date/Time
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">
+                    Symbol
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">
+                    Side / Type
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">
+                    Status
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
+                    Filled Qty
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
+                    Avg Price
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
+                    Total Value
+                  </th>
+                  <th className="px-6 py-4 font-semibold text-gray-700 text-center">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {orders.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                    <td
+                      colSpan={8}
+                      className="px-6 py-12 text-center text-gray-400"
+                    >
                       ยังไม่มีประวัติการทำรายการ
                     </td>
                   </tr>
@@ -94,7 +127,9 @@ export default async function HistoryPage() {
                         : order.notional || 0;
 
                     const isBuy = order.side === "BUY";
-
+                    const canCancel = CANCELLABLE_STATUSES.includes(
+                      order.status
+                    );
                     return (
                       <tr
                         key={order.id}
@@ -105,8 +140,11 @@ export default async function HistoryPage() {
                           <div className="font-medium text-gray-900">
                             {formatDate(order.submittedAt)}
                           </div>
-                          {order.filledAt && order.status === 'FILLED' && (
-                             <div className="text-xs text-gray-400 mt-0.5">Filled at {new Date(order.filledAt).toLocaleTimeString()}</div>
+                          {order.filledAt && order.status === "FILLED" && (
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              Filled at{" "}
+                              {new Date(order.filledAt).toLocaleTimeString()}
+                            </div>
                           )}
                         </td>
 
@@ -121,24 +159,24 @@ export default async function HistoryPage() {
                         <td className="px-6 py-4">
                           <div className="flex flex-col items-start gap-1">
                             <div className="flex items-center">
-                                <span
-                                    className={`font-bold text-xs px-2.5 py-1 rounded-full border ${
-                                    isBuy
-                                        ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                        : "bg-red-50 text-red-600 border-red-100"
-                                    }`}
-                                >
-                                    {order.side}
-                                </span>
-                                <span className="text-xs text-gray-500 ml-2 font-semibold uppercase">
-                                    {order.orderType}
-                                </span>
+                              <span
+                                className={`font-bold text-xs px-2.5 py-1 rounded-full border ${
+                                  isBuy
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                    : "bg-red-50 text-red-600 border-red-100"
+                                }`}
+                              >
+                                {order.side}
+                              </span>
+                              <span className="text-xs text-gray-500 ml-2 font-semibold uppercase">
+                                {order.orderType}
+                              </span>
                             </div>
                             {/* แสดง Limit Price ถ้ามีค่า */}
                             {order.limitPrice && order.limitPrice > 0 && (
-                                <span className="text-xs text-gray-400 ml-1">
-                                   Peice is {formatCurrency(order.limitPrice)}
-                                </span>
+                              <span className="text-xs text-gray-400 ml-1">
+                                Peice is {formatCurrency(order.limitPrice)}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -158,7 +196,9 @@ export default async function HistoryPage() {
                         <td className="px-6 py-4 text-right font-mono">
                           {order.filledQty > 0 ? (
                             <span className="text-gray-900 font-medium">
-                              {new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(order.filledQty)}
+                              {new Intl.NumberFormat("en-US", {
+                                maximumFractionDigits: 4,
+                              }).format(order.filledQty)}
                             </span>
                           ) : (
                             <span className="text-gray-300">-</span>
@@ -179,6 +219,15 @@ export default async function HistoryPage() {
                         {/* 7. Total Value */}
                         <td className="px-6 py-4 text-right font-mono font-bold text-gray-800">
                           {totalValue > 0 ? formatCurrency(totalValue) : "-"}
+                        </td>
+                        {/* [เพิ่ม] ส่วนแสดงปุ่ม Cancel */}
+                        <td className="px-6 py-4 text-center">
+                          {canCancel && (
+                            <CancelOrderButton
+                              accountId={accountId}
+                              orderId={order.id}
+                            />
+                          )}
                         </td>
                       </tr>
                     );

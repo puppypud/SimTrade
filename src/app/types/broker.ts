@@ -103,3 +103,7 @@ export interface StockQuote {
   bidSize: number;
   openPrice?: number;   // ราคาเปิดวัน (Optional)
 }
+export interface cancelorder {
+  orderId: string;
+}
+ 

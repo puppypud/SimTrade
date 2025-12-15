@@ -93,4 +93,10 @@ export const brokerService = {
     });
     return response.data;
   },
+  cancelOrder: async (accountId: string, orderId: string) => {
+    const response = await apiClient.post('/broker/order/cancel', null, {
+      params: { accountId, orderId }
+    });
+    return response.data;
+  },
 };
