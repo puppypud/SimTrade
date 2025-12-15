@@ -1,7 +1,8 @@
+// src/app/History/page.tsx
+
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
 
-// ฟังก์ชันจัดรูปแบบวันที่ให้ดูง่าย (เช่น 15 Dec 2025, 14:42)
 const formatDate = (dateString: string) => {
   if (!dateString) return "-";
   return new Date(dateString).toLocaleString("en-GB", {
@@ -13,7 +14,6 @@ const formatDate = (dateString: string) => {
   });
 };
 
-// ฟังก์ชันจัดรูปแบบเงิน USD
 const formatCurrency = (amount: number | null) => {
   if (amount === null || amount === undefined) return "-";
   return new Intl.NumberFormat("en-US", {
@@ -23,7 +23,6 @@ const formatCurrency = (amount: number | null) => {
   }).format(amount);
 };
 
-// ฟังก์ชันเลือกสีป้าย Status
 const getStatusColor = (status: string) => {
   switch (status) {
     case "FILLED":
@@ -47,9 +46,7 @@ export default async function HistoryPage() {
   let orders: Order[] = [];
 
   try {
-    // ดึงข้อมูล Orders จาก Service
     orders = await brokerService.getAllOrders(accountId);
-    // เรียงลำดับจากใหม่ไปเก่า (อิงตาม createdAt)
     orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   } catch (e) {
     console.error("Failed to fetch orders", e);
@@ -75,7 +72,7 @@ export default async function HistoryPage() {
                 <tr>
                   <th className="px-6 py-4 font-semibold text-gray-700">Date/Time</th>
                   <th className="px-6 py-4 font-semibold text-gray-700">Symbol</th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">Side</th>
+                  <th className="px-6 py-4 font-semibold text-gray-700">Side / Type</th> {/* รวมหัวตาราง */}
                   <th className="px-6 py-4 font-semibold text-gray-700">Status</th>
                   <th className="px-6 py-4 font-semibold text-gray-700 text-right">Filled Qty</th>
                   <th className="px-6 py-4 font-semibold text-gray-700 text-right">Avg Price</th>
@@ -91,8 +88,6 @@ export default async function HistoryPage() {
                   </tr>
                 ) : (
                   orders.map((order) => {
-                    // คำนวณมูลค่ารวม: ถ้ามี filledQty และ filledAvgPrice ให้ใช้คูณกัน
-                    // ถ้าไม่มี ให้ใช้ notional (กรณีสั่งซื้อเป็นจำนวนเงิน)
                     const totalValue =
                       order.filledQty && order.filledAvgPrice
                         ? order.filledQty * order.filledAvgPrice
@@ -122,20 +117,30 @@ export default async function HistoryPage() {
                           </span>
                         </td>
 
-                        {/* 3. Side (Buy/Sell) */}
+                        {/* 3. Side & Type (รวม Limit Price ไว้ที่นี่แบบ Clean) */}
                         <td className="px-6 py-4">
-                          <span
-                            className={`font-bold text-xs px-2.5 py-1 rounded-full border ${
-                              isBuy
-                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                : "bg-red-50 text-red-600 border-red-100"
-                            }`}
-                          >
-                            {order.side}
-                          </span>
-                          <span className="text-xs text-gray-400 ml-2 uppercase">
-                            {order.orderType}
-                          </span>
+                          <div className="flex flex-col items-start gap-1">
+                            <div className="flex items-center">
+                                <span
+                                    className={`font-bold text-xs px-2.5 py-1 rounded-full border ${
+                                    isBuy
+                                        ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                        : "bg-red-50 text-red-600 border-red-100"
+                                    }`}
+                                >
+                                    {order.side}
+                                </span>
+                                <span className="text-xs text-gray-500 ml-2 font-semibold uppercase">
+                                    {order.orderType}
+                                </span>
+                            </div>
+                            {/* แสดง Limit Price ถ้ามีค่า */}
+                            {order.limitPrice && order.limitPrice > 0 && (
+                                <span className="text-xs text-gray-400 ml-1">
+                                   Peice is {formatCurrency(order.limitPrice)}
+                                </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* 4. Status */}
