@@ -1,18 +1,21 @@
-'use client';
+"use client";
 
-import React, { useEffect, useState } from 'react';
-import { brokerService } from '@/src/app/services/brokerService';
-import { Position } from '@/src/app/types/broker';
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation"; // Import router
+import { brokerService } from "@/src/app/services/brokerService";
+import { Position } from "@/src/app/types/broker";
+import Image from "next/image";
 
 interface PortfolioTableProps {
   accountId: string;
 }
 
 export default function PortfolioTable({ accountId }: PortfolioTableProps) {
+  const router = useRouter(); // Initialize router
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // State สำหรับจัดการการเปิด/ปิด (เก็บ assetId ของรายการที่เปิดอยู่)
+
+  // State สำหรับจัดการการเปิด/ปิด
   const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
 
   const toggleExpand = (id: string) => {
@@ -20,15 +23,20 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
   };
 
   // Helper Formats
-  const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(val);
 
-  const formatNumber = (val: number, digits = 2) => 
-    new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
+  const formatNumber = (val: number, digits = 2) =>
+    new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(val);
 
-  // Helper Percent (ค่าจาก Service คูณ 100 มาแล้ว แค่เติม %)
-  const formatPercent = (val: number) => 
-    val.toFixed(2) + '%';
+  const formatPercent = (val: number) => val.toFixed(2) + "%";
 
   useEffect(() => {
     const fetchPositions = async () => {
@@ -47,142 +55,223 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
     }
   }, [accountId]);
 
-  if (loading) return <div className="p-10 text-center text-gray-500 animate-pulse">Loading Assets...</div>;
-  if (positions.length === 0) return <div className="p-10 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">No assets in portfolio.</div>;
+  // คำนวณมูลค่ารวมของพอร์ตเพื่อใช้หา % Weight
+  const totalPortfolioValue = positions.reduce(
+    (sum, pos) => sum + pos.marketValue,
+    0
+  );
+
+  if (loading)
+    return (
+      <div className="p-10 text-center text-gray-500 animate-pulse">
+        Loading Assets...
+      </div>
+    );
+  if (positions.length === 0)
+    return (
+      <div className="p-10 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">
+        No assets in portfolio.
+      </div>
+    );
 
   return (
     <div className="space-y-4">
-       {/* Header Control (Optional) */}
-       <div className="flex justify-between items-center px-2 mb-2">
-            <h2 className="text-lg font-bold text-gray-800">My Assets ({positions.length})</h2>
-            <button className="text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
-                เรียงตาม: มูลค่าสินทรัพย์ ▼
-            </button>
-        </div>
+      {/* Header Control */}
+      <div className="flex justify-between items-center px-2 mb-2">
+        <h2 className="text-lg font-bold text-gray-800">
+          My Assets ({positions.length})
+        </h2>
+        <button className="text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
+          เรียงตาม: มูลค่าสินทรัพย์ ▼
+        </button>
+      </div>
 
       {positions.map((pos) => {
         // Logic การแสดงผลสี
         const isProfit = pos.unrealizedPl >= 0;
-        const plColor = isProfit ? 'text-green-600' : 'text-red-500';
+        const plColor = isProfit ? "text-green-600" : "text-red-500";
         const isDayProfit = pos.changeToday >= 0;
-        const dayColor = isDayProfit ? 'text-green-600' : 'text-red-500';
-        
+        const dayColor = isDayProfit ? "text-green-600" : "text-red-500";
+
         const isExpanded = expandedAssetId === pos.assetId;
 
-        // คำนวณค่าเพิ่มเติม (ถ้าต้องการ THB)
-        const approxThb = pos.marketValue * 34.5; // เรทสมมติ
+        // คำนวณค่าเพิ่มเติม
+        const approxThb = pos.marketValue * 34.5;
         const totalCost = pos.avgEntryPrice * pos.qty;
 
+        // คำนวณ % Weight
+        const portfolioWeight =
+          totalPortfolioValue > 0
+            ? (pos.marketValue / totalPortfolioValue) * 100
+            : 0;
+
         return (
-          <div 
-            key={pos.assetId} 
+          <div
+            key={pos.assetId}
             className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md 
-              ${isExpanded ? 'border-blue-400 ring-1 ring-blue-100 shadow-blue-100' : 'border-gray-200'}`}
+              ${
+                isExpanded
+                  ? "border-blue-400 ring-1 ring-blue-100 shadow-blue-100"
+                  : "border-gray-200"
+              }`}
           >
-            {/* 1. Header Row (คลิกเพื่อเปิด/ปิด) */}
-            <div 
+            {/* 1. Header Row */}
+            <div
               onClick={() => toggleExpand(pos.assetId)}
               className="p-5 flex justify-between items-center cursor-pointer select-none"
             >
               {/* Left: Symbol Info & Logo */}
               <div className="flex items-center space-x-4">
                 <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
-                    {/* ใช้ Logo API หรือตัวอักษรย่อ */}
-                    <img 
-                      src={`https://logo.clearbit.com/${pos.symbol}.com`} 
-                      onError={(e) => { 
-                        (e.target as HTMLImageElement).style.display = 'none';
-                        (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                      }}
-                      alt={pos.symbol}
-                      className="w-full h-full object-cover"
-                    />
-                    {/* Fallback ถ้าโหลดรูปไม่ได้ */}
-                    <span className="hidden text-xs font-bold text-gray-400">{pos.symbol.substring(0,2)}</span>
+                  <img
+                    src={`https://logo.clearbit.com/${pos.symbol}.com`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                      (
+                        e.target as HTMLImageElement
+                      ).nextElementSibling?.classList.remove("hidden");
+                    }}
+                    alt={pos.symbol}
+                    className="w-full h-full object-cover"
+                  />
+                  <span className="hidden text-xs font-bold text-gray-400">
+                    {pos.symbol.substring(0, 2)}
+                  </span>
                 </div>
                 <div>
-                  <div className="font-bold text-gray-900 text-lg">{pos.symbol}</div>
+                  <div className="font-bold text-gray-900 text-lg">
+                    {pos.symbol}
+                  </div>
                   <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
-                     <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-medium">{pos.exchange}</span>
-                     <span className="flex items-center gap-1">
-                        <span className="text-gray-400">Day:</span>
-                        <span className={dayColor}>
-                            {isDayProfit ? '+' : ''}{formatPercent(pos.changeToday)}
-                        </span>
-                     </span>
+                    {/* แก้ไขตรงนี้: เปลี่ยน exchange เป็น % Weight + Icon */}
+                    <div className="flex items-center gap-1.5 mr-2">
+                      {/* Pie Chart Icon */}
+                      <Image
+                        src="/pie-chart.png"
+                        alt="Portfolio Weight"
+                        width={16}
+                        height={16}
+                        className="w-2.5 h-2.5" // ใส่ opacity-60 ถ้าอยากให้สีดูจางลงเหมือน text-gray-400
+                      />
+                      {/* Weight Percent (Bold & Larger) */}
+                      <span className="text-black font-medium text-xs">
+                        {portfolioWeight.toFixed(2)}%
+                      </span>
+                    </div>
+
+                    <span className="flex items-center gap-1">
+                      <span className="text-gray-400">Day:</span>
+                      <span className={dayColor}>
+                        {isDayProfit ? "+" : ""}
+                        {formatPercent(pos.changeToday)}
+                      </span>
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Center: Market Value (ซ่อนใน Mobile) */}
+              {/* Center: Market Value */}
               <div className="text-right hidden sm:block">
-                 <div className="font-bold text-gray-900">{formatCurrency(pos.marketValue)}</div>
-                 <div className="text-xs text-gray-400">≈ {formatNumber(approxThb)} THB</div>
+                <div className="font-bold text-gray-900">
+                  {formatCurrency(pos.marketValue)}
+                </div>
+                <div className="text-xs text-gray-400">
+                  ≈ {formatNumber(approxThb)} THB
+                </div>
               </div>
 
               {/* Right: Unrealized P/L */}
               <div className="text-right">
-                 <div className={`font-bold ${plColor} text-lg`}>
-                    {isProfit ? '+' : ''}{formatPercent(pos.unrealizedPlpc)}
-                 </div>
-                 <div className={`text-xs ${plColor} font-medium`}>
-                    ({isProfit ? '+' : ''}{formatCurrency(pos.unrealizedPl)})
-                 </div>
+                <div className={`font-bold ${plColor} text-lg`}>
+                  {isProfit ? "+" : ""}
+                  {formatPercent(pos.unrealizedPlpc)}
+                </div>
+                <div className={`text-xs ${plColor} font-medium`}>
+                  ({isProfit ? "+" : ""}
+                  {formatCurrency(pos.unrealizedPl)})
+                </div>
               </div>
             </div>
 
-            {/* 2. Expanded Details (ส่วนที่ขยายออกมา) */}
-            <div className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-               <div className="p-6">
-                  <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">
-                      
-                      {/* Row 1 */}
-                      <div>
-                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Holdings (Shares)</p>
-                         <p className="font-bold text-gray-800 font-mono text-base">{formatNumber(pos.qty, 4)}</p>
-                      </div>
-                      <div>
-                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Current Price</p>
-                         <div className="flex items-baseline gap-2">
-                             <p className="font-bold text-gray-800 font-mono text-base">{formatCurrency(pos.currentPrice)}</p>
-                             <p className={`text-xs ${dayColor}`}>
-                                ({isDayProfit ? '▲' : '▼'} {Math.abs(pos.changeToday).toFixed(2)}%)
-                             </p>
-                         </div>
-                      </div>
-
-                      {/* Row 2 */}
-                      <div>
-                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Avg Cost / Share</p>
-                         <p className="font-medium text-gray-700 font-mono">{formatCurrency(pos.avgEntryPrice)}</p>
-                      </div>
-                      <div>
-                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Total Cost Basis</p>
-                         <p className="font-medium text-gray-700 font-mono">{formatCurrency(totalCost)}</p>
-                      </div>
+            {/* 2. Expanded Details */}
+            <div
+              className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${
+                isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              }`}
+            >
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">
+                  {/* Row 1 */}
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                      Holdings (Shares)
+                    </p>
+                    <p className="font-bold text-gray-800 font-mono text-base">
+                      {formatNumber(pos.qty, 4)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                      Current Price
+                    </p>
+                    <div className="flex items-baseline gap-2">
+                      <p className="font-bold text-gray-800 font-mono text-base">
+                        {formatCurrency(pos.currentPrice)}
+                      </p>
+                      <p className={`text-xs ${dayColor}`}>
+                        ({isDayProfit ? "▲" : "▼"}{" "}
+                        {Math.abs(pos.changeToday).toFixed(2)}%)
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Action Button Section */}
-                  <div className="mt-8 pt-4 border-t border-gray-200 flex justify-end gap-3">
-                      <button 
-                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                        onClick={(e) => { e.stopPropagation(); alert(`View Chart: ${pos.symbol}`); }}
-                      >
-                         ดูกราฟ
-                      </button>
-                      <button 
-                        className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2"
-                        onClick={(e) => {
-                            e.stopPropagation(); 
-                            // ใส่ Logic เปิดหน้า Trade ตรงนี้
-                            alert(`Opening trade for ${pos.symbol}`);
-                        }}
-                      >
-                         <span>ซื้อ / ขาย</span>
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                      </button>
+                  {/* Row 2 */}
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                      Avg Cost / Share
+                    </p>
+                    <p className="font-medium text-gray-700 font-mono">
+                      {formatCurrency(pos.avgEntryPrice)}
+                    </p>
                   </div>
-               </div>
+                  <div>
+                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                      Total Cost Basis
+                    </p>
+                    <p className="font-medium text-gray-700 font-mono">
+                      {formatCurrency(totalCost)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Button Section */}
+                <div className="mt-8 pt-4 border-t border-gray-200 flex justify-end gap-3">
+                  {/* ปุ่มดูกราฟ ถูกลบออกแล้ว */}
+
+                  <button
+                    className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // ใช้ router.push ไปหน้า Home พร้อมแนบ symbol
+                      router.push(`/?symbol=${pos.symbol}`);
+                    }}
+                  >
+                    <span>ซื้อ / ขาย</span>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         );
