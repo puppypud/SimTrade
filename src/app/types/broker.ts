@@ -19,13 +19,34 @@ export interface BuyStockRequest {     //กลับมาแก้ OrderSide O
   OrderSide: 'BUY' | 'SELL' ;
   OrderType: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT' | 'TRAILING_STOP';
   TimeInForce: 'DAY' | 'GTC' | 'IOC' | 'FOK';
+  limitPrice?: number;
 }
 
 // สำหรับ Response (ถ้ามี)
-export interface OrderResponse {
+export interface Order {
   id: string;
-  status: string;
-  // ... field อื่นๆ ตามที่ Backend ส่งมา
+  clientOrderId: string;
+  createdAt: string;
+  updatedAt: string;
+  submittedAt: string;
+  filledAt: string | null;
+  assetId: string;
+  symbol: string;
+  assetClass: string;
+  notional: number | null;
+  qty: number | null;
+  filledQty: number;
+  filledAvgPrice: number | null;
+  orderClass: string | null;
+  orderType: string; // MARKET, LIMIT
+  type: string;
+  side: string; // BUY, SELL
+  timeInForce: string;
+  limitPrice: number | null;
+  stopPrice: number | null;
+  status: string; // FILLED, CANCELED, etc.
+  extendedHours: boolean;
+  commission: number;
 }
  
 export interface AccountInfo {

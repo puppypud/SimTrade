@@ -88,7 +88,7 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
     if (!symbol || viewType !== "1D") return;
     const intervalId = setInterval(() => {
       fetchData(symbol, viewType);
-    }, 120000);
+    }, 5000); //5วิ
     return () => clearInterval(intervalId);
   }, [symbol, viewType, fetchData]);
 

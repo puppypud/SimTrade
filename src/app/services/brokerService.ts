@@ -10,7 +10,8 @@ export const brokerService = {
       symbol: data.symbol,
       OrderSide: data.OrderSide,
       OrderType: data.OrderType,
-      TimeInForce: data.TimeInForce
+      TimeInForce: data.TimeInForce,
+      limitPrice: data.limitPrice
     };
 
     if (data.notional && data.notional > 0) {

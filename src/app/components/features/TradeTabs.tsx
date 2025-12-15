@@ -13,23 +13,21 @@ interface TradeTabsProps {
   symbol: string;
 }
 
-// ควรดึงจาก Context หรือ Env ในการใช้งานจริง
+// ควรดึงจาก Context หรือ Env ในการใช้งานจริงs
 const HARDCODED_ACCOUNT_ID = "cccc73bb-c37e-4987-b059-075da0dfee8a";
 
 export default function TradeTabs({ symbol }: TradeTabsProps) {
+
   // State หลัก
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [orderType, setOrderType] =
     useState<BuyStockRequest["OrderType"]>("MARKET");
   const [timeInForce, setTimeInForce] =
     useState<BuyStockRequest["TimeInForce"]>("DAY");
-
+  const [limitPrice, setLimitPrice] = useState<number | "">("");
   // State สำหรับโหมดการกรอก (Shares หรือ Dollars)
   const [inputMode, setInputMode] = useState<"SHARES" | "DOLLARS">("SHARES");
   const [amount, setAmount] = useState<number | "">(""); // ใช้ตัวแปรเดียวเก็บค่า ไม่ว่าจะเป็น Qty หรือ Notional
-
-  // State เพิ่มเติมสำหรับ UI (ราคา Limit/Stop)
-  const [price, setPrice] = useState<number | "">("");
 
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -81,7 +79,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   useEffect(() => {
     setMessage(null);
     setAmount("");
-    setPrice("");
+    setLimitPrice("");
     if (inputMode === "DOLLARS") {
       setOrderType("MARKET");
       setTimeInForce("DAY");
@@ -106,8 +104,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
         OrderSide: orderSide,
         OrderType: orderType,
         TimeInForce: timeInForce,
-        // ส่ง price ไปด้วยเผื่อกรณี Limit Order (ถ้า backend รองรับ params เพิ่มเติม)
-        // price: price
+        limitPrice: limitPrice === "" ? undefined : Number(limitPrice),
       };
 
       // แยกกรณีตาม Input Mode
@@ -382,9 +379,9 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
                   type="number"
                   min="0"
                   step="0.01"
-                  value={price}
+                  value={ limitPrice}
                   onChange={(e) =>
-                    setPrice(
+                    setLimitPrice(
                       e.target.value === "" ? "" : parseFloat(e.target.value)
                     )
                   }
