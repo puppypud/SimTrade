@@ -43,21 +43,32 @@ export interface AccountInfo {
   createdAt: string;
 }
 export interface Position {
-  assetId: string;
+assetId: string;
   symbol: string;
   exchange: string;
   assetClass: string;
-  avgEntryPrice: string; // API ส่งมาเป็น String
-  qty: string;           // API ส่งมาเป็น String
-  side: string;
+  assetMarginable: boolean;
+  
+  // แปลงจาก string -> number เพื่อให้ UI คำนวณง่าย
+  avgEntryPrice: number;    
+  qty: number;              
+  
+  side: string;             
   marketValue: number;
-  costBasis: number;
-  unrealizedPl: number;
-  unrealizedPlpc: number;
+  costBasis: number;        
+  
+  unrealizedPl: number;     
+  unrealizedPlpc: number;   // ค่า % ที่คูณ 100 แล้ว
+  
   unrealizedIntradayPl: number;
   unrealizedIntradayPlpc: number;
+  
   currentPrice: number;
   lastdayPrice: number;
-  changeToday: number;
+  changeToday: number;      // ค่า % ที่คูณ 100 แล้ว
   
+  // field ที่ไม่แน่ใจ ใส่ any หรือ optional ไว้ก่อนได้ ไม่รกครับ
+  swapRate?: number;
+  avgEntrySwapRate?: number;
+  usd?: any;
 }

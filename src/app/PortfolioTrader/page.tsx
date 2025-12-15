@@ -195,7 +195,7 @@ export default function DashboardPage() {
       <div className="p-6">
         <h2 className="text-2xl font-bold text-white mb-6">My Portfolio</h2>
         {/* ส่ง accountId ของ user เข้าไป */}
-        <PortfolioTable accountId="ACCOUNT_ID_FROM_DB_OR_CONTEXT" />
+        <PortfolioTable accountId="cccc73bb-c37e-4987-b059-075da0dfee8a" />
       </div>
     </div>
   );

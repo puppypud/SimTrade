@@ -54,6 +54,37 @@ export const brokerService = {
   getOpenPositions: async (accountId: string): Promise<Position[]> => {
     // ยิงไปที่ Endpoint ที่เราเพิ่งสร้างใน Java Controller
     const response = await apiClient.get(`/broker/positions/${accountId}`);
-    return response.data;
+    // Map ข้อมูลดิบ (Raw Data) ให้เข้ากับ Interface ที่เราออกแบบ
+    return response.data.map((item: any) => ({
+      assetId: item.assetId,
+      symbol: item.symbol,
+      exchange: item.exchange,
+      assetClass: item.assetClass,
+      assetMarginable: item.assetMarginable,
+      
+      // 1. แปลง String เป็น Number
+      qty: parseFloat(item.qty || "0"),
+      avgEntryPrice: parseFloat(item.avgEntryPrice || "0"),
+      
+      side: item.side,
+      marketValue: item.marketValue,
+      costBasis: item.costBasis,
+      unrealizedPl: item.unrealizedPl,
+      
+      // 2. แปลงทศนิยมเป็น % (คูณ 100) รอไว้เลย
+      unrealizedPlpc: (item.unrealizedPlpc || 0) * 100,
+      
+      unrealizedIntradayPl: item.unrealizedIntradayPl,
+      unrealizedIntradayPlpc: (item.unrealizedIntradayPlpc || 0) * 100,
+      
+      currentPrice: item.currentPrice,
+      lastdayPrice: item.lastdayPrice,
+      changeToday: (item.changeToday || 0) * 100,
+      
+      swapRate: item.swapRate,
+      avgEntrySwapRate: item.avgEntrySwapRate,
+      usd: item.usd
+    }));
   }
+
 };

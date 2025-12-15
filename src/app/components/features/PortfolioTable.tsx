@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { brokerService } from '@/src/app/services/brokerService';
 import { Position } from '@/src/app/types/broker';
 
@@ -11,17 +11,30 @@ interface PortfolioTableProps {
 export default function PortfolioTable({ accountId }: PortfolioTableProps) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totalPortfolioValue, setTotalPortfolioValue] = useState(0);
+  
+  // State สำหรับจัดการการเปิด/ปิด (เก็บ assetId ของรายการที่เปิดอยู่)
+  const [expandedAssetId, setExpandedAssetId] = useState<string | null>(null);
+
+  const toggleExpand = (id: string) => {
+    setExpandedAssetId(expandedAssetId === id ? null : id);
+  };
+
+  // Helper Formats
+  const formatCurrency = (val: number) => 
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+
+  const formatNumber = (val: number, digits = 2) => 
+    new Intl.NumberFormat('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
+
+  // Helper Percent (ค่าจาก Service คูณ 100 มาแล้ว แค่เติม %)
+  const formatPercent = (val: number) => 
+    val.toFixed(2) + '%';
 
   useEffect(() => {
     const fetchPositions = async () => {
       try {
         const data = await brokerService.getOpenPositions(accountId);
         setPositions(data);
-        
-        // คำนวณมูลค่าพอร์ตรวมเพื่อหา % Weight
-        const total = data.reduce((sum, pos) => sum + pos.marketValue, 0);
-        setTotalPortfolioValue(total);
       } catch (error) {
         console.error("Failed to fetch positions", error);
       } finally {
@@ -34,100 +47,146 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
     }
   }, [accountId]);
 
-  if (loading) return <div className="p-4 text-center text-gray-400">Loading Portfolio...</div>;
-  if (positions.length === 0) return <div className="p-4 text-center text-gray-400">No open positions.</div>;
+  if (loading) return <div className="p-10 text-center text-gray-500 animate-pulse">Loading Assets...</div>;
+  if (positions.length === 0) return <div className="p-10 text-center text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">No assets in portfolio.</div>;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-gray-800 bg-[#1e1e1e] shadow-lg">
-      <table className="w-full text-left text-sm text-gray-300">
-        <thead className="bg-gray-900 text-xs uppercase text-gray-400">
-          <tr>
-            <th className="px-6 py-4 font-medium">Symbol</th>
-            <th className="px-6 py-4 font-medium text-right">Price / Avg Cost</th>
-            <th className="px-6 py-4 font-medium text-right">Day's Change</th>
-            <th className="px-6 py-4 font-medium text-right">Total P/L</th>
-            <th className="px-6 py-4 font-medium text-right">Holdings</th>
-            <th className="px-6 py-4 font-medium text-right">Weight</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-800">
-          {positions.map((pos) => {
-            // คำนวณค่าต่างๆ
-            const isProfit = pos.unrealizedPl > 0;
-            const isDayProfit = pos.changeToday > 0;
-            const weight = totalPortfolioValue > 0 ? (pos.marketValue / totalPortfolioValue) * 100 : 0;
-            
-            // Format ตัวเลข
-            const formatMoney = (val: number) => val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const formatPercent = (val: number) => (val * 100).toFixed(2) + '%';
+    <div className="space-y-4">
+       {/* Header Control (Optional) */}
+       <div className="flex justify-between items-center px-2 mb-2">
+            <h2 className="text-lg font-bold text-gray-800">My Assets ({positions.length})</h2>
+            <button className="text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
+                เรียงตาม: มูลค่าสินทรัพย์ ▼
+            </button>
+        </div>
 
-            return (
-              <tr key={pos.assetId} className="hover:bg-gray-800/50 transition-colors">
-                {/* 1. Symbol & Logo */}
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
+      {positions.map((pos) => {
+        // Logic การแสดงผลสี
+        const isProfit = pos.unrealizedPl >= 0;
+        const plColor = isProfit ? 'text-green-600' : 'text-red-500';
+        const isDayProfit = pos.changeToday >= 0;
+        const dayColor = isDayProfit ? 'text-green-600' : 'text-red-500';
+        
+        const isExpanded = expandedAssetId === pos.assetId;
+
+        // คำนวณค่าเพิ่มเติม (ถ้าต้องการ THB)
+        const approxThb = pos.marketValue * 34.5; // เรทสมมติ
+        const totalCost = pos.avgEntryPrice * pos.qty;
+
+        return (
+          <div 
+            key={pos.assetId} 
+            className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md 
+              ${isExpanded ? 'border-blue-400 ring-1 ring-blue-100 shadow-blue-100' : 'border-gray-200'}`}
+          >
+            {/* 1. Header Row (คลิกเพื่อเปิด/ปิด) */}
+            <div 
+              onClick={() => toggleExpand(pos.assetId)}
+              className="p-5 flex justify-between items-center cursor-pointer select-none"
+            >
+              {/* Left: Symbol Info & Logo */}
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                    {/* ใช้ Logo API หรือตัวอักษรย่อ */}
                     <img 
                       src={`https://logo.clearbit.com/${pos.symbol}.com`} 
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      onError={(e) => { 
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                      }}
                       alt={pos.symbol}
-                      className="h-8 w-8 rounded-full bg-white object-contain p-0.5"
+                      className="w-full h-full object-cover"
                     />
-                    <div>
-                      <div className="font-bold text-white text-lg">{pos.symbol}</div>
-                      <div className="text-xs text-gray-500">{pos.exchange}</div>
-                    </div>
+                    {/* Fallback ถ้าโหลดรูปไม่ได้ */}
+                    <span className="hidden text-xs font-bold text-gray-400">{pos.symbol.substring(0,2)}</span>
+                </div>
+                <div>
+                  <div className="font-bold text-gray-900 text-lg">{pos.symbol}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                     <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] text-gray-500 font-medium">{pos.exchange}</span>
+                     <span className="flex items-center gap-1">
+                        <span className="text-gray-400">Day:</span>
+                        <span className={dayColor}>
+                            {isDayProfit ? '+' : ''}{formatPercent(pos.changeToday)}
+                        </span>
+                     </span>
                   </div>
-                </td>
+                </div>
+              </div>
 
-                {/* 2. & 5. Current Price & Avg Entry */}
-                <td className="px-6 py-4 text-right">
-                  <div className="text-white font-medium">${formatMoney(pos.currentPrice)}</div>
-                  <div className="text-xs text-gray-500">Avg: ${parseFloat(pos.avgEntryPrice).toFixed(2)}</div>
-                </td>
+              {/* Center: Market Value (ซ่อนใน Mobile) */}
+              <div className="text-right hidden sm:block">
+                 <div className="font-bold text-gray-900">{formatCurrency(pos.marketValue)}</div>
+                 <div className="text-xs text-gray-400">≈ {formatNumber(approxThb)} THB</div>
+              </div>
 
-                {/* 6. & 7. Change Today & Intraday P/L */}
-                <td className="px-6 py-4 text-right">
-                  <div className={`font-medium ${isDayProfit ? 'text-green-400' : 'text-red-400'}`}>
-                    {isDayProfit ? '+' : ''}{formatPercent(pos.changeToday)}
-                  </div>
-                  <div className={`text-xs ${isDayProfit ? 'text-green-500/70' : 'text-red-500/70'}`}>
-                    {isDayProfit ? '+' : ''}${formatMoney(pos.unrealizedIntradayPl)}
-                  </div>
-                </td>
-
-                {/* 2. Total P/L (Unrealized) */}
-                <td className="px-6 py-4 text-right">
-                  <div className={`font-bold ${isProfit ? 'text-green-400' : 'text-red-500'}`}>
-                    {isProfit ? '+' : ''}${formatMoney(pos.unrealizedPl)}
-                  </div>
-                  <div className={`text-xs ${isProfit ? 'text-green-500/70' : 'text-red-500/70'}`}>
+              {/* Right: Unrealized P/L */}
+              <div className="text-right">
+                 <div className={`font-bold ${plColor} text-lg`}>
                     {isProfit ? '+' : ''}{formatPercent(pos.unrealizedPlpc)}
-                  </div>
-                </td>
+                 </div>
+                 <div className={`text-xs ${plColor} font-medium`}>
+                    ({isProfit ? '+' : ''}{formatCurrency(pos.unrealizedPl)})
+                 </div>
+              </div>
+            </div>
 
-                {/* 3. & 4. Qty & Market Value */}
-                <td className="px-6 py-4 text-right">
-                  <div className="text-white font-medium">${formatMoney(pos.marketValue)}</div>
-                  <div className="text-xs text-gray-500">{parseFloat(pos.qty).toLocaleString()} Shares</div>
-                </td>
+            {/* 2. Expanded Details (ส่วนที่ขยายออกมา) */}
+            <div className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
+               <div className="p-6">
+                  <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">
+                      
+                      {/* Row 1 */}
+                      <div>
+                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Holdings (Shares)</p>
+                         <p className="font-bold text-gray-800 font-mono text-base">{formatNumber(pos.qty, 4)}</p>
+                      </div>
+                      <div>
+                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Current Price</p>
+                         <div className="flex items-baseline gap-2">
+                             <p className="font-bold text-gray-800 font-mono text-base">{formatCurrency(pos.currentPrice)}</p>
+                             <p className={`text-xs ${dayColor}`}>
+                                ({isDayProfit ? '▲' : '▼'} {Math.abs(pos.changeToday).toFixed(2)}%)
+                             </p>
+                         </div>
+                      </div>
 
-                {/* 8. Weight (Port %) */}
-                <td className="px-6 py-4 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <span className="text-sm text-gray-300">{weight.toFixed(1)}%</span>
-                    <div className="h-1.5 w-16 bg-gray-700 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-blue-500 rounded-full" 
-                        style={{ width: `${weight}%` }}
-                      ></div>
-                    </div>
+                      {/* Row 2 */}
+                      <div>
+                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Avg Cost / Share</p>
+                         <p className="font-medium text-gray-700 font-mono">{formatCurrency(pos.avgEntryPrice)}</p>
+                      </div>
+                      <div>
+                         <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">Total Cost Basis</p>
+                         <p className="font-medium text-gray-700 font-mono">{formatCurrency(totalCost)}</p>
+                      </div>
                   </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+                  {/* Action Button Section */}
+                  <div className="mt-8 pt-4 border-t border-gray-200 flex justify-end gap-3">
+                      <button 
+                        className="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        onClick={(e) => { e.stopPropagation(); alert(`View Chart: ${pos.symbol}`); }}
+                      >
+                         ดูกราฟ
+                      </button>
+                      <button 
+                        className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2"
+                        onClick={(e) => {
+                            e.stopPropagation(); 
+                            // ใส่ Logic เปิดหน้า Trade ตรงนี้
+                            alert(`Opening trade for ${pos.symbol}`);
+                        }}
+                      >
+                         <span>ซื้อ / ขาย</span>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                      </button>
+                  </div>
+               </div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
