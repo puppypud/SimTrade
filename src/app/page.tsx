@@ -57,15 +57,6 @@ export default function TradePage() {
                       <>
                         {/* Active Trade Panel */}
                         <TradeTabs symbol={currentSymbol} />
-                        
-                        {/* Market Depth */}
-                        <div className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm text-center animate-in slide-in-from-bottom-2 duration-500">
-                            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-2">Market Depth</p>
-                            <div className="space-y-2 opacity-50">
-                                <div className="flex justify-between text-xs font-mono"><span className="text-red-500">--.--</span><span>---</span></div>
-                                <div className="flex justify-between text-xs font-mono"><span className="text-green-500">--.--</span><span>---</span></div>
-                            </div>
-                        </div>
                       </>
                   ) : (
                       // Empty State for Sidebar

@@ -72,3 +72,13 @@ assetId: string;
   avgEntrySwapRate?: number;
   usd?: any;
 }
+export interface StockQuote {
+  symbol: string;
+  price: number;        // Last Trade Price (ราคาซื้อขายล่าสุด)
+  tradeTime: string;
+  askPrice: number;     // ราคาขาย (Ask)
+  askSize: number;
+  bidPrice: number;     // ราคาซื้อ (Bid)
+  bidSize: number;
+  openPrice?: number;   // ราคาเปิดวัน (Optional)
+}

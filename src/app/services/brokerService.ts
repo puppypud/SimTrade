@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest,AccountInfo,Position} from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote} from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
   
@@ -85,6 +85,11 @@ export const brokerService = {
       avgEntrySwapRate: item.avgEntrySwapRate,
       usd: item.usd
     }));
-  }
-
+  },
+  getLatestQuote: async (symbol: string) => {
+    const response = await apiClient.get('/broker/quote', {
+      params: { symbol }
+    });
+    return response.data;
+  },
 };
