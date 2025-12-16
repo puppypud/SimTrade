@@ -21,10 +21,10 @@ import java.util.UUID;
 public class BrokerController {
 
     private final Logger log = LoggerFactory.getLogger(BrokerController.class);
-    private final BrokerService brokerService;       // แนะนำให้ใช้ตัวเล็กนำหน้า (camelCase)
-    private final MarketDataService marketDataService; // 1. เพิ่มตัวแปร Service
+    private final BrokerService brokerService;
+    private final MarketDataService marketDataService; // เพิ่มตัวแปร Service
 
-    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้  ต้องประกาศ@Service
+    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้  ต
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
@@ -42,7 +42,6 @@ public class BrokerController {
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) throws Exception {
         try {
-            // --- เริ่มต้น Validation ---
             // เรียกใช้ Service ภายใน (ไม่ได้ยิงผ่าน HTTP) เพื่อเช็คสภาพคล่อง
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
 
@@ -56,7 +55,6 @@ public class BrokerController {
                     }
                 }
             }
-            // --- จบ Validation ---
 
             OrderSide side = OrderSide.valueOf(orderSideStr);
             OrderType type = OrderType.valueOf(orderTypeStr);
@@ -107,7 +105,6 @@ public class BrokerController {
             @PathVariable("orderId") String orderId
     ) {
         try {
-            // ต้องเรียก Service ไม่ใช่เรียก Method ตัวเอง
             Order order = brokerService.getSingleOrder(accountId, orderId);
             return ResponseEntity.ok(order);
         } catch (Exception e) {
@@ -125,7 +122,6 @@ public class BrokerController {
     ) {
 
         try {
-
             List<Order> orders = brokerService.getAllOrders(accountId, status, limit, symbols);
             return ResponseEntity.ok(orders);
         } catch (Exception e) {
@@ -194,7 +190,7 @@ public class BrokerController {
     @GetMapping("/admin/users")
     public ResponseEntity<?> getAllUsers() {
         try {
-            // เรียกใช้ Service ที่เราเพิ่งสร้าง
+
             List<Account> accounts = brokerService.getAllAccounts();
             return ResponseEntity.ok(accounts);
         } catch (Exception e) {
@@ -206,9 +202,7 @@ public class BrokerController {
     @PostMapping("/create-account")
     public ResponseEntity<?> createNewAccount() {
         try {
-            // เรียกใช้ method ที่คุณเขียนไว้ใน Service
             Account newAccount = brokerService.createAccount();
-
             // ส่งข้อมูล Account ที่สร้างเสร็จแล้วกลับไปให้คนเรียก
             return ResponseEntity.ok(newAccount);
         } catch (Exception e) {
@@ -223,7 +217,6 @@ public class BrokerController {
             if (amount == null || amount <= 0) {
                 return ResponseEntity.badRequest().body("❌ กรุณาระบุจำนวนเงิน (amount) ให้ถูกต้อง");
             }
-
             brokerService.addMoneyToFirmAccount(amount);
 
             return ResponseEntity.ok("✅ เติมเงินเข้าบริษัทสำเร็จ: $" + amount);
@@ -235,14 +228,13 @@ public class BrokerController {
 
     @PostMapping("/admin/fund-user")
     public ResponseEntity<?> fundUserAccount(
-            @RequestParam("accountId") UUID accountId, // <-- รับ UUID จาก URL
-            @RequestParam("amount") Double amount      // <-- รับจำนวนเงินจาก URL
+            @RequestParam("accountId") UUID accountId,
+            @RequestParam("amount") Double amount
     ) {
         try {
             if (amount == null || amount <= 0) {
                 return ResponseEntity.badRequest().body("❌ กรุณาระบุจำนวนเงิน (amount) ให้ถูกต้อง");
             }
-
             brokerService.addMoneyToUserAccount(accountId, amount);
 
             return ResponseEntity.ok("✅ เติมเงินให้ User " + accountId + " สำเร็จ: $" + amount);

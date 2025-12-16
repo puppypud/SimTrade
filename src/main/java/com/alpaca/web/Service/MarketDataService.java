@@ -32,19 +32,18 @@ public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final RestTemplate restTemplate = new RestTemplate();
 
-    // ดึง Key จาก .env ตรงๆ เพื่อความชัวร์ (ไม่ต้องผ่าน Bean Config ก็ได้ในท่านี้)
+
     @Value("***REDACTED_OLD_TRADING_KEY***")
     private String apiKey;
 
     @Value("***REDACTED_OLD_TRADING_SECRET***")
     private String apiSecret;
-    // 1. เพิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
+
+    // พิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
     private final ZoneId NY_ZONE = ZoneId.of("America/New_York");
 
     public List<StockBar> getStockBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim();
-        // --- 1. คำนวณ Start Date และ Timeframe ตาม viewType ---
-
         ZonedDateTime startTime;
         String timeframe;
         int limit = 1000; // default
@@ -98,16 +97,12 @@ public class MarketDataService {
         OffsetDateTime startZDT = startTime.toOffsetDateTime();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
         String rawDate = startZDT.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
-
         //log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
-
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
-        // URL: https://data.alpaca.markets/v2/stocks/{symbol}/bars?timeframe=1Day&limit={limit}&feed=iex
         String urlString = String.format(
                 "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&limit=%d",
                 cleanSymbol, timeframe, rawDate, limit
         );
-
         // แปลงเป็น URI Object เพื่อบังคับใช้ URL นี้เป๊ะๆ
         URI uri = URI.create(urlString);
         // 2. สร้าง Header (ใส่ Key)
@@ -131,19 +126,11 @@ public class MarketDataService {
                         String tStr = (String) barMap.get("t");
                         OffsetDateTime odt = OffsetDateTime.parse(tStr);
                         // Mapping field เอง manual
-
-                        // เวลา (Time) - อันเดิมถูกแล้วถ้า String เป็น format ISO-8601
-                        //bar.setT(OffsetDateTime.parse((String) barMap.get("t")));
                         bar.setT(odt.withOffsetSameInstant(ZoneOffset.of("+07:00")));
-                        // ราคา (Prices) - ต้องแปลงเป็น Double
                         bar.setO(Double.valueOf(barMap.get("o").toString())); // Open
                         bar.setH(Double.valueOf(barMap.get("h").toString())); // High
                         bar.setL(Double.valueOf(barMap.get("l").toString())); // Low
                         bar.setC(Double.valueOf(barMap.get("c").toString())); // Close
-
-                        // ปริมาณ (Volume) - ต้องแปลงเป็น Long
-                        // ใช้ Double.valueOf(...).longValue() เพื่อความชัวร์ในกรณีที่ JSON ส่งมาเป็นทศนิยม .0
-                        // หรือถ้ามั่นใจว่าเป็นจำนวนเต็มใช้ Long.valueOf(...) ก็ได้ครับ
                         String volStr = barMap.get("v").toString();
                         bar.setV(Double.valueOf(volStr).longValue());
                         stockBars.add(bar);
@@ -166,7 +153,6 @@ public class MarketDataService {
 
     public Map<String, Object> getLatestQuote(String symbol) {
         String cleanSymbol = symbol.trim().toUpperCase();
-
         // ใช้ Endpoint snapshot (บังคับ feed=iex)
         String urlString = String.format(
                 "https://data.alpaca.markets/v2/stocks/%s/snapshot?feed=iex",
