@@ -67,7 +67,7 @@ public class BrokerService {
 
     private static final Logger log = LoggerFactory.getLogger(BrokerService.class);
 
-    // 🏦 ข้อมูลบัญชีบริษัท (Firm Account)
+    // ข้อมูลบัญชีบริษัท (Firm Account)
     private static final String FIRM_ACCOUNT_ID = "f34e892f-10ab-3c84-810f-bcbb24f5b975"; // UUID (ใช้ตอนโอน Journal)
     private static final String FIRM_ACCOUNT_NUMBER = "9967544SW"; // เลขบัญชี (ใช้ตอนเสกเงิน Magic)
     String savedAccountId = "cccc73bb-c37e-4987-b059-075da0dfee8a"; //เป็น hardcode สำหรับ user
@@ -76,7 +76,6 @@ public class BrokerService {
     public Account createAccount() {
         try {
             log.info("กำลังสร้างบัญชีลูกค้าใหม่...");
-
             Contact contact = new Contact()
                     .emailAddress("user_" + System.currentTimeMillis() + "@example.com")
                     .phoneNumber("555-666-7777")
@@ -113,7 +112,7 @@ public class BrokerService {
         }
     }
 
-    // --- ฟังก์ชันสำหรับขั้นตอนที่ 2: สั่งซื้อหุ้นให้ User ---
+    // สั่งซื้อหุ้นUser ---
     public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ) throws ApiException {
         log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
         CreateOrderRequest request = new CreateOrderRequest()
@@ -141,11 +140,7 @@ public class BrokerService {
         return brokerAPI.broker().trading().createOrderForAccount(accountId, request);
     }
 
-
-    // --- ฟังก์ชันสำหรับเติมเงินเข้าบัญชี (Journal Cash) ---
-
-
-    // ⭐ ฟังก์ชันเติมเงินเข้า Firm Account แบบถูกวิธี (ใช้ Funding API)
+    // ฟังก์ชันเติมเงินเข้า Firm Account แบบถูกวิธี (ใช้ Funding API)
     public void fundAccount(UUID toAccountId, double amount) {
         try {
             log.info("Funding account {} with ${}", toAccountId, amount);
@@ -162,6 +157,48 @@ public class BrokerService {
 
         } catch (Exception e) {
             log.error("เติมเงินไม่สำเร็จ", e);
+        }
+    }
+    //เติมเงินให้ user
+    public void addMoneyToUserAccount(UUID userAccountId, Double amount) {
+        try {
+            log.info("Admin: กำลังโอนเงินจาก Firm -> User {} จำนวน ${}", userAccountId, amount);
+
+            CreateJournalRequest journalRequest = new CreateJournalRequest()
+                    .entryType(JournalEntryType.JNLC)       // JNLC = Journal Cash
+                    .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID)) // ต้นทาง: เงินจาก Firm
+                    .toAccount(userAccountId)                      // ปลายทาง: เข้ากระเป๋า User
+                    .amount(String.valueOf(amount))
+                    .description("Deposit by Admin (Sandbox Magic)");
+
+            brokerAPI.broker().journals().createJournal(journalRequest);
+            log.info("✅ เสกเงินให้ User สำเร็จ!");
+
+        } catch (ApiException e) {
+            log.error("❌ ไม่สามารถเสกเงินให้ User ได้ (ตรวจสอบยอดเงิน Firm หรือ ID)", e);
+            throw new RuntimeException("Error funding user account: " + e.getMessage());
+        }
+    }
+    //เติมเงินเข้าบัญชีเรา
+    public void addMoneyToFirmAccount(Double amount) {
+        try {
+            log.info("Admin: กำลังเสกเงินเข้า Firm Account จำนวน ${}", amount);
+
+            CreateTransferRequest transferRequest = new CreateTransferRequest()
+                    .transferType(TransferType.WIRE)       // จำลองการโอนแบบ Wire
+                    .direction(TransferDirection.INCOMING) // ขาเข้า (เติมเงิน)
+                    .timing(TransferTiming.IMMEDIATE)      // ทันที
+                    .amount(BigDecimal.valueOf(amount));
+
+            Transfer transfer = brokerAPI.broker().funding().createTransferForAccount(
+                    UUID.fromString(FIRM_ACCOUNT_ID), // <--- ปิดวงเล็บตรงนี้
+                    transferRequest                   // <--- parameter ตัวที่ 2
+            );
+            log.info("✅ เติมเงินเข้า Firm สำเร็จ! Transfer ID: {}", transfer.getId());
+
+        } catch (ApiException e) {
+            log.error("❌ ไม่สามารถเติมเงินเข้า Firm Account ได้", e);
+            throw new RuntimeException("Error funding firm account: " + e.getMessage());
         }
     }
 
@@ -197,7 +234,7 @@ public class BrokerService {
 
     public TradeAccount getAccount(UUID accountId) {
         try {
-            // หมายเหตุ: method getTradingAccount ของ Broker API คืนค่าเป็น TradeAccount
+            // method getTradingAccount ของ Broker API คืนค่าเป็น TradeAccount
             return brokerAPI.broker().accounts().getTradingAccount(accountId);
         } catch (ApiException e) {
             log.error("getAccount error", e);
@@ -212,12 +249,11 @@ public class BrokerService {
 
     public List<Account> getAllAccounts() throws Exception {
         log.info("Admin: Fetching all accounts...");
-
         return brokerAPI.broker().accounts().getAllAccounts(
-                null, // query (Search by name/email)
-                null, // createdAfter
-                null, // createdBefore
-                null, // status (เช่น "ACTIVE", "ACCOUNT_UPDATED")
+                null,
+                null,
+                null,
+                null,
                 "desc", // sort (desc = ใหม่สุดขึ้นก่อน)
                 "contact,identity"
         );

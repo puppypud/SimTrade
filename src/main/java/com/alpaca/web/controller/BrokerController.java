@@ -215,4 +215,40 @@ public class BrokerController {
             return ResponseEntity.badRequest().body("Error creating account: " + e.getMessage());
         }
     }
+    @PostMapping("/admin/fund-firm")
+    public ResponseEntity<?> fundFirmAccount(
+            @RequestParam("amount") Double amount  // <-- รับค่าจาก URL Parameter
+    ) {
+        try {
+            if (amount == null || amount <= 0) {
+                return ResponseEntity.badRequest().body("❌ กรุณาระบุจำนวนเงิน (amount) ให้ถูกต้อง");
+            }
+
+            brokerService.addMoneyToFirmAccount(amount);
+
+            return ResponseEntity.ok("✅ เติมเงินเข้าบริษัทสำเร็จ: $" + amount);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/admin/fund-user")
+    public ResponseEntity<?> fundUserAccount(
+            @RequestParam("accountId") UUID accountId, // <-- รับ UUID จาก URL
+            @RequestParam("amount") Double amount      // <-- รับจำนวนเงินจาก URL
+    ) {
+        try {
+            if (amount == null || amount <= 0) {
+                return ResponseEntity.badRequest().body("❌ กรุณาระบุจำนวนเงิน (amount) ให้ถูกต้อง");
+            }
+
+            brokerService.addMoneyToUserAccount(accountId, amount);
+
+            return ResponseEntity.ok("✅ เติมเงินให้ User " + accountId + " สำเร็จ: $" + amount);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
 }
