@@ -11,7 +11,7 @@ export interface StockBar {
 }
 
 // สำหรับ Request ซื้อหุ้น
-export interface BuyStockRequest {     //กลับมาแก้ OrderSide OrderType TimeInForce ที่หลัง 
+export interface BuyStockRequest {   
   accountId: string;
   symbol: string;
   qty?: number;
@@ -22,7 +22,7 @@ export interface BuyStockRequest {     //กลับมาแก้ OrderSide O
   limitPrice?: number;
 }
 
-// สำหรับ Response (ถ้ามี)
+
 export interface Order {
   id: string;
   clientOrderId: string;
@@ -69,25 +69,18 @@ assetId: string;
   exchange: string;
   assetClass: string;
   assetMarginable: boolean;
-  
-  // แปลงจาก string -> number เพื่อให้ UI คำนวณง่าย
   avgEntryPrice: number;    
   qty: number;              
-  
   side: string;             
   marketValue: number;
   costBasis: number;        
-  
   unrealizedPl: number;     
   unrealizedPlpc: number;   // ค่า % ที่คูณ 100 แล้ว
-  
   unrealizedIntradayPl: number;
   unrealizedIntradayPlpc: number;
-  
   currentPrice: number;
   lastdayPrice: number;
   changeToday: number;      // ค่า % ที่คูณ 100 แล้ว
-  
   // field ที่ไม่แน่ใจ ใส่ any หรือ optional ไว้ก่อนได้ ไม่รกครับ
   swapRate?: number;
   avgEntrySwapRate?: number;
@@ -105,5 +98,30 @@ export interface StockQuote {
 }
 export interface cancelorder {
   orderId: string;
+}
+
+export interface UserAccount {
+  id: string;
+  accountNumber: string;
+  status: string;
+  currency: string;
+  lastEquity: number;
+  createdAt: string;
+
+  contact: {
+    emailAddress: string;
+    phoneNumber: string;
+    streetAddress: string[];
+    city: string;
+    state: string;
+    postalCode: string;
+  };
+
+  identity: {
+    givenName: string;
+    familyName: string;
+    dateOfBirth: string;
+    countryOfCitizenship: string;
+  };
 }
  

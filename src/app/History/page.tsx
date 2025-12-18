@@ -2,16 +2,21 @@
 
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
-import CancelOrderButton from "@/src/app/components/features/cancelOrder"; // [เพิ่ม] import ปุ่ม
+import CancelOrderButton from "@/src/app/components/features/cancelOrder";
 
+// ฟังก์ชันจัดรูปแบบวันที่
 const formatDate = (dateString: string) => {
   if (!dateString) return "-";
+  // กำหนด timeZone เป็น 'Asia/Bangkok' หรือ 'UTC' ให้ชัดเจน
+  // กำหนด locale เป็น 'en-GB' หรือ 'th-TH' ให้ชัดเจน
   return new Date(dateString).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Bangkok", // ✅ บังคับให้เป็นเวลาไทยเสมอ (ทั้ง server และ client จะได้ตรงกัน)
+    hour12: false, // บังคับรูปแบบ 24 ชั่วโมง
   });
 };
 
@@ -41,7 +46,19 @@ const getStatusColor = (status: string) => {
       return "bg-gray-50 text-gray-600 border-gray-200";
   }
 };
-// [เพิ่ม] รายชื่อสถานะที่อนุญาตให้กดยกเลิกได้
+  const STATUS_LABELS: Record<string, string> = {
+    FILLED: "เสร็จสิ้น", // แก้คำได้ตามใจชอบตรงนี้
+    CANCELED: "ยกเลิก",
+    EXPIRED: "หมดอายุ",
+    REJECTED: "ถูกปฏิเสธ",
+    FAILED: "ล้มเหลว",
+    NEW: "รอจับคู่",
+    ACCEPTED: "รับคำสั่ง",
+    PENDING_NEW: "กำลังดำเนินการ",
+    ACCEPTED_FOR_BIDDING: "รอตลาดเปิด",
+    PARTIALLY_FILLED: "ได้ของบางส่วน",
+  };
+
 const CANCELLABLE_STATUSES = [
   "NEW",
   "ACCEPTED",
@@ -49,12 +66,14 @@ const CANCELLABLE_STATUSES = [
   "ACCEPTED_FOR_BIDDING",
   "PARTIALLY_FILLED",
 ];
+
 export default async function HistoryPage() {
   const accountId = "cccc73bb-c37e-4987-b059-075da0dfee8a";
   let orders: Order[] = [];
 
   try {
     orders = await brokerService.getAllOrders(accountId);
+    // เรียงลำดับ ใหม่ -> เก่า
     orders.sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -130,6 +149,7 @@ export default async function HistoryPage() {
                     const canCancel = CANCELLABLE_STATUSES.includes(
                       order.status
                     );
+
                     return (
                       <tr
                         key={order.id}
@@ -155,7 +175,7 @@ export default async function HistoryPage() {
                           </span>
                         </td>
 
-                        {/* 3. Side & Type (รวม Limit Price ไว้ที่นี่แบบ Clean) */}
+                        {/* 3. Side & Type */}
                         <td className="px-6 py-4">
                           <div className="flex flex-col items-start gap-1">
                             <div className="flex items-center">
@@ -172,10 +192,10 @@ export default async function HistoryPage() {
                                 {order.orderType}
                               </span>
                             </div>
-                            {/* แสดง Limit Price ถ้ามีค่า */}
+                            {/* แก้คำผิดจาก Peice -> Price */}
                             {order.limitPrice && order.limitPrice > 0 && (
                               <span className="text-xs text-gray-400 ml-1">
-                                Peice is {formatCurrency(order.limitPrice)}
+                                Price is {formatCurrency(order.limitPrice)}
                               </span>
                             )}
                           </div>
@@ -188,7 +208,9 @@ export default async function HistoryPage() {
                               order.status
                             )}`}
                           >
-                            {order.status}
+                            {/*order.status*/}
+                            {/* ✅ 2. แก้ตรงนี้ เพื่อแสดงผลเป็นภาษาไทย */}
+                            {STATUS_LABELS[order.status] || order.status}
                           </span>
                         </td>
 
@@ -220,7 +242,8 @@ export default async function HistoryPage() {
                         <td className="px-6 py-4 text-right font-mono font-bold text-gray-800">
                           {totalValue > 0 ? formatCurrency(totalValue) : "-"}
                         </td>
-                        {/* [เพิ่ม] ส่วนแสดงปุ่ม Cancel */}
+
+                        {/* 8. Action (Cancel Button) */}
                         <td className="px-6 py-4 text-center">
                           {canCancel && (
                             <CancelOrderButton

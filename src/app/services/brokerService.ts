@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote} from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote,UserAccount} from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
   
@@ -72,7 +72,7 @@ export const brokerService = {
       costBasis: item.costBasis,
       unrealizedPl: item.unrealizedPl,
       
-      // 2. แปลงทศนิยมเป็น % (คูณ 100) รอไว้เลย
+      // 2. แปลงทศนิยมเป็น % (คูณ 100) 
       unrealizedPlpc: (item.unrealizedPlpc || 0) * 100,
       
       unrealizedIntradayPl: item.unrealizedIntradayPl,
@@ -99,4 +99,10 @@ export const brokerService = {
     });
     return response.data;
   },
+
+  getAllAccounts: async (): Promise<UserAccount[]> => {
+    // ยิง API ไปที่ Endpoint ที่เราสร้างไว้ใน Backend
+    const response = await apiClient.get('/broker/admin/users');
+    return response.data;
+  }
 };

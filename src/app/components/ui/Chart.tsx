@@ -35,10 +35,7 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
   // Refs สำหรับ Chart
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<IChartApi | null>(null);
-
-  // ---------------------------------------------------------------------------
-  // 2. FETCH DATA LOGIC (ย้ายมาจาก Page)
-  // ---------------------------------------------------------------------------
+  // Fetch Data Function
   const fetchData = useCallback(async (sym: string, vType: string) => {
     if (!sym) return;
 
@@ -48,7 +45,6 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
       console.log(`Fetching data for ${sym} (${vType})...`);
       const bars: any[] = await brokerService.getStockBars(sym, vType);
 
-      // เรียงลำดับเวลาให้ชัวร์
       bars.sort(
         (a: any, b: any) => new Date(a.t).getTime() - new Date(b.t).getTime()
       );
@@ -74,7 +70,7 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
       console.error("Fetch error:", error);
       setIsLoading(false);
     }
-  }, []); // dependency array ว่าง เพราะใช้ภายใน component
+  }, []); 
 
   // Effect: Fetch เมื่อ Symbol หรือ ViewType เปลี่ยน
   useEffect(() => {
@@ -294,7 +290,6 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 relative">
-      {/* Timeframe Selector (ย้ายมาจาก Page) */}
       <div className="absolute top-6 right-6 z-10 flex bg-gray-100 p-1 rounded-lg">
         {TIMEFRAMES.map((tf) => (
           <button
