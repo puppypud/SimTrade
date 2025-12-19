@@ -308,4 +308,18 @@ public class BrokerController {
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
+      @GetMapping("/quote/crypto")
+    public ResponseEntity<?> getLatestCryptoQuote(@RequestParam("symbol") String symbol) {
+        try {
+            // เรียกใช้ Service ตัวที่เราเพิ่งแก้เสร็จ
+            Map<String, Object> data = marketDataService.getLatestCryptoQuote(symbol);
+
+            if (data.isEmpty() || (data.containsKey("price") && (double)data.get("price") == 0)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ ไม่พบข้อมูล Crypto: " + symbol);
+            }
+            return ResponseEntity.ok(data);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
 }

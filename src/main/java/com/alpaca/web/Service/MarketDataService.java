@@ -1,6 +1,13 @@
 package com.alpaca.web.Service;
 
+import net.jacobpeterson.alpaca.AlpacaAPI;
+import net.jacobpeterson.alpaca.model.util.apitype.MarketDataWebsocketSourceType;
+import net.jacobpeterson.alpaca.model.util.apitype.TraderAPIEndpointType;
+import net.jacobpeterson.alpaca.openapi.marketdata.model.CryptoLatestLoc;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
+import net.jacobpeterson.alpaca.AlpacaAPI; // Import เพิ่ม
+import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType; // Import เพิ่ม
+import jakarta.annotation.PostConstruct; // Import เพิ่ม
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,7 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-
+import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
 import java.time.format.DateTimeFormatter;
 import java.time.*;
@@ -22,16 +29,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final RestTemplate restTemplate = new RestTemplate();
-
+    private AlpacaAPI alpacaAPI;
 
     @Value("***REDACTED_OLD_TRADING_KEY***")
     private String apiKey;
@@ -41,6 +45,25 @@ public class MarketDataService {
 
     // พิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
     private final ZoneId NY_ZONE = ZoneId.of("America/New_York");
+
+    @PostConstruct
+    public void init() {
+        if (apiKey != null && apiSecret != null) {
+            // ❌ แบบเดิม (ผิด): new AlpacaAPI(apiKey, apiSecret);
+
+            // ✅ แบบใหม่ (ถูก): ต้องใส่ PAPER และ IEX เพิ่ม
+            this.alpacaAPI = new AlpacaAPI(
+                    apiKey,
+                    apiSecret,
+                    TraderAPIEndpointType.PAPER, // ระบุว่าเป็น Paper Trading (เพราะ Key ขึ้นต้นด้วย PK)
+                    MarketDataWebsocketSourceType.IEX // ระบุแหล่งข้อมูล (IEX คือฟรี/Standard)
+            );
+
+            log.info("AlpacaAPI initialized successfully.");
+        } else {
+            log.error("Alpaca API Key/Secret is null via @Value");
+        }
+    }
 
     public List<StockBar> getStockBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim();
@@ -260,5 +283,56 @@ public class MarketDataService {
             log.error("❌ Error fetching crypto bars: " + e.getMessage());
         }
         return Collections.emptyList();
+    }
+    public Map<String, Object> getLatestCryptoQuote(String symbol) {
+        try {
+            Map<String, Object> data = new HashMap<>();
+            data.put("symbol", symbol);
+
+            // ใช้ CryptoLatestLoc.US สำหรับดึงข้อมูลฝั่ง US
+            CryptoLatestLoc loc = CryptoLatestLoc.US;
+
+            // 1. ดึงราคาซื้อขายล่าสุด (Trade) -> ใช้ cryptoLatestTrades
+            try {
+                // เรียก cryptoLatestTrades แทน getLatestTrade
+                var tradeResp = alpacaAPI.marketData().crypto().cryptoLatestTrades(loc, symbol);
+
+                // แกะข้อมูลจาก Response (โครงสร้างจะเป็น Map<String, CryptoTrade>)
+                if (tradeResp != null && tradeResp.getTrades() != null && tradeResp.getTrades().containsKey(symbol)) {
+                    var trade = tradeResp.getTrades().get(symbol);
+                    data.put("price", trade.getP()); // getP() คือ Price
+                } else {
+                    data.put("price", 0.0);
+                }
+            } catch (Exception e) {
+                log.error("Error fetching crypto trade: " + e.getMessage());
+                data.put("price", 0.0);
+            }
+
+            // 2. ดึงราคาเสนอซื้อ/ขาย (Quote) -> ใช้ cryptoLatestQuotes
+            try {
+                // เรียก cryptoLatestQuotes แทน getLatestQuote
+                var quoteResp = alpacaAPI.marketData().crypto().cryptoLatestQuotes(loc, symbol);
+
+                // แกะข้อมูลจาก Response
+                if (quoteResp != null && quoteResp.getQuotes() != null && quoteResp.getQuotes().containsKey(symbol)) {
+                    var quote = quoteResp.getQuotes().get(symbol);
+                    data.put("askPrice", quote.getAp()); // Ask Price
+                    data.put("askSize", quote.getAs());  // Ask Size
+                    data.put("bidPrice", quote.getBp()); // Bid Price
+                    data.put("bidSize", quote.getBs());  // Bid Size
+                }
+            } catch (Exception e) {
+                // ถ้าหา Quote ไม่เจอ ให้ใส่ 0 ไว้
+                data.put("askPrice", 0.0);
+                data.put("bidPrice", 0.0);
+            }
+
+            return data;
+
+        } catch (Exception e) {
+            log.error("Error getting crypto quote for " + symbol, e);
+            return Map.of();
+        }
     }
 }
