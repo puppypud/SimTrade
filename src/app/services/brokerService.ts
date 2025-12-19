@@ -116,4 +116,27 @@ export const brokerService = {
     });
     return response.data;
   },
+  createCryptoOrder: async (accountId: string, symbol: string, side: "BUY" | "SELL", amount: number, mode: "QTY" | "NOTIONAL", limitPrice?: number) => {
+    
+    const params: any = {
+      accountId,
+      symbol,
+      OrderSide: side
+    };
+
+    // จัดการส่งค่า qty หรือ notional ตามโหมดที่เลือก
+    if (mode === "NOTIONAL") {
+      params.notional = amount; // ซื้อด้วยจำนวนเงิน (USD) -> Backend บังคับเป็น Market Order
+    } else {
+      params.qty = amount;      // ซื้อด้วยจำนวนเหรียญ -> เป็น Market หรือ Limit ขึ้นอยู่กับ limitPrice
+      if (limitPrice) {
+        params.limitPrice = limitPrice;
+      }
+    }
+
+    const response = await apiClient.post('/broker/orders/crypto', null, {
+      params: params
+    });
+    return response.data;
+  },
 };
