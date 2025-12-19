@@ -205,4 +205,60 @@ public class MarketDataService {
         return Collections.emptyMap();
     }
 
+    public List<StockBar> getCryptoBars(String symbol, String viewType) {
+        String cleanSymbol = symbol.trim().toUpperCase();
+
+        // ถ้า User ลืมพิมพ์ /USD เราเติมให้ที่นี่ได้เลย เพราะรู้อยู่แล้วว่าเป็นฟังก์ชัน Crypto
+        if (!cleanSymbol.contains("/")) {
+            cleanSymbol = cleanSymbol + "/USD";
+        }
+
+        // กำหนด Timeframe
+        String timeframe;
+        int limit = 1000;
+        // ... (logic คำนวณ startTime เหมือนเดิม หรือปรับให้เหมาะกับ Crypto) ...
+        // ตัวอย่าง: ถ้า viewType เป็น 1D อาจใช้ timeframe = "1Min"
+        timeframe = "1Min"; // ตัวอย่างย่อ
+
+        // *** ใช้ URL ของ Crypto โดยเฉพาะ ***
+        String urlString = String.format(
+                "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=%d",
+                cleanSymbol, timeframe, limit
+        );
+
+        URI uri = URI.create(urlString);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
+
+            // Logic แกะ JSON ของ Crypto Bars (โครงสร้างต่างจาก Stock นิดหน่อย)
+            if (response.getBody() != null && response.getBody().containsKey("bars")) {
+                Map<String, Object> allBars = (Map<String, Object>) response.getBody().get("bars");
+                if (allBars.containsKey(cleanSymbol)) {
+                    List<Map<String, Object>> barList = (List<Map<String, Object>>) allBars.get(cleanSymbol);
+
+                    List<StockBar> cryptoBars = new ArrayList<>();
+                    for (Map<String, Object> barMap : barList) {
+                        StockBar bar = new StockBar();
+                        // Map ค่าเข้า Object (Crypto มักใช้ field 't', 'o', 'h', 'l', 'c', 'v' เหมือนกัน)
+                        bar.setT(OffsetDateTime.parse(barMap.get("t").toString()));
+                        bar.setO(Double.valueOf(barMap.get("o").toString()));
+                        bar.setH(Double.valueOf(barMap.get("h").toString()));
+                        bar.setL(Double.valueOf(barMap.get("l").toString()));
+                        bar.setC(Double.valueOf(barMap.get("c").toString()));
+                        bar.setV(Double.valueOf(barMap.get("v").toString()).longValue());
+                        cryptoBars.add(bar);
+                    }
+                    return cryptoBars;
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Error fetching crypto bars: " + e.getMessage());
+        }
+        return Collections.emptyList();
+    }
 }

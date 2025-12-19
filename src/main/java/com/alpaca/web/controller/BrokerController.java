@@ -243,4 +243,25 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
+
+    @GetMapping("/order/crypto-bar")
+    public ResponseEntity<?> getCryptoBar(
+            @RequestParam("symbol") String symbol,  // รับค่าเช่น "BTC" หรือ "ETH"
+            @RequestParam("viewType") String viewType // รับค่าเช่น "1D", "1W"
+    ) {
+        try {
+            // เรียกใช้ method getCryptoBars ที่คุณเพิ่งเพิ่มใน MarketDataService
+            List<StockBar> bars = marketDataService.getCryptoBars(symbol, viewType);
+
+            if (bars.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("❌ ไม่พบข้อมูลกราฟสำหรับ Crypto: " + symbol);
+            }
+            return ResponseEntity.ok(bars);
+
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body("❌ Server Error: " + e.getMessage());
+        }
+    }
 }

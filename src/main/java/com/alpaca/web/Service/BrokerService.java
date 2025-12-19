@@ -72,18 +72,19 @@ public class BrokerService {
     private static final String FIRM_ACCOUNT_NUMBER = "9967544SW"; // เลขบัญชี (ใช้ตอนเสกเงิน Magic)
     String savedAccountId = "cccc73bb-c37e-4987-b059-075da0dfee8a"; //เป็น hardcode สำหรับ user
     String AccountNumber = "9967544SW"; //hardcode สำหรับ user
+    String savedAccountId_2 = "9d35fa1a-d10b-484c-abd5-6501dfee1ded" ;//เป็น hardcode สำหรับ user แบบที่ เทรด crypto
 
     public Account createAccount() {
         try {
             log.info("กำลังสร้างบัญชีลูกค้าใหม่...");
             Contact contact = new Contact()
                     .emailAddress("user_" + System.currentTimeMillis() + "@example.com")
-                    .phoneNumber("555-666-7777")
-                    .streetAddress(Arrays.asList("123 Test St"))
-                    .city("New York").state("NY").postalCode("10001");
+                    .phoneNumber("111-222-3333")
+                    .streetAddress(Arrays.asList("test can buy crypto"))
+                    .city("San Francisco").state("CA").postalCode("94105");  //NY ไม่สมารถเทรด crypto
 
             Identity identity = new Identity()
-                    .givenName("Test").familyName("User")
+                    .givenName("Tests").familyName("User2")
                     .dateOfBirth(LocalDate.of(1990, 1, 1))
                     .taxId("456-55-4321")
                     .taxIdType(TaxIdType.USA_SSN)
@@ -99,7 +100,8 @@ public class BrokerService {
                     .agreements(Arrays.asList(
                             new Agreement().agreement(AgreementType.MARGIN_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
                             new Agreement().agreement(AgreementType.ACCOUNT_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
-                            new Agreement().agreement(AgreementType.CUSTOMER_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1")
+                            new Agreement().agreement(AgreementType.CUSTOMER_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.CRYPTO_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1")
                     ));
 
             Account account = brokerAPI.broker().accounts().createAccount(request);
