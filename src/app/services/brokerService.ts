@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote,UserAccount} from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote,UserAccount,getCryptoBars} from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
   
@@ -104,5 +104,16 @@ export const brokerService = {
     // ยิง API ไปที่ Endpoint ที่เราสร้างไว้ใน Backend
     const response = await apiClient.get('/broker/admin/users');
     return response.data;
-  }
+  },
+
+  getCryptoBars: async (symbol: string, viewType: string): Promise<StockBar[]> => {
+    // ยิงไปที่ Endpoint ใหม่ /crypto-bar
+    const response = await apiClient.get('/broker/order/crypto-bar', {
+      params: {
+        symbol: symbol,   // ส่งไปตัวเดียว
+        viewType: viewType
+      }
+    });
+    return response.data;
+  },
 };

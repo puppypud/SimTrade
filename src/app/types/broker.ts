@@ -10,6 +10,15 @@ export interface StockBar {
   v: number; // Volume
 }
 
+export interface getCryptoBars {
+  t: string; // Timestamp (ISO String)
+  o: number; // Open
+  h: number; // High
+  l: number; // Low
+  c: number; // Close
+  v: number; // Volume
+}
+
 // สำหรับ Request ซื้อหุ้น
 export interface BuyStockRequest {   
   accountId: string;
