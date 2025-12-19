@@ -22,7 +22,7 @@ export default function DashboardPage() {
     const fetchAccountData = async () => {
       try {
         const data = await brokerService.getAccountInfo(
-          "cccc73bb-c37e-4987-b059-075da0dfee8a"
+          "9d35fa1a-d10b-484c-abd5-6501dfee1ded"
         );
         setAccount(data);
       } catch (error) {
@@ -195,7 +195,7 @@ export default function DashboardPage() {
       <div className="p-6">
         <h2 className="text-2xl font-bold text-white mb-6">My Portfolio</h2>
         {/* ส่ง accountId ของ user เข้าไป */}
-        <PortfolioTable accountId="cccc73bb-c37e-4987-b059-075da0dfee8a" />
+        <PortfolioTable accountId="9d35fa1a-d10b-484c-abd5-6501dfee1ded" />
       </div>
     </div>
   );

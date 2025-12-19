@@ -14,7 +14,7 @@ interface TradeTabsProps {
 }
 
 // ควรดึงจาก Context หรือ Env ในการใช้งานจริงs
-const HARDCODED_ACCOUNT_ID = "cccc73bb-c37e-4987-b059-075da0dfee8a";
+const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
 
 export default function TradeTabs({ symbol }: TradeTabsProps) {
 

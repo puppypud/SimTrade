@@ -116,7 +116,23 @@ export const brokerService = {
     });
     return response.data;
   },
-  createCryptoOrder: async (accountId: string, symbol: string, side: "BUY" | "SELL", amount: number, mode: "QTY" | "NOTIONAL", limitPrice?: number) => {
+  getLatestCryptoQuote: async (symbol: string) => {
+    // ยิงไปที่ /broker/quote/crypto ตามที่แก้ใน Backend
+    const response = await apiClient.get('/broker/quote/crypto', {
+      params: { symbol }
+    });
+    return response.data; // คืนค่า { symbol, price, askPrice, ... }
+  },
+
+  // ✅ 2. เพิ่มฟังก์ชันส่งคำสั่งซื้อขาย Crypto
+  createCryptoOrder: async (
+    accountId: string, 
+    symbol: string, 
+    side: "BUY" | "SELL", 
+    amount: number, 
+    mode: "QTY" | "NOTIONAL", 
+    limitPrice?: number
+  ) => {
     
     const params: any = {
       accountId,
@@ -124,16 +140,20 @@ export const brokerService = {
       OrderSide: side
     };
 
-    // จัดการส่งค่า qty หรือ notional ตามโหมดที่เลือก
+    // Logic: ถ้าโหมดเป็นจำนวนเงิน (Notional) หรือ จำนวนเหรียญ (Qty)
     if (mode === "NOTIONAL") {
-      params.notional = amount; // ซื้อด้วยจำนวนเงิน (USD) -> Backend บังคับเป็น Market Order
+      params.notional = amount; 
     } else {
-      params.qty = amount;      // ซื้อด้วยจำนวนเหรียญ -> เป็น Market หรือ Limit ขึ้นอยู่กับ limitPrice
+      params.qty = amount;      
       if (limitPrice) {
         params.limitPrice = limitPrice;
+        params.OrderType = "LIMIT"; // ถ้ามีราคา Limit ให้ส่ง type ไปด้วย
+      } else {
+         params.OrderType = "MARKET";
       }
     }
 
+    // ยิงไปที่ /broker/orders/crypto (ต้องมี Endpoint นี้ใน Controller)
     const response = await apiClient.post('/broker/orders/crypto', null, {
       params: params
     });
