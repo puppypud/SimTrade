@@ -260,5 +260,49 @@ public class BrokerService {
                 "contact,identity"
         );
     }
+    public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, BigDecimal limitPrice) throws ApiException {
+
+        // 1. จัดการ Symbol ให้เป็น Format ของ Crypto (ต้องมี /USD)
+        // เช่นถ้าส่งมา "BTC" -> เปลี่ยนเป็น "BTC/USD"
+        String cleanSymbol = symbol.trim().toUpperCase();
+        if (!cleanSymbol.contains("/")) {
+            cleanSymbol = cleanSymbol + "/USD";
+        }
+
+        log.info("Creating Crypto Order: Account={} Symbol={} Qty={} Notional={}", accountId, cleanSymbol, qty, notional);
+
+        // 2. เตรียม Request
+        CreateOrderRequest request = new CreateOrderRequest()
+                .symbol(cleanSymbol)
+                .side(side)
+                .timeInForce(TimeInForce.GTC); // 🚨 Crypto แนะนำให้ใช้ GTC (Good Till Cancelled) เสมอ เพราะตลาดเปิด 24 ชม.
+
+        // 3. Logic เลือกส่ง Qty หรือ Notional
+        if (qty != null && notional == null) {
+            // กรณีระบุจำนวนเหรียญ (เช่น ซื้อ 0.1 BTC)
+            request.qty(qty);
+            request.type(type); // เป็น LIMIT หรือ MARKET ก็ได้
+
+            if (type == OrderType.LIMIT || type == OrderType.STOP_LIMIT) {
+                if (limitPrice != null) {
+                    request.limitPrice(limitPrice);
+                } else {
+                    throw new IllegalArgumentException("Limit Order ต้องใส่ราคา (Limit Price) เสมอ");
+                }
+            }
+
+        } else if (notional != null && qty == null) {
+            // กรณีระบุจำนวนเงิน (เช่น ซื้อ $100) -> บังคับ Market Order
+            request.notional(notional);
+            request.type(OrderType.MARKET);
+
+            // หมายเหตุ: Crypto รองรับ Notional Market Order ได้ปกติ
+        } else {
+            throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' (จำนวนเหรียญ) หรือ 'notional' (จำนวนเงิน)");
+        }
+
+        // 4. ยิงคำสั่งผ่าน SDK ตัวเดิม
+        return brokerAPI.broker().trading().createOrderForAccount(accountId, request);
+    }
 }
 

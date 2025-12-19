@@ -2,7 +2,7 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
-import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
+import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
 import org.slf4j.LoggerFactory;
@@ -262,6 +262,50 @@ public class BrokerController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body("❌ Server Error: " + e.getMessage());
+        }
+    }
+    // ใน BrokerController.java
+
+    @PostMapping("/orders/crypto")
+    public ResponseEntity<?> placeCryptoOrder(
+            @RequestParam("accountId") UUID accountId,
+            @RequestParam("symbol") String symbol,
+            @RequestParam(value = "qty", required = false) BigDecimal qty,
+            @RequestParam(value = "notional", required = false) BigDecimal notional,
+            @RequestParam("OrderSide") String orderSideStr, // ยังต้องมี BUY/SELL
+            // ❌ ตัด OrderType ออก (เดี๋ยวระบบเลือกให้เอง)
+            @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice
+    ) {
+        try {
+            // 1. แปลง OrderSide (BUY/SELL)
+            OrderSide side = OrderSide.valueOf(orderSideStr.toUpperCase());
+            // 2. Lock & Auto-Detect OrderType (ระบบเลือกให้อัตโนมัติ)
+            OrderType type;
+            if (notional != null) {
+                // ถ้าซื้อเป็นจำนวนเงิน (Notional) -> บังคับ MARKET เท่านั้น
+                type = OrderType.MARKET;
+            } else {
+                // ถ้าซื้อเป็นจำนวนเหรียญ (Qty)
+                // มี Limit Price -> เป็น LIMIT, ไม่มี -> เป็น MARKET
+                type = (limitPrice != null) ? OrderType.LIMIT : OrderType.MARKET;
+            }
+            // 3. ส่งเข้า Service (TimeInForce ถูก Lock เป็น GTC ใน Service แล้ว)
+            Order order = brokerService.createCryptoOrder(
+                    accountId,
+                    symbol,
+                    qty,
+                    notional,
+                    side,
+                    type,
+                    limitPrice
+            );
+            return ResponseEntity.ok(order);
+
+        } catch (IllegalArgumentException e) {
+            // ดัก Error เช่น ส่งมาทั้ง qty และ notional หรือ ใส่ enum ผิด
+            return ResponseEntity.badRequest().body("❌ Validation Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
 }
