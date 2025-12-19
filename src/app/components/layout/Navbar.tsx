@@ -77,12 +77,14 @@ const Navbar = () => {
             <a href="/PortfolioTrader" className="text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md transition-all">
                 Portfolio
             </a>
+            <a href="/tradecrypto" className="text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md transition-all">
+                Crypto
+            </a>
             <a href="/admin" className="text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md transition-all">
                 Admin
             </a>
         </div>
       </div>
-
     </div>
   );
 };
