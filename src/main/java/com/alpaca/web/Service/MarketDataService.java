@@ -37,10 +37,10 @@ public class MarketDataService {
     private final RestTemplate restTemplate = new RestTemplate();
     private AlpacaAPI alpacaAPI;
 
-    @Value("***REDACTED_OLD_TRADING_KEY***")
+    @Value("***REDACTED_TRADING_KEY***")
     private String apiKey;
 
-    @Value("***REDACTED_OLD_TRADING_SECRET***")
+    @Value("***REDACTED_TRADING_SECRET***")
     private String apiSecret;
 
     // พิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
@@ -175,8 +175,13 @@ public class MarketDataService {
     }
 
     public Map<String, Object> getLatestQuote(String symbol) {
+        // ✅ เพิ่มการเช็ค: ถ้ามี "/" แสดงว่าเป็น Crypto ให้ส่งไปฟังก์ชัน Crypto แทนทันที
+        if (symbol.contains("/")) {
+            return getLatestCryptoQuote(symbol);
+        }
+
+        // --- ส่วนเดิม (สำหรับหุ้น) ---
         String cleanSymbol = symbol.trim().toUpperCase();
-        // ใช้ Endpoint snapshot (บังคับ feed=iex)
         String urlString = String.format(
                 "https://data.alpaca.markets/v2/stocks/%s/snapshot?feed=iex",
                 cleanSymbol
@@ -190,21 +195,17 @@ public class MarketDataService {
 
         try {
             ResponseEntity<Map> response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
-            // Alpaca Snapshot response structure: { "symbol": "AAPL", "latestTrade": {...}, "latestQuote": {...}, ... }
             if (response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
 
                 Map<String, Object> result = new java.util.HashMap<>();
                 result.put("symbol", body.get("symbol"));
 
-                // 1. ดึงข้อมูล Last Trade (สำหรับโชว์ราคาตัวใหญ่ให้ตรงกราฟ)
                 if (body.containsKey("latestTrade")) {
                     Map<String, Object> trade = (Map<String, Object>) body.get("latestTrade");
-                    result.put("price", trade.get("p"));      // Price
-                    result.put("tradeTime", trade.get("t"));  // Time
+                    result.put("price", trade.get("p"));
+                    result.put("tradeTime", trade.get("t"));
                 }
-
-                // 2. ดึงข้อมูล Latest Quote (สำหรับโชว์ Bid/Ask)
                 if (body.containsKey("latestQuote")) {
                     Map<String, Object> quote = (Map<String, Object>) body.get("latestQuote");
                     result.put("askPrice", quote.get("ap"));
@@ -212,12 +213,9 @@ public class MarketDataService {
                     result.put("bidPrice", quote.get("bp"));
                     result.put("bidSize", quote.get("bs"));
                 }
-
-                // 3. (แถม) ข้อมูล % Change ของวัน (dailyBar) ถ้ามี
                 if (body.containsKey("dailyBar")) {
                     Map<String, Object> daily = (Map<String, Object>) body.get("dailyBar");
                     result.put("openPrice", daily.get("o"));
-                    // เอาไว้คำนวณ % change ที่ Frontend: (price - openPrice) / openPrice * 100
                 }
 
                 return result;
@@ -231,22 +229,49 @@ public class MarketDataService {
     public List<StockBar> getCryptoBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim().toUpperCase();
 
-        // ถ้า User ลืมพิมพ์ /USD เราเติมให้ที่นี่ได้เลย เพราะรู้อยู่แล้วว่าเป็นฟังก์ชัน Crypto
+        // ถ้า User ลืมพิมพ์ /USD เราเติมให้ที่นี่ได้เลย
         if (!cleanSymbol.contains("/")) {
             cleanSymbol = cleanSymbol + "/USD";
         }
 
-        // กำหนด Timeframe
+        // 1. กำหนด Timeframe และ StartTime ตาม viewType
         String timeframe;
-        int limit = 1000;
-        // ... (logic คำนวณ startTime เหมือนเดิม หรือปรับให้เหมาะกับ Crypto) ...
-        // ตัวอย่าง: ถ้า viewType เป็น 1D อาจใช้ timeframe = "1Min"
-        timeframe = "1Min"; // ตัวอย่างย่อ
+        int limit = 10000; // เพิ่ม Limit ให้เยอะขึ้นเพื่อรองรับข้อมูลจำนวนมาก (Alpaca รองรับสูงสุด 10,000)
 
-        // *** ใช้ URL ของ Crypto โดยเฉพาะ ***
+        ZonedDateTime nowUTC = ZonedDateTime.now(ZoneOffset.UTC); // Crypto ใช้เวลา UTC
+        ZonedDateTime startTime;
+
+        switch (viewType.toUpperCase()) {
+            case "1D":
+                timeframe = "2Min"; // 1 วัน ใช้แท่งละ 5 นาที (1440/5 = 288 แท่ง) กราฟจะสวยพอดี
+                startTime = nowUTC.minusDays(1);
+                break;
+            case "1W":
+                timeframe = "30Min"; // 1 อาทิตย์ ใช้แท่งละ 30 นาที
+                startTime = nowUTC.minusWeeks(1);
+                break;
+            case "1M":
+                timeframe = "2Hour"; // 1 เดือน ใช้แท่งละ 2 ชม (หรือ 4Hour ก็ได้)
+                startTime = nowUTC.minusMonths(1);
+                break;
+            case "1Y":
+                timeframe = "1Day"; // 1 ปี ใช้แท่งละ 1 วัน
+                startTime = nowUTC.minusYears(1);
+                break;
+            default:
+                timeframe = "15Min";
+                startTime = nowUTC.minusDays(1);
+                break;
+        }
+
+        // 2. แปลง startTime เป็น String format ที่ API ต้องการ (RFC3339)
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        String startStr = startTime.format(formatter);
+
+        // 3. สร้าง URL โดยใส่ parameter &start=... เข้าไปด้วย
         String urlString = String.format(
-                "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=%d",
-                cleanSymbol, timeframe, limit
+                "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=%d&start=%s",
+                cleanSymbol, timeframe, limit, startStr
         );
 
         URI uri = URI.create(urlString);
@@ -258,7 +283,6 @@ public class MarketDataService {
         try {
             ResponseEntity<Map> response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
 
-            // Logic แกะ JSON ของ Crypto Bars (โครงสร้างต่างจาก Stock นิดหน่อย)
             if (response.getBody() != null && response.getBody().containsKey("bars")) {
                 Map<String, Object> allBars = (Map<String, Object>) response.getBody().get("bars");
                 if (allBars.containsKey(cleanSymbol)) {
@@ -267,7 +291,6 @@ public class MarketDataService {
                     List<StockBar> cryptoBars = new ArrayList<>();
                     for (Map<String, Object> barMap : barList) {
                         StockBar bar = new StockBar();
-                        // Map ค่าเข้า Object (Crypto มักใช้ field 't', 'o', 'h', 'l', 'c', 'v' เหมือนกัน)
                         bar.setT(OffsetDateTime.parse(barMap.get("t").toString()));
                         bar.setO(Double.valueOf(barMap.get("o").toString()));
                         bar.setH(Double.valueOf(barMap.get("h").toString()));
@@ -276,6 +299,9 @@ public class MarketDataService {
                         bar.setV(Double.valueOf(barMap.get("v").toString()).longValue());
                         cryptoBars.add(bar);
                     }
+                    // ถ้าเป็น Crypto แนะนำให้ Sort เวลาให้ชัวร์ก่อนส่งกลับ
+                    cryptoBars.sort(Comparator.comparing(StockBar::getT));
+
                     return cryptoBars;
                 }
             }
@@ -285,45 +311,61 @@ public class MarketDataService {
         return Collections.emptyList();
     }
     public Map<String, Object> getLatestCryptoQuote(String symbol) {
+        // 1. จัดการ Symbol ให้สะอาด และต้องมี /USD
+        String cleanSymbol = symbol.trim().toUpperCase();
+        if (!cleanSymbol.contains("/")) {
+            cleanSymbol = cleanSymbol + "/USD";
+        }
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("symbol", cleanSymbol);
+
+        // Header สำหรับยิง API
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
         try {
-            Map<String, Object> data = new HashMap<>();
-            data.put("symbol", symbol);
-
-            // ใช้ CryptoLatestLoc.US สำหรับดึงข้อมูลฝั่ง US
-            CryptoLatestLoc loc = CryptoLatestLoc.US;
-
-            // 1. ดึงราคาซื้อขายล่าสุด (Trade) -> ใช้ cryptoLatestTrades
+            // 2. ดึงราคา Trade ล่าสุด (Latest Trade)
+            // URL: /v1beta3/crypto/us/latest/trades
+            String tradeUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/trades?symbols=" + cleanSymbol;
             try {
-                // เรียก cryptoLatestTrades แทน getLatestTrade
-                var tradeResp = alpacaAPI.marketData().crypto().cryptoLatestTrades(loc, symbol);
-
-                // แกะข้อมูลจาก Response (โครงสร้างจะเป็น Map<String, CryptoTrade>)
-                if (tradeResp != null && tradeResp.getTrades() != null && tradeResp.getTrades().containsKey(symbol)) {
-                    var trade = tradeResp.getTrades().get(symbol);
-                    data.put("price", trade.getP()); // getP() คือ Price
-                } else {
-                    data.put("price", 0.0);
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(tradeUrl), HttpMethod.GET, entity, Map.class);
+                if (response.getBody() != null && response.getBody().containsKey("trades")) {
+                    Map<String, Object> tradesMap = (Map<String, Object>) response.getBody().get("trades");
+                    if (tradesMap.containsKey(cleanSymbol)) {
+                        Map<String, Object> tradeDetail = (Map<String, Object>) tradesMap.get(cleanSymbol);
+                        if (tradeDetail.get("p") != null) {
+                            data.put("price", ((Number) tradeDetail.get("p")).doubleValue());
+                        } else {
+                            data.put("price", 0.0);
+                        }
+                        data.put("tradeTime", tradeDetail.get("t"));
+                    }
                 }
             } catch (Exception e) {
                 log.error("Error fetching crypto trade: " + e.getMessage());
                 data.put("price", 0.0);
             }
 
-            // 2. ดึงราคาเสนอซื้อ/ขาย (Quote) -> ใช้ cryptoLatestQuotes
+            // 3. ดึงราคา Bid/Ask ล่าสุด (Latest Quote)
+            // URL: /v1beta3/crypto/us/latest/quotes
+            String quoteUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/quotes?symbols=" + cleanSymbol;
             try {
-                // เรียก cryptoLatestQuotes แทน getLatestQuote
-                var quoteResp = alpacaAPI.marketData().crypto().cryptoLatestQuotes(loc, symbol);
-
-                // แกะข้อมูลจาก Response
-                if (quoteResp != null && quoteResp.getQuotes() != null && quoteResp.getQuotes().containsKey(symbol)) {
-                    var quote = quoteResp.getQuotes().get(symbol);
-                    data.put("askPrice", quote.getAp()); // Ask Price
-                    data.put("askSize", quote.getAs());  // Ask Size
-                    data.put("bidPrice", quote.getBp()); // Bid Price
-                    data.put("bidSize", quote.getBs());  // Bid Size
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(quoteUrl), HttpMethod.GET, entity, Map.class);
+                if (response.getBody() != null && response.getBody().containsKey("quotes")) {
+                    Map<String, Object> quotesMap = (Map<String, Object>) response.getBody().get("quotes");
+                    if (quotesMap.containsKey(cleanSymbol)) {
+                        Map<String, Object> quoteDetail = (Map<String, Object>) quotesMap.get(cleanSymbol);
+                        // ap = Ask Price, as = Ask Size, bp = Bid Price, bs = Bid Size
+                        data.put("askPrice", quoteDetail.get("ap"));
+                        data.put("askSize", quoteDetail.get("as"));
+                        data.put("bidPrice", quoteDetail.get("bp"));
+                        data.put("bidSize", quoteDetail.get("bs"));
+                    }
                 }
             } catch (Exception e) {
-                // ถ้าหา Quote ไม่เจอ ให้ใส่ 0 ไว้
                 data.put("askPrice", 0.0);
                 data.put("bidPrice", 0.0);
             }
@@ -331,7 +373,7 @@ public class MarketDataService {
             return data;
 
         } catch (Exception e) {
-            log.error("Error getting crypto quote for " + symbol, e);
+            log.error("Error getting crypto quote for " + cleanSymbol, e);
             return Map.of();
         }
     }

@@ -8,8 +8,6 @@ import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType;
 // Import ฝั่ง Broker (สำหรับสร้างบัญชีและคำสั่งซื้อ)
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.broker.model.*;
-import net.jacobpeterson.alpaca.openapi.broker.model.ACHRelationship;
-import net.jacobpeterson.alpaca.openapi.broker.model.CreateACHRelationshipRequest;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateTransferRequest;
 import net.jacobpeterson.alpaca.openapi.broker.model.Order;
 import net.jacobpeterson.alpaca.openapi.broker.model.OrderSide;
@@ -28,22 +26,15 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Disclosures;
 import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
-import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
-import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -115,7 +106,7 @@ public class BrokerService {
     }
 
     // สั่งซื้อหุ้นUser ---
-    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ) throws ApiException {
+    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ,BigDecimal stopPrice) throws ApiException {
         log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
         CreateOrderRequest request = new CreateOrderRequest()
                 .symbol(symbol)
@@ -129,6 +120,13 @@ public class BrokerService {
                     request.limitPrice(limitPrice);
                 } else {
                     throw new IllegalArgumentException("Limit Order ต้องใส่ราคา (Limit Price) เสมอ");
+                }
+            }
+            if (type == OrderType.STOP || type == OrderType.STOP_LIMIT) {
+                if (stopPrice != null) {
+                    request.stopPrice(stopPrice);
+                } else {
+                    throw new IllegalArgumentException("Stop Order ต้องใส่ราคา (Stop Price) เสมอ");
                 }
             }
         } else if (notional != null && qty == null) {
@@ -260,49 +258,70 @@ public class BrokerService {
                 "contact,identity"
         );
     }
-    public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, BigDecimal limitPrice) throws ApiException {
+    public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
 
-        // 1. จัดการ Symbol ให้เป็น Format ของ Crypto (ต้องมี /USD)
-        // เช่นถ้าส่งมา "BTC" -> เปลี่ยนเป็น "BTC/USD"
+        // 1. จัดการ Symbol
         String cleanSymbol = symbol.trim().toUpperCase();
         if (!cleanSymbol.contains("/")) {
             cleanSymbol = cleanSymbol + "/USD";
         }
 
-        log.info("Creating Crypto Order: Account={} Symbol={} Qty={} Notional={}", accountId, cleanSymbol, qty, notional);
+        // 🔍 Log 1: ดูข้อมูลดิบที่ส่งเข้ามาจาก Controller
+        log.info("=================================================");
+        log.info("🕵️ [CryptoOrder] Start Creating Order...");
+        log.info("👉 Inputs: Account={}, Symbol={}, Side={}, Type={}", accountId, cleanSymbol, side, type);
+        log.info("💰 Values: Qty={}, Notional={}, LimitPrice={}", qty, notional, limitPrice);
 
         // 2. เตรียม Request
         CreateOrderRequest request = new CreateOrderRequest()
                 .symbol(cleanSymbol)
                 .side(side)
-                .timeInForce(TimeInForce.GTC); // 🚨 Crypto แนะนำให้ใช้ GTC (Good Till Cancelled) เสมอ เพราะตลาดเปิด 24 ชม.
+                .timeInForce(TimeInForce.GTC); // Crypto ใช้ GTC เป็นหลัก
 
         // 3. Logic เลือกส่ง Qty หรือ Notional
         if (qty != null && notional == null) {
-            // กรณีระบุจำนวนเหรียญ (เช่น ซื้อ 0.1 BTC)
+            // กรณีระบุจำนวนเหรียญ
             request.qty(qty);
-            request.type(type); // เป็น LIMIT หรือ MARKET ก็ได้
+            request.type(type); // ใช้ Type ที่ส่งมา (MARKET หรือ LIMIT)
 
+            // เช็คและใส่ Limit Price
             if (type == OrderType.LIMIT || type == OrderType.STOP_LIMIT) {
                 if (limitPrice != null) {
                     request.limitPrice(limitPrice);
+                    log.info("✅ Set Limit Price: {}", limitPrice);
                 } else {
+                    log.error("❌ Error: Limit Order but Limit Price is NULL");
                     throw new IllegalArgumentException("Limit Order ต้องใส่ราคา (Limit Price) เสมอ");
                 }
             }
-
         } else if (notional != null && qty == null) {
-            // กรณีระบุจำนวนเงิน (เช่น ซื้อ $100) -> บังคับ Market Order
+            // กรณีระบุจำนวนเงิน -> บังคับ Market
             request.notional(notional);
             request.type(OrderType.MARKET);
-
-            // หมายเหตุ: Crypto รองรับ Notional Market Order ได้ปกติ
+            log.info("ℹ️ Using Notional Amount -> Force Market Order");
         } else {
-            throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' (จำนวนเหรียญ) หรือ 'notional' (จำนวนเงิน)");
+            log.error("❌ Error: Ambiguous Input (Qty={} Notional={})", qty, notional);
+            throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' หรือ 'notional'");
         }
 
-        // 4. ยิงคำสั่งผ่าน SDK ตัวเดิม
-        return brokerAPI.broker().trading().createOrderForAccount(accountId, request);
+        // 📦 Log 2: ดูหน้าตา Request สุดท้ายที่จะส่งไป Alpaca
+        log.info("🚀 [CryptoOrder] Sending Request to Alpaca: {}", request.toString());
+
+        // 4. ยิงคำสั่ง
+        try {
+            Order order = brokerAPI.broker().trading().createOrderForAccount(accountId, request);
+
+            // ✅ Log 3: ถ้าสำเร็จ ได้ Order ID อะไรกลับมา
+            log.info("✅ [CryptoOrder] SUCCESS! Order ID: {}, Status: {}", order.getId(), order.getStatus());
+            log.info("=================================================");
+            return order;
+
+        } catch (ApiException e) {
+            // ❌ Log 4: ถ้าพัง พังเพราะอะไร (ปริ้น Response Body ออกมาดูเลย)
+            log.error("🔥 [CryptoOrder] FAILED! Alpaca Error: {}", e.getMessage());
+            log.error("🔥 [CryptoOrder] Response Body: {}", e.getResponseBody()); // ทีเด็ดอยู่ตรงนี้! มันจะบอกว่าผิดตรงไหน
+            throw e;
+        }
     }
 }
 

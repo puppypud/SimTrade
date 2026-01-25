@@ -38,6 +38,7 @@ public class BrokerController {
             @RequestParam(value = "qty", required = false) BigDecimal qty,          // แก้เป็น optional
             @RequestParam(value = "notional", required = false) BigDecimal notional,
             @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice,
+            @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice,
             @RequestParam("OrderSide") String orderSideStr,
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) throws Exception {
@@ -71,7 +72,8 @@ public class BrokerController {
                     side,
                     type,
                     Time,
-                    limitPrice
+                    limitPrice,
+                    stopPrice
             );
             return ResponseEntity.ok("Order created successfully: " + order.getId());
 
@@ -272,47 +274,34 @@ public class BrokerController {
             @RequestParam("symbol") String symbol,
             @RequestParam(value = "qty", required = false) BigDecimal qty,
             @RequestParam(value = "notional", required = false) BigDecimal notional,
-            @RequestParam("OrderSide") String orderSideStr, // ยังต้องมี BUY/SELL
-            // ❌ ตัด OrderType ออก (เดี๋ยวระบบเลือกให้เอง)
-            @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice
+            @RequestParam("OrderSide") String orderSideStr,
+            // ✅ เพิ่ม Parameter ใหม่
+            @RequestParam(value = "OrderType", defaultValue = "MARKET") String orderTypeStr,
+            @RequestParam(value = "TimeInForce", defaultValue = "GTC") String timeInForceStr,
+            @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice,
+            @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice
     ) {
         try {
-            // 1. แปลง OrderSide (BUY/SELL)
             OrderSide side = OrderSide.valueOf(orderSideStr.toUpperCase());
-            // 2. Lock & Auto-Detect OrderType (ระบบเลือกให้อัตโนมัติ)
-            OrderType type;
-            if (notional != null) {
-                // ถ้าซื้อเป็นจำนวนเงิน (Notional) -> บังคับ MARKET เท่านั้น
-                type = OrderType.MARKET;
-            } else {
-                // ถ้าซื้อเป็นจำนวนเหรียญ (Qty)
-                // มี Limit Price -> เป็น LIMIT, ไม่มี -> เป็น MARKET
-                type = (limitPrice != null) ? OrderType.LIMIT : OrderType.MARKET;
-            }
-            // 3. ส่งเข้า Service (TimeInForce ถูก Lock เป็น GTC ใน Service แล้ว)
+            // ✅ แปลง Enum
+            OrderType type = OrderType.valueOf(orderTypeStr.toUpperCase());
+            TimeInForce tif = TimeInForce.valueOf(timeInForceStr.toUpperCase());
+
+            // ส่งค่าทั้งหมดไปให้ BrokerService สร้างออเดอร์
             Order order = brokerService.createCryptoOrder(
-                    accountId,
-                    symbol,
-                    qty,
-                    notional,
-                    side,
-                    type,
-                    limitPrice
+                    accountId, symbol, qty, notional, side, type, tif, limitPrice, stopPrice
             );
             return ResponseEntity.ok(order);
 
-        } catch (IllegalArgumentException e) {
-            // ดัก Error เช่น ส่งมาทั้ง qty และ notional หรือ ใส่ enum ผิด
-            return ResponseEntity.badRequest().body("❌ Validation Error: " + e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+            return ResponseEntity.badRequest().body("❌ Error: " + e.getMessage());
         }
     }
       @GetMapping("/quote/crypto")
     public ResponseEntity<?> getLatestCryptoQuote(@RequestParam("symbol") String symbol) {
         try {
             // เรียกใช้ Service ตัวที่เราเพิ่งแก้เสร็จ
-            Map<String, Object> data = marketDataService.getLatestCryptoQuote(symbol);
+            Map<String, Object> data = marketDataService.getLatestQuote(symbol);
 
             if (data.isEmpty() || (data.containsKey("price") && (double)data.get("price") == 0)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ ไม่พบข้อมูล Crypto: " + symbol);
