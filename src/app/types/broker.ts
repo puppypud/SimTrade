@@ -29,6 +29,7 @@ export interface BuyStockRequest {
   OrderType: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT' | 'TRAILING_STOP';
   TimeInForce: 'DAY' | 'GTC' | 'IOC' | 'FOK';
   limitPrice?: number;
+  stopPrice?: number;
 }
 
 

@@ -11,7 +11,8 @@ export const brokerService = {
       OrderSide: data.OrderSide,
       OrderType: data.OrderType,
       TimeInForce: data.TimeInForce,
-      limitPrice: data.limitPrice
+      limitPrice: data.limitPrice,
+      stopPrice: data.stopPrice
     };
 
     if (data.notional && data.notional > 0) {
@@ -131,29 +132,32 @@ export const brokerService = {
     side: "BUY" | "SELL", 
     amount: number, 
     mode: "QTY" | "NOTIONAL", 
-    limitPrice?: number
+    orderType: string,      // เพิ่ม
+    timeInForce: string,    // เพิ่ม
+    limitPrice?: number,
+    stopPrice?: number      // เพิ่ม
   ) => {
     
     const params: any = {
       accountId,
       symbol,
-      OrderSide: side
+      OrderSide: side,
+      OrderType: orderType,   // ส่งค่าไป Backend
+      TimeInForce: timeInForce // ส่งค่าไป Backend
     };
 
-    // Logic: ถ้าโหมดเป็นจำนวนเงิน (Notional) หรือ จำนวนเหรียญ (Qty)
     if (mode === "NOTIONAL") {
-      params.notional = amount; 
+      params.notional = amount;
+      // Notional บังคับเป็น Market Order เสมอ
+      params.OrderType = "MARKET"; 
     } else {
-      params.qty = amount;      
-      if (limitPrice) {
-        params.limitPrice = limitPrice;
-        params.OrderType = "LIMIT"; // ถ้ามีราคา Limit ให้ส่ง type ไปด้วย
-      } else {
-         params.OrderType = "MARKET";
-      }
+      params.qty = amount;
+      
+      // ใส่ราคาตามประเภทออเดอร์
+      if (limitPrice) params.limitPrice = limitPrice;
+      if (stopPrice) params.stopPrice = stopPrice;
     }
 
-    // ยิงไปที่ /broker/orders/crypto (ต้องมี Endpoint นี้ใน Controller)
     const response = await apiClient.post('/broker/orders/crypto', null, {
       params: params
     });

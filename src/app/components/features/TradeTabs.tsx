@@ -13,21 +13,20 @@ interface TradeTabsProps {
   symbol: string;
 }
 
-// ควรดึงจาก Context หรือ Env ในการใช้งานจริงs
 const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
 
 export default function TradeTabs({ symbol }: TradeTabsProps) {
-
   // State หลัก
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
-  const [orderType, setOrderType] =
-    useState<BuyStockRequest["OrderType"]>("MARKET");
-  const [timeInForce, setTimeInForce] =
-    useState<BuyStockRequest["TimeInForce"]>("DAY");
-  const [limitPrice, setLimitPrice] = useState<number | "">("");
+  const [orderType, setOrderType] = useState<BuyStockRequest["OrderType"]>("MARKET");
+  const [timeInForce, setTimeInForce] = useState<BuyStockRequest["TimeInForce"]>("DAY");
+
+  // ✅ ใช้ targetPrice เป็นตัวแปรเก็บราคาเป้าหมาย (ใช้ร่วมกันทั้ง Limit และ Stop)
+  const [targetPrice, setTargetPrice] = useState<number | "">("");
+
   // State สำหรับโหมดการกรอก (Shares หรือ Dollars)
   const [inputMode, setInputMode] = useState<"SHARES" | "DOLLARS">("SHARES");
-  const [amount, setAmount] = useState<number | "">(""); // ใช้ตัวแปรเดียวเก็บค่า ไม่ว่าจะเป็น Qty หรือ Notional
+  const [amount, setAmount] = useState<number | "">("");
 
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,10 +35,9 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     text: string;
   } | null>(null);
 
-  // ✅ เพิ่ม State สำหรับเก็บราคาล่าสุด
   const [quote, setQuote] = useState<StockQuote | null>(null);
 
-  // useEffect ดึง Account
+  // ดึงข้อมูล Account
   useEffect(() => {
     const fetchAccount = async () => {
       try {
@@ -52,7 +50,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     fetchAccount();
   }, []);
 
-  // ✅ useEffect สำหรับ Auto Refresh Quote (เพิ่มใหม่)
+  // ดึงราคา Real-time
   useEffect(() => {
     const fetchPrice = async () => {
       if (!symbol) return;
@@ -61,25 +59,19 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
         setQuote(data);
       } catch (error) {
         console.error("Failed to fetch quote:", error);
-        // ไม่ต้อง setQuote(null) ก็ได้ เพื่อให้ราคาเก่าโชว์ค้างไว้ดีกว่าหายไปเลย
       }
     };
 
-    // เรียกทันทีครั้งแรก
     fetchPrice();
-
-    // ตั้งเวลาเรียกซ้ำทุก 3 วินาที
     const intervalId = setInterval(fetchPrice, 3000);
-
-    // เคลียร์เมื่อ component ถูกทำลาย หรือเปลี่ยน symbol
     return () => clearInterval(intervalId);
   }, [symbol]);
 
-  // useEffect Reset ค่า (เหมือนเดิม)
+  // Reset ค่าเมื่อเปลี่ยน Symbol หรือ Input Mode
   useEffect(() => {
     setMessage(null);
     setAmount("");
-    setLimitPrice("");
+    setTargetPrice(""); // Reset ราคาเป้าหมาย
     if (inputMode === "DOLLARS") {
       setOrderType("MARKET");
       setTimeInForce("DAY");
@@ -93,10 +85,19 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       return;
     }
 
+    // Validation เพิ่มเติม: ถ้าไม่ใช่ Market ต้องใส่ราคาเสมอ
+    if (orderType !== "MARKET" && (!targetPrice || Number(targetPrice) <= 0)) {
+       setMessage({ type: "error", text: "Please enter a valid price." });
+       return;
+    }
+
     setLoading(true);
     setMessage(null);
 
     try {
+      // ✅ Logic การ Map ค่า targetPrice ไปใส่ให้ถูก Field ตาม OrderType
+      const priceValue = targetPrice === "" ? undefined : Number(targetPrice);
+      
       // เตรียม Payload
       const payload: BuyStockRequest = {
         accountId: HARDCODED_ACCOUNT_ID,
@@ -104,23 +105,37 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
         OrderSide: orderSide,
         OrderType: orderType,
         TimeInForce: timeInForce,
-        limitPrice: limitPrice === "" ? undefined : Number(limitPrice),
+        // กำหนดค่าเริ่มต้นเป็น undefined ไว้ก่อน
+        limitPrice: undefined,
+        stopPrice: undefined, 
       };
 
-      // แยกกรณีตาม Input Mode
+      // Map ค่าเข้า field ที่ถูกต้อง
+      if (orderType === "LIMIT") {
+        payload.limitPrice = priceValue;
+      } else if (orderType === "STOP") {
+        payload.stopPrice = priceValue; // ✅ ส่งเข้า stopPrice ให้ Backend รับค่าได้ถูกต้อง
+      } else if (orderType === "STOP_LIMIT") {
+        // กรณี Stop Limit ถ้า UI มีช่องเดียว ให้ถือว่า Stop = Limit
+        payload.stopPrice = priceValue;
+        payload.limitPrice = priceValue;
+      }
+
+      // Map Qty หรือ Notional
       if (inputMode === "SHARES") {
         payload.qty = Number(amount);
       } else {
         payload.notional = Number(amount);
-        // ปกติ Notional มักบังคับเป็น Market Order (Backend service คุณจัดการเรื่องนี้แล้ว)
       }
+
+      console.log("Sending Payload:", payload); // Debug ดูค่าก่อนส่ง
 
       await brokerService.buyStock(payload);
 
       setMessage({ type: "success", text: "Order placed successfully!" });
-      setAmount(""); // Reset
-
-      // Refresh Account Data
+      setAmount(""); 
+      setTargetPrice(""); // Reset ราคาหลังส่ง
+      
       const updatedAccount = await brokerService.getAccountInfo(
         HARDCODED_ACCOUNT_ID
       );
@@ -135,12 +150,22 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       setLoading(false);
     }
   };
-  // คำนวณ % Change (ถ้ามี openPrice)
+
   const percentChange = quote && quote.openPrice
     ? ((quote.price - quote.openPrice) / quote.openPrice) * 100
     : 0;
 
   const isBuy = orderSide === "BUY";
+
+  // Helper: เช็คว่าจะโชว์ช่องกรอกราคาหรือไม่
+  const showPriceInput = orderType === "LIMIT" || orderType === "STOP" || orderType === "STOP_LIMIT";
+  
+  // Helper: เปลี่ยน Label ตามประเภทคำสั่ง
+  const getPriceLabel = () => {
+    if (orderType === "STOP") return "Stop Price";
+    if (orderType === "STOP_LIMIT") return "Stop/Limit Price";
+    return "Limit Price";
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
@@ -149,26 +174,21 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
         <div>
           <h2 className="text-xl font-bold text-gray-800 tracking-tight">{symbol}</h2>
           
-          {/* ✅ แสดงราคา Real-time ตรงนี้ */}
           <div className="flex flex-col">
             {quote ? (
                 <>
-                    {/* ✅ 1. ราคาตัวใหญ่: ใช้ Last Trade Price (นิ่ง ตรงกราฟ) */}
                     <div className="flex items-baseline gap-2">
                         <span className={`text-3xl font-bold tracking-tight font-mono ${
                             percentChange >= 0 ? 'text-green-600' : 'text-red-600'
                         }`}>
                             ${quote.price.toFixed(2)}
                         </span>
-                        {/* แสดง % Change */}
                         {quote.openPrice && (
                             <span className={`text-sm font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
                             </span>
                         )}
                     </div>
-
-                    {/* ✅ 2. ข้อมูล Bid/Ask: แสดงอยู่ข้างล่างเหมือนเดิม */}
                     <div className="flex gap-3 text-xs font-medium mt-1">
                         <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded border border-gray-200">
                             Bid: <span className="text-gray-800">{quote.bidPrice.toFixed(2)}</span>
@@ -199,6 +219,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
            )}
         </div>
       </div>
+      
       {/* Tabs: Buy / Sell */}
       <div className="flex border-b border-gray-100">
         <button
@@ -260,7 +281,6 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
             <div className="relative">
               <select
                 value={orderType}
-                // ถ้าซื้อเป็นจำนวนเงิน (Dollars) มักจะล็อคเป็น Market Order
                 disabled={inputMode === "DOLLARS"}
                 onChange={(e) =>
                   setOrderType(e.target.value as BuyStockRequest["OrderType"])
@@ -272,8 +292,8 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
                 <option value="MARKET">Market</option>
                 <option value="LIMIT">Limit</option>
                 <option value="STOP">Stop</option>
-                <option value="STOP_LIMIT">Stop Limit</option>
-                <option value="TRAILING_STOP">Trailing Stop</option>
+                {/* เพิ่ม STOP_LIMIT หากต้องการ */}
+                {/* <option value="STOP_LIMIT">Stop Limit</option> */}
               </select>
               {inputMode !== "DOLLARS" && (
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
@@ -308,8 +328,6 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
               >
                 <option value="DAY">Day</option>
                 <option value="GTC">GTC</option>
-                <option value="IOC">IOC</option>
-                <option value="FOK">FOK</option>
               </select>
               {inputMode !== "DOLLARS" && (
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
@@ -326,13 +344,12 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
           </div>
         </div>
 
-        {/* Amount Input (Dynamic based on mode) */}
+        {/* Amount Input */}
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1.5">
             {inputMode === "SHARES" ? "Quantity (Shares)" : "Amount (USD)"}
           </label>
           <div className="relative">
-            {/* แสดง icon $ หากเป็นโหมด Dollars */}
             {inputMode === "DOLLARS" && (
               <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
                 <span className="text-gray-400 font-bold">$</span>
@@ -355,7 +372,6 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
               `}
             />
 
-            {/* แสดงคำว่า QTY หากเป็นโหมด Shares */}
             {inputMode === "SHARES" && (
               <div className="absolute inset-y-0 right-0 flex items-center pr-4 pointer-events-none">
                 <span className="text-gray-400 text-xs font-bold">QTY</span>
@@ -364,33 +380,32 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
           </div>
         </div>
 
-        {/* Limit Price Input (แสดงเฉพาะเมื่อเลือก OrderType เป็น Limit หรือ Stop Limit และไม่ใช่โหมด Dollars) */}
-        {inputMode !== "DOLLARS" &&
-          (orderType === "LIMIT" || orderType === "STOP_LIMIT") && (
-            <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                Limit Price
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <span className="text-gray-500 font-bold">$</span>
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={ limitPrice}
-                  onChange={(e) =>
-                    setLimitPrice(
-                      e.target.value === "" ? "" : parseFloat(e.target.value)
-                    )
-                  }
-                  placeholder="0.00"
-                  className="block w-full p-3 pl-8 text-sm text-gray-900 border border-gray-200 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono"
-                />
+        {/* ✅ Single Price Input (ใช้สำหรับ Limit, Stop และ Stop Limit) */}
+        {inputMode !== "DOLLARS" && showPriceInput && (
+          <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+              {getPriceLabel()} 
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <span className="text-gray-500 font-bold">$</span>
               </div>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={targetPrice}
+                onChange={(e) =>
+                  setTargetPrice(
+                    e.target.value === "" ? "" : parseFloat(e.target.value)
+                  )
+                }
+                placeholder="0.00"
+                className="block w-full p-3 pl-8 text-sm text-gray-900 border border-gray-200 rounded-lg bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono"
+              />
             </div>
-          )}
+          </div>
+        )}
 
         {/* Submit Section */}
         <div className="pt-2">

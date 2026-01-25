@@ -8,24 +8,35 @@ interface TradeTabsCryptoProps {
   symbol: string;
 }
 
-// ⚠️ ใช้ Account ID ของ User ที่ต้องการทดสอบ (ในการใช้งานจริงควรดึงจาก Context/Auth)
 const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded"; 
 
+const formatPrice = (val: any) => {
+  const num = Number(val);
+  if (isNaN(num)) return "0.00";
+  return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
+  // --- State ---
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [inputMode, setInputMode] = useState<"COIN" | "USD">("COIN");
+  
+  // ✅ 1. เหลือแค่ MARKET, LIMIT, STOP
+  const [orderType, setOrderType] = useState<"MARKET" | "LIMIT" | "STOP">("MARKET");
+  
+  // ✅ 2. เหลือแค่ GTC, DAY (เอา IOC, FOK ออก)
+  const [timeInForce, setTimeInForce] = useState<"GTC" | "DAY">("GTC");
+
   const [amount, setAmount] = useState<number | "">(""); 
   const [limitPrice, setLimitPrice] = useState<number | "">("");
-  
+  const [stopPrice, setStopPrice] = useState<number | "">(""); 
+
   const [account, setAccount] = useState<AccountInfo | null>(null);
-  
-  // ใช้ Type Any ไปก่อนเพราะ Backend ส่ง Map กลับมา (หรือจะสร้าง Interface CryptoQuote ก็ได้)
   const [quote, setQuote] = useState<any | null>(null);
-  
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // 1. ดึงข้อมูล Account (Buying Power)
+  // 1. Fetch Account
   useEffect(() => {
     const fetchAccount = async () => {
       try {
@@ -38,32 +49,34 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
     fetchAccount();
   }, []);
 
-  // 2. ดึงราคา Real-time (Loop ทุก 3 วินาที)
+  // 2. Real-time Quote
   useEffect(() => {
     const fetchPrice = async () => {
       if (!symbol) return;
       try {
-        // ✅ เรียกฟังก์ชันใหม่ที่เราสร้างใน Step 1
         const data = await brokerService.getLatestCryptoQuote(symbol);
         setQuote(data);
       } catch (error) {
         console.error("Failed to fetch quote:", error);
       }
     };
-    
-    fetchPrice(); // เรียกครั้งแรกทันที
-    const intervalId = setInterval(fetchPrice, 3000); // วนลูป
+    fetchPrice();
+    const intervalId = setInterval(fetchPrice, 3000);
     return () => clearInterval(intervalId);
   }, [symbol]);
 
-  // Reset ค่าเมื่อเปลี่ยน Symbol
+  // Reset State
   useEffect(() => {
     setMessage(null);
     setAmount("");
     setLimitPrice("");
-  }, [symbol]);
+    setStopPrice("");
+    if (inputMode === "USD") {
+      setOrderType("MARKET");
+    }
+  }, [symbol, inputMode]);
 
-  // ฟังก์ชันกดปุ่ม Submit
+  // Submit Logic
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || Number(amount) <= 0) {
@@ -75,20 +88,23 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
     setMessage(null);
 
     try {
-      // ✅ เรียกฟังก์ชันสร้าง Order ใหม่
       await brokerService.createCryptoOrder(
         HARDCODED_ACCOUNT_ID,
         symbol,
         orderSide,
         Number(amount),
-        inputMode === "COIN" ? "QTY" : "NOTIONAL", // แปลง Mode ให้ตรงกับ Service
-        (inputMode === "COIN" && limitPrice !== "") ? Number(limitPrice) : undefined
+        inputMode === "COIN" ? "QTY" : "NOTIONAL",
+        orderType,      
+        timeInForce,    
+        // ส่ง Limit Price เฉพาะตอนเลือก LIMIT
+        orderType === "LIMIT" && limitPrice !== "" ? Number(limitPrice) : undefined,
+        // ส่ง Stop Price เฉพาะตอนเลือก STOP
+        orderType === "STOP" && stopPrice !== "" ? Number(stopPrice) : undefined
       );
 
       setMessage({ type: "success", text: `Success! ${orderSide} order placed.` });
       setAmount("");
       
-      // อัปเดตเงินในกระเป๋าใหม่
       const updatedAccount = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
       setAccount(updatedAccount);
 
@@ -105,125 +121,153 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
   
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
-      {/* --- ส่วน Header แสดงราคา --- */}
-      <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">{symbol}</h2>
-          <div className="mt-1">
-            {quote && quote.price ? (
-               <span className={`text-3xl font-bold tracking-tight font-mono text-gray-800`}>
-                 ${Number(quote.price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-               </span>
-            ) : (
-               <span className="text-sm text-gray-400 animate-pulse">Loading price...</span>
-            )}
+      
+      {/* --- Header (Price & Balance) --- */}
+      <div className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 tracking-tight">{symbol}</h2>
+            <div className="mt-1 flex items-baseline gap-2">
+              {quote && quote.price ? (
+                 <span className={`text-3xl font-bold tracking-tight font-mono text-gray-800 transition-all duration-300`}>
+                   ${formatPrice(quote.price)}
+                 </span>
+              ) : (
+                 <span className="text-sm text-gray-400 animate-pulse">Loading...</span>
+              )}
+            </div>
+          </div>
+          <div className="text-right">
+             {account && (
+               <div className="flex flex-col items-end">
+                 <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Available Cash</span>
+                 <span className="text-sm font-bold text-emerald-600 font-mono">
+                   ${account.buyingPower.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                 </span>
+               </div>
+             )}
           </div>
         </div>
-        
-        {/* แสดง Buying Power */}
-        <div className="text-right">
-           {account && (
-             <div className="flex flex-col items-end">
-               <span className="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Available Cash</span>
-               <span className="text-sm font-bold text-emerald-600 font-mono">
-                 ${account.buyingPower.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-               </span>
+
+        {/* Bid / Ask Bar */}
+        {quote && (
+          <div className="flex gap-3 text-xs font-mono mt-2 bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+             <div className="flex-1 text-center border-r border-gray-100">
+                <span className="block text-[10px] text-gray-400 font-sans font-bold mb-1">BID</span>
+                <span className="text-emerald-600 font-bold text-sm block">{formatPrice(quote.bidPrice)}</span>
+                <span className="block text-[9px] text-gray-400 mt-0.5">Vol: {quote.bidSize || 0}</span>
              </div>
-           )}
-        </div>
+             <div className="flex-1 text-center">
+                <span className="block text-[10px] text-gray-400 font-sans font-bold mb-1">ASK</span>
+                <span className="text-red-500 font-bold text-sm block">{formatPrice(quote.askPrice)}</span>
+                <span className="block text-[9px] text-gray-400 mt-0.5">Vol: {quote.askSize || 0}</span>
+             </div>
+          </div>
+        )}
       </div>
 
-      {/* --- ส่วน Tabs BUY / SELL --- */}
+      {/* --- Tabs BUY / SELL --- */}
       <div className="flex border-b border-gray-100">
-        <button
-          onClick={() => setOrderSide("BUY")}
-          className={`flex-1 py-3 text-sm font-bold transition-all ${
-            isBuy ? "bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500" : "text-gray-400 hover:bg-gray-50"
-          }`}
-        >
-          BUY
-        </button>
-        <button
-          onClick={() => setOrderSide("SELL")}
-          className={`flex-1 py-3 text-sm font-bold transition-all ${
-            !isBuy ? "bg-red-50 text-red-700 border-b-2 border-red-500" : "text-gray-400 hover:bg-gray-50"
-          }`}
-        >
-          SELL
-        </button>
+        <button onClick={() => setOrderSide("BUY")} className={`flex-1 py-3 text-sm font-bold transition-all ${isBuy ? "bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500" : "text-gray-400 hover:bg-gray-50"}`}>BUY</button>
+        <button onClick={() => setOrderSide("SELL")} className={`flex-1 py-3 text-sm font-bold transition-all ${!isBuy ? "bg-red-50 text-red-700 border-b-2 border-red-500" : "text-gray-400 hover:bg-gray-50"}`}>SELL</button>
       </div>
 
-      {/* --- ส่วน Form กรอกข้อมูล --- */}
-      <div className="p-6 space-y-6 flex-1 overflow-y-auto">
+      {/* --- Form --- */}
+      <div className="p-6 space-y-5 flex-1 overflow-y-auto">
         
-        {/* ปุ่มสลับโหมด เหรียญ vs เงินดอลลาร์ */}
+        {/* Input Mode Toggle */}
         <div className="flex bg-gray-100 p-1 rounded-lg">
-          <button
-            type="button"
-            onClick={() => setInputMode("COIN")}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
-              inputMode === "COIN" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-600"
-            }`}
-          >
-            Amount (Coins)
-          </button>
-          <button
-            type="button"
-            onClick={() => setInputMode("USD")}
-            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${
-              inputMode === "USD" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-600"
-            }`}
-          >
-            Total (USD)
-          </button>
+          <button type="button" onClick={() => setInputMode("COIN")} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === "COIN" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-600"}`}>Coins</button>
+          <button type="button" onClick={() => setInputMode("USD")} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${inputMode === "USD" ? "bg-white text-gray-800 shadow-sm" : "text-gray-500 hover:text-gray-600"}`}>USD ($)</button>
         </div>
 
-        {/* ช่องกรอกจำนวน */}
+        {/* Order Type & Time In Force */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Order Type</label>
+            <div className="relative">
+              <select
+                value={orderType}
+                disabled={inputMode === "USD"}
+                onChange={(e) => setOrderType(e.target.value as any)}
+                className={`w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg block p-2.5 outline-none font-medium ${inputMode === "USD" ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                <option value="MARKET">Market</option>
+                <option value="LIMIT">Limit</option>
+                <option value="STOP">Stop</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Time In Force</label>
+            <div className="relative">
+              <select
+                value={timeInForce}
+                disabled={inputMode === "USD"}
+                onChange={(e) => setTimeInForce(e.target.value as any)}
+                className={`w-full bg-gray-50 border border-gray-200 text-gray-700 text-sm rounded-lg block p-2.5 outline-none font-medium ${inputMode === "USD" ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {/* ✅ เอา IOC, FOK ออก เหลือแค่ GTC, DAY */}
+                <option value="GTC">GTC</option>
+                <option value="DAY">Day</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Amount Input */}
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1.5">
             {inputMode === "COIN" ? `Quantity (${symbol.split('/')[0]})` : "Amount ($)"}
           </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              step="any"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value === "" ? "" : parseFloat(e.target.value))}
-              placeholder="0.00"
-              className="block w-full p-3 pl-4 text-lg text-gray-900 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono transition-all"
-            />
-          </div>
+          <input
+            type="number" min="0" step="any"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value === "" ? "" : parseFloat(e.target.value))}
+            placeholder="0.00"
+            className="block w-full p-3 pl-4 text-lg text-gray-900 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono"
+          />
         </div>
 
-        {/* ช่องกรอกราคา Limit (เฉพาะโหมด Coins) */}
-        {inputMode === "COIN" && (
+        {/* Limit Price Input */}
+        {inputMode === "COIN" && orderType === "LIMIT" && (
            <div className="animate-in fade-in slide-in-from-top-2 duration-200">
-             <label className="block text-xs font-semibold text-gray-500 mb-1.5 flex justify-between">
-                <span>Limit Price (Optional)</span>
-                <span className="text-[10px] text-gray-400 font-normal">Leave empty for Market Order</span>
-             </label>
+             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Limit Price</label>
              <div className="relative">
                 <span className="absolute left-4 top-3.5 text-gray-400">$</span>
                 <input
-                  type="number"
-                  min="0"
-                  step="any"
+                  type="number" min="0" step="any"
                   value={limitPrice}
                   onChange={(e) => setLimitPrice(e.target.value === "" ? "" : parseFloat(e.target.value))}
-                  placeholder="Market Price"
-                  className="block w-full p-3 pl-8 text-sm text-gray-900 border border-gray-200 rounded-xl bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none font-mono"
+                  placeholder="0.00"
+                  className="block w-full p-3 pl-8 text-sm text-gray-900 border border-gray-200 rounded-xl bg-gray-50 outline-none font-mono"
                 />
              </div>
            </div>
         )}
 
-        {/* ปุ่ม Submit */}
+        {/* Stop Price Input */}
+        {inputMode === "COIN" && orderType === "STOP" && (
+           <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Stop Price</label>
+             <div className="relative">
+                <span className="absolute left-4 top-3.5 text-gray-400">$</span>
+                <input
+                  type="number" min="0" step="any"
+                  value={stopPrice}
+                  onChange={(e) => setStopPrice(e.target.value === "" ? "" : parseFloat(e.target.value))}
+                  placeholder="0.00"
+                  className="block w-full p-3 pl-8 text-sm text-gray-900 border border-gray-200 rounded-xl bg-gray-50 outline-none font-mono"
+                />
+             </div>
+           </div>
+        )}
+
+        {/* Submit Button */}
         <div className="pt-4">
           {message && (
-            <div className={`mb-4 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${
-                message.type === "success" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"
-            }`}>
+            <div className={`mb-4 p-3 rounded-lg text-xs font-medium flex items-center gap-2 ${message.type === "success" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-700 border border-red-100"}`}>
               {message.type === "success" ? "✅" : "❌"} {message.text}
             </div>
           )}
