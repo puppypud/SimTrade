@@ -1,5 +1,6 @@
 package net.jacobpeterson.alpaca.websocket.updates;
 
+import net.jacobpeterson.alpaca.model.websocket.updates.model.tradeupdate.TradeUpdate;
 import net.jacobpeterson.alpaca.model.websocket.updates.model.tradeupdate.TradeUpdateMessage;
 
 /**

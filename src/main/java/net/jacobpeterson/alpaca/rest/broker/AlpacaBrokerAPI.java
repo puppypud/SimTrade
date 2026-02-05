@@ -28,6 +28,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.JNLS;
 import net.jacobpeterson.alpaca.openapi.broker.model.NonTradeActivity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TradeActivity;
 import net.jacobpeterson.alpaca.rest.broker.events.EventsApiSSE;
+import net.jacobpeterson.alpaca.websocket.updates.UpdatesWebsocketInterface;
 import okhttp3.OkHttpClient;
 
 import java.util.function.BiFunction;
@@ -334,5 +335,8 @@ public class AlpacaBrokerAPI {
             watchlist = new WatchlistApi(apiClient);
         }
         return watchlist;
+    }
+
+    public UpdatesWebsocketInterface updates() {
     }
 }

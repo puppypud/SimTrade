@@ -2,6 +2,7 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
+import net.jacobpeterson.alpaca.model.websocket.*;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
@@ -43,6 +44,7 @@ public class BrokerController {
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) throws Exception {
         try {
+
             // เรียกใช้ Service ภายใน (ไม่ได้ยิงผ่าน HTTP) เพื่อเช็คสภาพคล่อง
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
 
@@ -75,8 +77,24 @@ public class BrokerController {
                     limitPrice,
                     stopPrice
             );
-            return ResponseEntity.ok("Order created successfully: " + order.getId());
+            double tradingFee = 0.025;  //ค่าธรรมเนียมง
+            double feeAmount = 0.0;
+            double totalCost = 0.0;
+            double finalPriceWithFee = 0.0;
+            BigDecimal filledPrice = order.getFilledAvgPrice();
+            BigDecimal quantity = order.getQty();
+            if (filledPrice != null && quantity != null) {
+                totalCost = filledPrice.doubleValue() *  quantity.doubleValue();
+                feeAmount = totalCost * tradingFee;
+                finalPriceWithFee = totalCost + feeAmount;
+                brokerService.collectTradingFee(accountId, feeAmount);
+                log.info("Order ID: {} | Raw: ${} | Fee: ${} | Net: ${}",
+                        order.getId(), totalCost, feeAmount, finalPriceWithFee);
+            } else {
+                log.info("Order Created (Pending Fill). Fee charged: $" + tradingFee);
+            }
 
+            return ResponseEntity.ok("Order created successfully: " + order.getId() + "totalCost "+ totalCost + "Fee charged:" + feeAmount);
         } catch (IllegalArgumentException e) {
             // ดักจับ Error กรณีใส่มาทั้งคู่ หรือไม่ใส่เลย (จาก logic ใน service)
             log.error("Validation Error: {}", e.getMessage());

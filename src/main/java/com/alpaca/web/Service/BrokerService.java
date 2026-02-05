@@ -6,6 +6,7 @@ import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType;
 
 // Import ฝั่ง Broker (สำหรับสร้างบัญชีและคำสั่งซื้อ)
+import net.jacobpeterson.alpaca.model.websocket.updates.model.tradeupdate.TradeUpdate;
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.broker.model.*;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateTransferRequest;
@@ -26,7 +27,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Disclosures;
 import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
-
+import net.jacobpeterson.alpaca.websocket.updates.UpdatesListener;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -50,6 +51,37 @@ public class BrokerService {
         String brokerApiSecret = dotenv.get("BROKER_API_SECRET");
         this.brokerAPI = new AlpacaAPI(brokerApiKey, brokerApiSecret, BrokerAPIEndpointType.SANDBOX);
         log.info("Alpaca Broker API Initialized");
+        try {
+            brokerAPI.broker().updates().setListener(new UpdatesListener() {
+                @Override
+                public void onTradeUpdate(TradeUpdate tradeUpdate) {
+                    // เช็คเหตุการณ์: ถ้าเป็นการ Fill (ซื้อขายสำเร็จ)
+                    if ("fill".equalsIgnoreCase(String.valueOf(tradeUpdate.getEvent()))) {
+                        try {
+                            // ดึงข้อมูลสำคัญ
+                            // หมายเหตุ: เช็คให้ดีว่า tradeUpdate.getOrder() คืนค่า object Order ที่ถูกต้อง
+                            // ถ้าใน library version ใหม่ๆ อาจต้อง cast หรือเรียก method ต่างไปนิดหน่อย
+                            net.jacobpeterson.alpaca.model.endpoint.orders.Order order = tradeUpdate.getOrder();
+                            UUID accountId = order.getorder();
+
+                            double filledPrice = tradeUpdate.getPrice().doubleValue();
+                            double qty = tradeUpdate.getQuantity()..doubleValue();
+
+                            // 🟢 คำนวณค่าธรรมเนียม 2.5% ณ เวลานั้น
+                            double totalCost = filledPrice * qty;
+                            double fee = totalCost * 0.025;
+
+                            // สั่งตัดเงินทันที!
+                            collectTradingFee(accountId, fee);
+
+                            log.info("✅ Auto-Deduct Fee: Order {} | Fee ${}", order.getId(), fee);
+                        } catch (Exception e) {
+                            log.error("❌ Error deducting fee via WebSocket", e);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public AlpacaAPI getApi() {
@@ -321,6 +353,21 @@ public class BrokerService {
             log.error("🔥 [CryptoOrder] FAILED! Alpaca Error: {}", e.getMessage());
             log.error("🔥 [CryptoOrder] Response Body: {}", e.getResponseBody()); // ทีเด็ดอยู่ตรงนี้! มันจะบอกว่าผิดตรงไหน
             throw e;
+        }
+    }
+        //เก็บค่าธรรมเนียม
+    public  void  collectTradingFee(UUID userAccountId, Double FeeAmount) {
+        try {
+             log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
+             CreateJournalRequest journalRequest = new CreateJournalRequest()
+                     .entryType(JournalEntryType.JNLC)
+                     .fromAccount(userAccountId)
+                     .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
+                     .amount(String.valueOf(FeeAmount))
+                     .description("Tradeing commission Fee");
+             brokerAPI.broker().journals().createJournal(journalRequest);
+        } catch (ApiException e) {
+            log.error("ไม่สามารถเก็บค่าธรรมเนียมได้ {}", e.getMessage());
         }
     }
 }
