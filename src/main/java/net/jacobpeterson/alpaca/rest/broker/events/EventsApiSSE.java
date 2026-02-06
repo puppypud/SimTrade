@@ -1,6 +1,7 @@
 package net.jacobpeterson.alpaca.rest.broker.events;
 
 import com.google.gson.reflect.TypeToken;
+import net.jacobpeterson.alpaca.model.websocket.updates.model.tradeupdate.TradeUpdate;
 import net.jacobpeterson.alpaca.openapi.broker.ApiClient;
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.broker.api.EventsApi;
@@ -104,7 +105,7 @@ public class EventsApiSSE {
      * @return a {@link SSERequest}
      */
     public SSERequest subscribeToTrade(OffsetDateTime since, OffsetDateTime until, Integer sinceId,
-            Integer untilId, String sinceUlid, String untilUlid, SSEListener<AccountStatusEvent> sseListener)
+                                       Integer untilId, String sinceUlid, String untilUlid, SSEListener<TradeUpdateEvent> sseListener)
             throws ApiException {
         final Request request = eventsAPI.subscribeToTradeSSECall(since, until, sinceId, untilId, sinceUlid, untilUlid,
                 null).request();
@@ -118,7 +119,7 @@ public class EventsApiSSE {
      * @return a {@link SSERequest}
      */
     public SSERequest subscribeToTradeV2(OffsetDateTime since, OffsetDateTime until, String sinceId,
-            String untilId, SSEListener<AccountStatusEvent> sseListener) throws ApiException {
+                                         String untilId, SSEListener<TradeUpdateEventV2> sseListener) throws ApiException {
         final Request request = eventsAPI.subscribeToTradeV2SSECall(since, until, sinceId, untilId, null).request();
         return new SSERequest(eventSourceFactory.newEventSource(request, createEventSourceListener(sseListener,
                 new TypeToken<TradeUpdateEventV2>() {}.getType())));

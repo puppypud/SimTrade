@@ -2,7 +2,6 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
-import net.jacobpeterson.alpaca.model.websocket.*;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
@@ -12,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,23 +36,19 @@ public class BrokerController {
     public ResponseEntity<?> buyStockForUser(
             @RequestParam("accountId") UUID accountId,
             @RequestParam("symbol") String symbol,
-            @RequestParam(value = "qty", required = false) BigDecimal qty,          // แก้เป็น optional
+            @RequestParam(value = "qty", required = false) BigDecimal qty,
             @RequestParam(value = "notional", required = false) BigDecimal notional,
             @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice,
             @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice,
             @RequestParam("OrderSide") String orderSideStr,
             @RequestParam("OrderType") String orderTypeStr,
-            @RequestParam("TimeInForce") String timeInForceStr) throws Exception {
+            @RequestParam("TimeInForce") String timeInForceStr) { // เอา throws Exception ออก แล้ว try-catch ข้างในแทน
         try {
-
-            // เรียกใช้ Service ภายใน (ไม่ได้ยิงผ่าน HTTP) เพื่อเช็คสภาพคล่อง
+            // 1. เช็คสภาพคล่อง (Logic เดิมของคุณ ดีแล้วครับ) ✅
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
-
-            // ถ้าเป็นคำสั่งซื้อ (BUY) และเป็น Market Order ลองเช็คว่ามีคนขายไหม (Ask > 0)
             if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
                 if (quote.containsKey("askPrice")) {
                     double currentAsk = Double.parseDouble(quote.get("askPrice").toString());
-                    // ถ้า Ask เป็น 0 แปลว่าไม่มีคนขาย หรือตลาดปิด
                     if (currentAsk == 0) {
                         return ResponseEntity.badRequest().body("❌ ไม่สามารถซื้อได้ในขณะนี้ (ไม่มีสภาพคล่อง/ตลาดปิด)");
                     }
@@ -63,40 +59,33 @@ public class BrokerController {
             OrderType type = OrderType.valueOf(orderTypeStr);
             TimeInForce Time = TimeInForce.valueOf(timeInForceStr);
 
-            log.info("OrderSide " + side + " " + type + " " + Time);
-            log.info("order is " + side + " " + " to account is " + accountId);
+            log.info("Order Request: Account={} Symbol={} Side={} Type={}", accountId, symbol, side, type);
 
+            // 2. ส่งคำสั่งสร้าง Order ✅
             Order order = brokerService.createOrder(
                     accountId,
                     symbol.toUpperCase(),
-                    qty,        // ส่ง qty (อาจเป็น null)
-                    notional,   // ส่ง notional (อาจเป็น null)
+                    qty,
+                    notional,
                     side,
                     type,
                     Time,
                     limitPrice,
                     stopPrice
             );
-            double tradingFee = 0.025;  //ค่าธรรมเนียมง
-            double feeAmount = 0.0;
-            double totalCost = 0.0;
-            double finalPriceWithFee = 0.0;
-            BigDecimal filledPrice = order.getFilledAvgPrice();
-            BigDecimal quantity = order.getQty();
-            if (filledPrice != null && quantity != null) {
-                totalCost = filledPrice.doubleValue() *  quantity.doubleValue();
-                feeAmount = totalCost * tradingFee;
-                finalPriceWithFee = totalCost + feeAmount;
-                brokerService.collectTradingFee(accountId, feeAmount);
-                log.info("Order ID: {} | Raw: ${} | Fee: ${} | Net: ${}",
-                        order.getId(), totalCost, feeAmount, finalPriceWithFee);
-            } else {
-                log.info("Order Created (Pending Fill). Fee charged: $" + tradingFee);
-            }
 
-            return ResponseEntity.ok("Order created successfully: " + order.getId() + "totalCost "+ totalCost + "Fee charged:" + feeAmount);
+            // ❌ ลบ Logic การคิดเงินและหักค่าธรรมเนียมตรงนี้ออกให้หมด! ❌
+            // เพราะหน้าที่นี้เป็นของ SSE Listener (BrokerService.java) ที่จะทำงานเมื่อ Order Fill จริงๆ
+
+            // 3. แจ้ง User ว่ารับคำสั่งแล้ว (สถานะจะเป็น NEW หรือ ACCEPTED)
+            return ResponseEntity.ok(Map.of(
+                    "message", "Order submitted successfully",
+                    "orderId", order.getId(),
+                    "status", order.getStatus(),
+                    "symbol", order.getSymbol()
+            ));
+
         } catch (IllegalArgumentException e) {
-            // ดักจับ Error กรณีใส่มาทั้งคู่ หรือไม่ใส่เลย (จาก logic ใน service)
             log.error("Validation Error: {}", e.getMessage());
             return ResponseEntity.badRequest().body("❌ Validation Error: " + e.getMessage());
         } catch (Exception e) {
@@ -143,6 +132,23 @@ public class BrokerController {
 
         try {
             List<Order> orders = brokerService.getAllOrders(accountId, status, limit, symbols);
+            for (Order order : orders) {
+                // เช็คว่า Order นี้มีการซื้อขายจริงไหม (มีราคาและจำนวนที่ Fill แล้ว)
+                if (order.getFilledAvgPrice() != null && order.getFilledQty() != null) {
+
+                    // คำนวณยอดรวม: ราคาเฉลี่ย x จำนวนที่ได้
+                    BigDecimal totalCost = order.getFilledAvgPrice().multiply(order.getFilledQty());
+
+                    // คำนวณ Fee 2.5%
+                    BigDecimal fee = totalCost.multiply(BigDecimal.valueOf(0.025));
+
+                    // ปัดเศษให้เหลือ 2 ตำแหน่ง (กันทศนิยมยาวเกิน)
+                    fee = fee.setScale(2, RoundingMode.HALF_UP);
+
+                    // ✅ ยัดไส้ค่า Fee ลงไปในช่อง 'commission' ของ Object เลย
+                    order.setCommission(fee);
+                }
+            }
             return ResponseEntity.ok(orders);
         } catch (Exception e) {
             log.error("Failed to get all orders for account {}", accountId, e);

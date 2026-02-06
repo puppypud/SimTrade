@@ -337,6 +337,5 @@ public class AlpacaBrokerAPI {
         return watchlist;
     }
 
-    public UpdatesWebsocketInterface updates() {
-    }
+
 }

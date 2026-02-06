@@ -5,12 +5,14 @@ import jakarta.annotation.PostConstruct;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType;
 
-// Import ฝั่ง Broker (สำหรับสร้างบัญชีและคำสั่งซื้อ)
-import net.jacobpeterson.alpaca.model.websocket.updates.model.tradeupdate.TradeUpdate;
+import net.jacobpeterson.alpaca.rest.broker.events.EventsApiSSE;
+import net.jacobpeterson.alpaca.util.sse.SSEListener;
+import net.jacobpeterson.alpaca.openapi.broker.model.TradeUpdateEventV2;
+import net.jacobpeterson.alpaca.openapi.broker.model.Order;
+
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.broker.model.*;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateTransferRequest;
-import net.jacobpeterson.alpaca.openapi.broker.model.Order;
 import net.jacobpeterson.alpaca.openapi.broker.model.OrderSide;
 import net.jacobpeterson.alpaca.openapi.broker.model.OrderType;
 import net.jacobpeterson.alpaca.openapi.broker.model.TimeInForce;
@@ -27,13 +29,14 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Disclosures;
 import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
-import net.jacobpeterson.alpaca.websocket.updates.UpdatesListener;
+
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 
+import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,8 +44,6 @@ import org.springframework.stereotype.Service;
 @Service
 public class BrokerService {
     Dotenv dotenv = Dotenv.load();
-    String brokerApiKey = dotenv.get("BROKER_API_KEY");
-    String brokerApiSecret = dotenv.get("BROKER_API_SECRET");
     private AlpacaAPI brokerAPI;
 
     @PostConstruct
@@ -52,37 +53,98 @@ public class BrokerService {
         this.brokerAPI = new AlpacaAPI(brokerApiKey, brokerApiSecret, BrokerAPIEndpointType.SANDBOX);
         log.info("Alpaca Broker API Initialized");
         try {
-            brokerAPI.broker().updates().setListener(new UpdatesListener() {
+            EventsApiSSE eventsApi = brokerAPI.broker().events();
+
+            // Subscribe รอฟัง Trade Update
+            eventsApi.subscribeToTradeV2(null, null, null, null, new SSEListener<TradeUpdateEventV2>() {
                 @Override
-                public void onTradeUpdate(TradeUpdate tradeUpdate) {
-                    // เช็คเหตุการณ์: ถ้าเป็นการ Fill (ซื้อขายสำเร็จ)
-                    if ("fill".equalsIgnoreCase(String.valueOf(tradeUpdate.getEvent()))) {
-                        try {
-                            // ดึงข้อมูลสำคัญ
-                            // หมายเหตุ: เช็คให้ดีว่า tradeUpdate.getOrder() คืนค่า object Order ที่ถูกต้อง
-                            // ถ้าใน library version ใหม่ๆ อาจต้อง cast หรือเรียก method ต่างไปนิดหน่อย
-                            net.jacobpeterson.alpaca.model.endpoint.orders.Order order = tradeUpdate.getOrder();
-                            UUID accountId = order.getorder();
+                public void onOpen() {
+                    log.info("✅ Broker SSE (V2) Connection Opened.");
+                }
 
-                            double filledPrice = tradeUpdate.getPrice().doubleValue();
-                            double qty = tradeUpdate.getQuantity()..doubleValue();
+                @Override
+                public void onClose() {
+                    log.info("⚠️ Broker SSE (V2) Connection Closed.");
+                }
 
-                            // 🟢 คำนวณค่าธรรมเนียม 2.5% ณ เวลานั้น
-                            double totalCost = filledPrice * qty;
-                            double fee = totalCost * 0.025;
-
-                            // สั่งตัดเงินทันที!
-                            collectTradingFee(accountId, fee);
-
-                            log.info("✅ Auto-Deduct Fee: Order {} | Fee ${}", order.getId(), fee);
-                        } catch (Exception e) {
-                            log.error("❌ Error deducting fee via WebSocket", e);
-                        }
+                @Override
+                public void onError(Throwable throwable, Response response) {
+                    // ถ้าเจอ 410 อีก แสดงว่า API เปลี่ยน หรือ Key ผิด แต่ใช้ V2 น่าจะหายแล้ว
+                    log.error("❌ SSE Error: {}", (throwable != null ? throwable.getMessage() : "Unknown Error"));
+                    if (response != null) {
+                        log.error("Response: Code={}, Message={}", response.code(), response.message());
                     }
                 }
+
+                @Override
+                public void onMessage(TradeUpdateEventV2 message) {
+                    processTradeUpdate(message);
+                }
+            });
+
+            log.info("✅ Broker SSE Connected: Listening for trade updates...");
+
+        } catch (Exception e) {
+            log.error("❌ Failed to connect to Broker Events", e);
+        }
+    }
+
+    // แยก Logic ออกมาเพื่อความสะอาด
+    private void processTradeUpdate(TradeUpdateEventV2 tradeUpdate) {
+        // เช็คว่าเป็น Event "fill" (ซื้อขายสำเร็จ) หรือไม่
+        if (tradeUpdate.getEvent() != null &&
+                "fill".equalsIgnoreCase(tradeUpdate.getEvent().toString())) {
+
+            try {
+                // Broker Model จะมี Order object มาให้เลย
+                Order order = tradeUpdate.getOrder();
+                String orderId = (order != null) ? order.getId().toString() : "Unknown_Order";
+
+                // ตรวจสอบ Account ID จาก Client Order ID ที่เราฝากไว้
+                if (order != null && order.getClientOrderId() != null) {
+                    try {
+                        // รับค่ามา เช่น "user-1234-random-A1"
+                        String rawId = order.getClientOrderId();
+
+                        String realAccountIdString = "";
+                        if (rawId.length() >= 36) {
+                            realAccountIdString = rawId.substring(0, 36);
+                        } else {
+                            // กรณีผิดพลาด (เผื่อมี Order เก่าหลุดมา)
+                            realAccountIdString = rawId;
+                        }
+
+                        // แปลงกลับเป็น UUID
+                        UUID accountId = UUID.fromString(realAccountIdString);
+
+                        // ดึงราคาและจำนวน (Broker Model มักส่งเป็น String หรือ BigDecimal)
+                        // ใช้ .toString() กันเหนียวแล้วค่อย parse
+                        double filledPrice = Double.parseDouble(tradeUpdate.getPrice().toString());
+                        double qty = Double.parseDouble(tradeUpdate.getQty().toString());
+
+                        // 🟢 คำนวณค่าธรรมเนียม 2.5%
+                        double totalCost = filledPrice * qty;
+                        double fee = totalCost * 0.025;
+
+                        // สั่งตัดเงิน
+                        collectTradingFee(accountId, fee);
+
+                        log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}",
+                                orderId, accountId, fee);
+
+                    } catch (IllegalArgumentException e) {
+                        log.warn("⚠️ Client Order ID is not a valid UUID: {}", order.getClientOrderId());
+                    }
+                } else {
+                    log.warn("⚠️ Trade Update received but no Client Order ID found. Order: {}", orderId);
+                }
+
+            } catch (Exception e) {
+                log.error("❌ Error processing fee for trade update", e);
             }
         }
     }
+
 
     public AlpacaAPI getApi() {
         return this.brokerAPI;
@@ -140,9 +202,12 @@ public class BrokerService {
     // สั่งซื้อหุ้นUser ---
     public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ,BigDecimal stopPrice) throws ApiException {
         log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
+        String shortSuffix = UUID.randomUUID().toString().substring(0, 6);
+        String uniqueClientOrderId = accountId.toString() + "-" + shortSuffix;
         CreateOrderRequest request = new CreateOrderRequest()
                 .symbol(symbol)
-                .side(side);
+                .side(side)
+                .clientOrderId(uniqueClientOrderId);
         if (qty != null && notional == null) {
             request.qty(qty);
             request.type(type);       // ใช้ Type ตามที่ส่งมา (Limit/Market)
@@ -308,7 +373,8 @@ public class BrokerService {
         CreateOrderRequest request = new CreateOrderRequest()
                 .symbol(cleanSymbol)
                 .side(side)
-                .timeInForce(TimeInForce.GTC); // Crypto ใช้ GTC เป็นหลัก
+                .timeInForce(TimeInForce.GTC) // Crypto ใช้ GTC เป็นหลัก
+                .clientOrderId(accountId.toString());
 
         // 3. Logic เลือกส่ง Qty หรือ Notional
         if (qty != null && notional == null) {
@@ -357,13 +423,14 @@ public class BrokerService {
     }
         //เก็บค่าธรรมเนียม
     public  void  collectTradingFee(UUID userAccountId, Double FeeAmount) {
+        String formattedFee = String.format("%.2f", FeeAmount);
         try {
              log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
              CreateJournalRequest journalRequest = new CreateJournalRequest()
                      .entryType(JournalEntryType.JNLC)
                      .fromAccount(userAccountId)
                      .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
-                     .amount(String.valueOf(FeeAmount))
+                     .amount(formattedFee)
                      .description("Tradeing commission Fee");
              brokerAPI.broker().journals().createJournal(journalRequest);
         } catch (ApiException e) {
