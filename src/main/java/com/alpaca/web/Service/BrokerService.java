@@ -122,7 +122,7 @@ public class BrokerService {
                         double filledPrice = Double.parseDouble(tradeUpdate.getPrice().toString());
                         double qty = Double.parseDouble(tradeUpdate.getQty().toString());
 
-                        // 🟢 คำนวณค่าธรรมเนียม 2.5%
+                        // 🟢 คำนวณค่าธรรมเนียม 0.025%
                         double totalCost = filledPrice * qty;
                         double fee = totalCost * 0.025;
 
@@ -356,7 +356,8 @@ public class BrokerService {
         );
     }
     public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
-
+        String shortSuffix = UUID.randomUUID().toString().substring(0, 6);
+        String uniqueClientOrderId = accountId.toString() + "-" + shortSuffix;
         // 1. จัดการ Symbol
         String cleanSymbol = symbol.trim().toUpperCase();
         if (!cleanSymbol.contains("/")) {
@@ -374,7 +375,7 @@ public class BrokerService {
                 .symbol(cleanSymbol)
                 .side(side)
                 .timeInForce(TimeInForce.GTC) // Crypto ใช้ GTC เป็นหลัก
-                .clientOrderId(accountId.toString());
+                .clientOrderId(uniqueClientOrderId);
 
         // 3. Logic เลือกส่ง Qty หรือ Notional
         if (qty != null && notional == null) {
