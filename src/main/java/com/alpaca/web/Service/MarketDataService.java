@@ -3,6 +3,7 @@ package com.alpaca.web.Service;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.MarketDataWebsocketSourceType;
 import net.jacobpeterson.alpaca.model.util.apitype.TraderAPIEndpointType;
+import net.jacobpeterson.alpaca.openapi.broker.model.Clock;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.CryptoLatestLoc;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import net.jacobpeterson.alpaca.AlpacaAPI; // Import เพิ่ม
@@ -31,19 +32,23 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+import net.jacobpeterson.alpaca.openapi.trader.ApiException;
+
 @Service
 public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final RestTemplate restTemplate = new RestTemplate();
+    private BrokerService brokerService;
     private AlpacaAPI alpacaAPI;
-
+    private boolean isMaintenanceActive = false;   //ตั้งค่าเริ่มต้นเป็น false
+    private String mintenanceMessage = "";
     @Value("***REDACTED_TRADING_KEY***")
     private String apiKey;
 
     @Value("***REDACTED_TRADING_SECRET***")
     private String apiSecret;
 
-    // พิ่ม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
+    // พิม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
     private final ZoneId NY_ZONE = ZoneId.of("America/New_York");
 
     @PostConstruct
@@ -64,7 +69,9 @@ public class MarketDataService {
             log.error("Alpaca API Key/Secret is null via @Value");
         }
     }
-
+    public MarketDataService(BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
+        this.brokerService = brokerService;
+    }
     public List<StockBar> getStockBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim();
         ZonedDateTime startTime;
@@ -376,5 +383,39 @@ public class MarketDataService {
             log.error("Error getting crypto quote for " + cleanSymbol, e);
             return Map.of();
         }
+    }
+    public void  setMaintenanceMode(boolean active,String message){
+        this.isMaintenanceActive = active;
+        this.mintenanceMessage = message != null ? message : "ระบบกำลังปิดปรับปรุงชั่วคราว";
+        log.info("System Maintenance Mode set to: {} ", active);
+    }
+
+    public Map<String,Object> getCurrentMaketStatus(){
+        Map<String, Object> statusData = new HashMap<>();
+        try{
+            Clock clock = brokerService.getApi().broker().clock().queryMarketClock();
+            boolean isAlpacaOpen = clock.getIsOpen();
+            if (isMaintenanceActive) {
+                statusData.put("status", "MAINTENANCE");
+                statusData.put("isOpenForTrade", false);
+                statusData.put("message", mintenanceMessage);
+            } else if (isAlpacaOpen) {
+                statusData.put("status", "OPEN");
+                statusData.put("isOpenForTrade", true);
+                statusData.put("message", "ตลาดเปิดทำการปกติ");
+            } else {
+                statusData.put("status", "CLOSED");
+                statusData.put("isOpenForTrade", false);
+                statusData.put("message", "ตลาดปิดทำการ");
+            }
+            statusData.put("nextOpen", clock.getNextOpen().toString());
+            statusData.put("nextClose", clock.getNextClose().toString());
+        } catch (Exception e) {
+            log.error("❌ General Error: {}", e.getMessage(), e);
+            statusData.put("status", "MAINTENANCE");
+            statusData.put("isOpenForTrade", false);
+            statusData.put("message", "ระบบขัดข้องภายใน");
+        }
+        return statusData;
     }
 }

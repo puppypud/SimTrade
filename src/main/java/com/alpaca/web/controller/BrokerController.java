@@ -44,6 +44,22 @@ public class BrokerController {
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) { // เอา throws Exception ออก แล้ว try-catch ข้างในแทน
         try {
+            //เช็คตลาดว่าเปิด/ปิด/ปรับปรุง ไหม เพื่อซื้อขาย
+            Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
+            String currentStatus = (String) marketStatus.get("status");
+
+            // ถ้าปิดปรับปรุง (ห้ามซื้อขายทุกอย่าง ทั้งหุ้นและ Crypto)
+            if ("MAINTENANCE".equals(currentStatus)) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body("❌ " + marketStatus.get("message"));
+            }
+            // ถ้าตลาดปิด (ห้ามซื้อหุ้นปกติ แต่ถ้าเป็น Crypto เทรดได้ 24 ชม.)
+            else if ("CLOSED".equals(currentStatus)) {
+                if (!symbol.contains("/")) { // ถ้าชื่อหุ้นไม่มีเครื่องหมาย / (แปลว่าไม่ใช่คริปโต)
+                    return ResponseEntity.badRequest()
+                            .body("❌ ไม่สามารถส่งคำสั่งได้ ตลาดหุ้นปิดทำการในขณะนี้");
+                }
+            }
             // 1. เช็คสภาพคล่อง (Logic เดิมของคุณ ดีแล้วครับ) ✅
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
             if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
@@ -306,6 +322,14 @@ public class BrokerController {
             @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice
     ) {
         try {
+            Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
+            String currentStatus = (String) marketStatus.get("status");
+
+            if ("MAINTENANCE".equals(currentStatus)) {
+                return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                        .body("❌ " + marketStatus.get("message"));
+            }
+
             OrderSide side = OrderSide.valueOf(orderSideStr.toUpperCase());
             // ✅ แปลง Enum
             OrderType type = OrderType.valueOf(orderTypeStr.toUpperCase());
@@ -334,5 +358,27 @@ public class BrokerController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
+    }
+    @GetMapping("/market/status")
+    public ResponseEntity<?> getMarketStatus() {
+        try {
+            Map<String, Object> status = marketDataService.getCurrentMaketStatus();
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/admin/market/maintenance")
+    public ResponseEntity<?> toggleMaintenance(
+            @RequestParam("active") boolean active,
+            @RequestParam(value = "message", required = false) String message) {
+
+        marketDataService.setMaintenanceMode(active, message);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "maintenanceActive", active,
+                "message", "อัปเดตสถานะ Maintenance สำเร็จ"
+        ));
     }
 }
