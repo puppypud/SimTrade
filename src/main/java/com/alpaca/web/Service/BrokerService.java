@@ -1,7 +1,11 @@
 package com.alpaca.web.Service;
 
+import com.alpaca.web.Repository.AccountRepository;
+import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.entity.UserAccount;
 import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.annotation.PostConstruct;
+import jakarta.transaction.Transactional;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType;
 
@@ -32,13 +36,13 @@ import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
 
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 
 import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,6 +50,8 @@ public class BrokerService {
     Dotenv dotenv = Dotenv.load();
     private AlpacaAPI brokerAPI;
 
+    @Autowired
+    private AccountRepository AccountRepository;
     @PostConstruct
     public void init() {
         String brokerApiKey = dotenv.get("BROKER_API_KEY");
@@ -159,26 +165,38 @@ public class BrokerService {
     String AccountNumber = "9967544SW"; //hardcode สำหรับ user
     String savedAccountId_2 = "9d35fa1a-d10b-484c-abd5-6501dfee1ded" ;//เป็น hardcode สำหรับ user แบบที่ เทรด crypto
 
-    public Account createAccount() {
+    @Transactional
+    public UserAccount createAccount(CreateAccountRequest requestDto) {
         try {
-            log.info("กำลังสร้างบัญชีลูกค้าใหม่...");
+            // 1. สร้าง Contact จาก DTO
             Contact contact = new Contact()
-                    .emailAddress("user_" + System.currentTimeMillis() + "@example.com")
-                    .phoneNumber("111-222-3333")
-                    .streetAddress(Arrays.asList("test can buy crypto"))
-                    .city("San Francisco").state("CA").postalCode("94105");  //NY ไม่สมารถเทรด crypto
+                    .emailAddress(requestDto.getEmail())
+                    .phoneNumber(requestDto.getPhoneNumber())
+                    .streetAddress(requestDto.getStreetAddress())
+                    .city(requestDto.getCity())
+                    .state(requestDto.getState())
+                    .postalCode(requestDto.getPostalCode());
 
+            // 2. สร้าง Identity จาก DTO
             Identity identity = new Identity()
-                    .givenName("Tests").familyName("User2")
-                    .dateOfBirth(LocalDate.of(1990, 1, 1))
-                    .taxId("456-55-4321")
-                    .taxIdType(TaxIdType.USA_SSN)
-                    .countryOfCitizenship("USA").countryOfBirth("USA").countryOfTaxResidence("USA");
+                    .givenName(requestDto.getFirstName())
+                    .familyName(requestDto.getLastName())
+                    .dateOfBirth(requestDto.getDateOfBirth())
+                    .taxId(requestDto.getTaxId())
+                    .taxIdType(TaxIdType.valueOf(requestDto.getTaxIdType())) // แปลง String เป็น Enum
+                    .countryOfCitizenship(requestDto.getCountryOfCitizenship())
+                    .countryOfBirth(requestDto.getCountryOfBirth())
+                    .countryOfTaxResidence(requestDto.getCountryOfTaxResidence());
 
+            // 3. สร้าง Disclosures จาก DTO
             Disclosures disclosures = new Disclosures()
-                    .isControlPerson(false).isAffiliatedExchangeOrFinra(false).isPoliticallyExposed(false).immediateFamilyExposed(false);
+                    .isControlPerson(requestDto.isControlPerson())
+                    .isAffiliatedExchangeOrFinra(requestDto.isAffiliatedExchangeOrFinra())
+                    .isPoliticallyExposed(requestDto.isPoliticallyExposed())
+                    .immediateFamilyExposed(requestDto.isImmediateFamilyExposed());
 
-            AccountCreationRequest request = new AccountCreationRequest()
+            // 4. ประกอบร่างเป็น AccountCreationRequest
+            AccountCreationRequest alpacaReq = new AccountCreationRequest()
                     .contact(contact)
                     .identity(identity)
                     .disclosures(disclosures)
@@ -189,13 +207,21 @@ public class BrokerService {
                             new Agreement().agreement(AgreementType.CRYPTO_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1")
                     ));
 
-            Account account = brokerAPI.broker().accounts().createAccount(request);
-            log.info("Success: Account ID: {}", account.getId());
-            return account;
+            // 5. ยิง API ไปสร้างที่ Alpaca
+            Account alpacaAccount = brokerAPI.broker().accounts().createAccount(alpacaReq);
+
+            // 6. บันทึกลง Database ของเรา
+            UserAccount localAccount = new UserAccount(); // ใช้ UserAccount แทน Account
+            localAccount.setEmail("puppymsn@example.com"); // ตอนใช้งานจริงก็ดึงจาก requestDto.getEmail()
+            localAccount.setFirstName(requestDto.getFirstName());
+            localAccount.setLastName(requestDto.getLastName());
+            localAccount.setAlpacaAccountId(String.valueOf(alpacaAccount.getId()));
+
+            return AccountRepository.save(localAccount);
 
         } catch (Exception e) {
-            log.error("Create account fail", e);
-            throw new RuntimeException(e);
+            // ในงานจริง ควรใช้ Logger (เช่น lombok @Slf4j) แทน System.out
+            throw new RuntimeException("ไม่สามารถสร้างบัญชีได้: " + e.getMessage(), e);
         }
     }
 

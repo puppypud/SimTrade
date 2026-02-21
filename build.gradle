@@ -18,6 +18,10 @@ plugins {
     // For Maven Central publishing
     id "maven-publish"
     id "signing"
+
+    id 'org.springframework.boot' version '3.2.2' // ระบุ version หลักที่นี่ที่เดียว
+
+
 }
 
 final def projectGroup = "net.jacobpeterson.alpaca"
@@ -33,18 +37,19 @@ repositories {
 
 dependencies {
     implementation group: "net.jacobpeterson.alpaca", name: "alpaca-java", version: "10.0.1"
-    // Logging framework
-    implementation group: "org.slf4j", name: "slf4j-api", version: "2.1.0-alpha1"
-    // Require dependencies that use the Apache Jakarta Commons Logging library to use SLF4j instead
-    implementation group: "org.slf4j", name: "jcl-over-slf4j", version: "2.1.0-alpha1"
+
 
     // Google Guava
     implementation group: "com.google.guava", name: "guava", version: "33.0.0-jre"
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation platform('org.springframework.boot:spring-boot-dependencies:3.2.2')
 
-    //slf4j หรือ logger
-    // API
-    implementation 'org.slf4j:slf4j-api:2.0.x'
+    // เลือก Database Driver (เลือกอย่างใดอย่างหนึ่ง แนะนำ PostgreSQL)
+    runtimeOnly 'org.postgresql:postgresql'
 
+    compileOnly 'org.projectlombok:lombok:1.18.42' // Use a compatible version
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
     //.env
     implementation 'io.github.cdimascio:dotenv-java:3.0.0'
     // GSON
@@ -402,4 +407,7 @@ tasks.withType(JavaExec) {
     systemProperty "file.encoding", "UTF-8"
     // ส่งค่า encoding ให้ JVM โดยตรง
     jvmArgs = ["-Dfile.encoding=UTF-8"]
+}
+bootRun {
+    jvmArgs(["--enable-native-access=ALL-UNNAMED"])
 }

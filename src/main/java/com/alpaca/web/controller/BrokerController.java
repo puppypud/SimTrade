@@ -2,6 +2,8 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
+import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.entity.UserAccount;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
@@ -242,15 +244,16 @@ public class BrokerController {
     }
 
     @PostMapping("/create-account")
-    public ResponseEntity<?> createNewAccount() {
+    public ResponseEntity<?> createAccount(@RequestBody CreateAccountRequest request) {
         try {
-            Account newAccount = brokerService.createAccount();
-            // ส่งข้อมูล Account ที่สร้างเสร็จแล้วกลับไปให้คนเรียก
+            // โยน DTO ไปให้ Service จัดการ
+            UserAccount newAccount = brokerService.createAccount(request);
             return ResponseEntity.ok(newAccount);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Error creating account: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
+
     @PostMapping("/admin/fund-firm")
     public ResponseEntity<?> fundFirmAccount(
             @RequestParam("amount") Double amount  // <-- รับค่าจาก URL Parameter
