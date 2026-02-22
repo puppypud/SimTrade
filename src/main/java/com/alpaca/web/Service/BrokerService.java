@@ -33,6 +33,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Disclosures;
 import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
+import com.alpaca.web.Repository.AccountRepository;
 
 
 import java.math.BigDecimal;
@@ -211,11 +212,12 @@ public class BrokerService {
             Account alpacaAccount = brokerAPI.broker().accounts().createAccount(alpacaReq);
 
             // 6. บันทึกลง Database ของเรา
-            UserAccount localAccount = new UserAccount(); // ใช้ UserAccount แทน Account
-            localAccount.setEmail("puppymsn@example.com"); // ตอนใช้งานจริงก็ดึงจาก requestDto.getEmail()
-            localAccount.setFirstName(requestDto.getFirstName());
-            localAccount.setLastName(requestDto.getLastName());
+            UserAccount localAccount = new UserAccount();
+            localAccount.setEmail("requestDto.getEmail()");
             localAccount.setAlpacaAccountId(String.valueOf(alpacaAccount.getId()));
+            localAccount.setAccountNumber(alpacaAccount.getAccountNumber());
+            localAccount.setStatus(alpacaAccount.getStatus().name()); // .name() เพื่อแปลง Enum เป็น String เช่น "ACTIVE"
+            localAccount.setPhoneNumber(requestDto.getPhoneNumber()); // เบอร์โทรเอาจากที่ User
 
             return AccountRepository.save(localAccount);
 
@@ -378,7 +380,7 @@ public class BrokerService {
                 null,
                 null,
                 "desc", // sort (desc = ใหม่สุดขึ้นก่อน)
-                "contact,identity"
+                null
         );
     }
     public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
@@ -463,6 +465,11 @@ public class BrokerService {
         } catch (ApiException e) {
             log.error("ไม่สามารถเก็บค่าธรรมเนียมได้ {}", e.getMessage());
         }
+    }
+
+    public List<UserAccount> getAllLocalUsers() {
+        log.info("Admin: Fetching all accounts from Local Database...");
+        return AccountRepository.findAll();
     }
 }
 

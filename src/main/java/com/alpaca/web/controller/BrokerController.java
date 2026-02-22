@@ -11,12 +11,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.alpaca.web.Repository.AccountRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 @RequestMapping("broker")
@@ -26,17 +25,19 @@ public class BrokerController {
     private final Logger log = LoggerFactory.getLogger(BrokerController.class);
     private final BrokerService brokerService;
     private final MarketDataService marketDataService; // เพิ่มตัวแปร Service
+    private final AccountRepository accountRepository;
 
-    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้  ต
-    public BrokerController(BrokerService brokerService, MarketDataService marketDataService) {
+    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
+    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
+        this.accountRepository = accountReapository;
     }
 
 
-    @PostMapping("/order/user")
+    @PostMapping("/order/user")   //รับได้2แบบ1.accountId(แก้ไข) หรือ 2. email แต่รับด้วย email เพื่อความปลอดภัยให้หน้าบ้านไม่รู้จักหลังบ้าน
     public ResponseEntity<?> buyStockForUser(
-            @RequestParam("accountId") UUID accountId,
+            @RequestParam("email") String email,
             @RequestParam("symbol") String symbol,
             @RequestParam(value = "qty", required = false) BigDecimal qty,
             @RequestParam(value = "notional", required = false) BigDecimal notional,
@@ -46,6 +47,16 @@ public class BrokerController {
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) { // เอา throws Exception ออก แล้ว try-catch ข้างในแทน
         try {
+            //mapping  user กับ ใน database จาก email ที่  หน้าบ้านส่งมาเพื่อความปลอดภัย
+            Optional<UserAccount> userOptional = accountRepository.findByEmail(email);
+            if (userOptional.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("❌ ไม่พบข้อมูลผู้ใช้งานอีเมล: " + email);
+            }
+
+            String alpacaIdStr = userOptional.get().getAlpacaAccountId();
+            UUID accountId = UUID.fromString(alpacaIdStr);
+
             //เช็คตลาดว่าเปิด/ปิด/ปรับปรุง ไหม เพื่อซื้อขาย
             Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
             String currentStatus = (String) marketStatus.get("status");
@@ -62,7 +73,7 @@ public class BrokerController {
                             .body("❌ ไม่สามารถส่งคำสั่งได้ ตลาดหุ้นปิดทำการในขณะนี้");
                 }
             }
-            // 1. เช็คสภาพคล่อง (Logic เดิมของคุณ ดีแล้วครับ) ✅
+            // 1. เช็คสภาพคล่อง
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
             if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
                 if (quote.containsKey("askPrice")) {
@@ -91,9 +102,6 @@ public class BrokerController {
                     limitPrice,
                     stopPrice
             );
-
-            // ❌ ลบ Logic การคิดเงินและหักค่าธรรมเนียมตรงนี้ออกให้หมด! ❌
-            // เพราะหน้าที่นี้เป็นของ SSE Listener (BrokerService.java) ที่จะทำงานเมื่อ Order Fill จริงๆ
 
             // 3. แจ้ง User ว่ารับคำสั่งแล้ว (สถานะจะเป็น NEW หรือ ACCEPTED)
             return ResponseEntity.ok(Map.of(
@@ -234,12 +242,40 @@ public class BrokerController {
     @GetMapping("/admin/users")
     public ResponseEntity<?> getAllUsers() {
         try {
+            //ดึงจาก api Alpaca มาตรงๆ
+            /*List<Account> accounts = brokerService.getAllAccounts();
+            return ResponseEntity.ok(accounts);*/
+            List<UserAccount> localAccounts = brokerService.getAllLocalUsers();
+            return ResponseEntity.ok(localAccounts);
 
-            List<Account> accounts = brokerService.getAllAccounts();
-            return ResponseEntity.ok(accounts);
         } catch (Exception e) {
             log.error("Failed to fetch all users", e);
             return ResponseEntity.internalServerError().body("❌ Error fetching users: " + e.getMessage());
+        }
+    }
+    @GetMapping("/admin/users-equity")
+    public ResponseEntity<?> getAllUsersEquity() {
+        try {
+            log.info("Admin: Fetching bulk equity from Alpaca...");
+            // ดึงจาก Alpaca
+            List<Account> alpacaAccounts = brokerService.getAllAccounts();
+
+            // สร้าง Map จับคู่ ID -> ยอดเงิน
+            Map<String, Double> equityMap = new HashMap<>();
+
+            for (Account acc : alpacaAccounts) {
+                String accountIdStr = acc.getId().toString();
+                Double equity = 0.0;
+                if (acc.getLastEquity() != null) {
+                    equity = acc.getLastEquity().doubleValue();
+                }
+                equityMap.put(accountIdStr, equity);
+            }
+
+            return ResponseEntity.ok(equityMap);
+        } catch (Exception e) {
+            log.error("Failed to fetch bulk equity", e);
+            return ResponseEntity.internalServerError().body("❌ Error fetching equity: " + e.getMessage());
         }
     }
 

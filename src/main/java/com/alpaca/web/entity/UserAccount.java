@@ -23,6 +23,15 @@ public class UserAccount {
     @Column(nullable = false)
     private String lastName;
 
+    @Column(name = "account_number")
+    private String accountNumber;
+
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
+    @Column(name = "status")
+    private String status;
+
     @Column(name = "alpaca_account_id", unique = true)
     private String alpacaAccountId;
 
