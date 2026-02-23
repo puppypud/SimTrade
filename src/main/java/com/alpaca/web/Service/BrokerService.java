@@ -1,7 +1,9 @@
 package com.alpaca.web.Service;
 
 import com.alpaca.web.Repository.AccountRepository;
+import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
 import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.annotation.PostConstruct;
@@ -33,17 +35,16 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Disclosures;
 import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
-import com.alpaca.web.Repository.AccountRepository;
 
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.*;
 
 import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -51,8 +52,15 @@ public class BrokerService {
     Dotenv dotenv = Dotenv.load();
     private AlpacaAPI brokerAPI;
 
-    @Autowired
-    private AccountRepository AccountRepository;
+    private final OrderHistoryRepository orderHistoryRepository;
+    private final AccountRepository accountRepository;
+
+    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository) {
+        this.orderHistoryRepository = orderHistoryRepository;
+        this.accountRepository = accountRepository;
+    }
+
+
     @PostConstruct
     public void init() {
         String brokerApiKey = dotenv.get("BROKER_API_KEY");
@@ -96,8 +104,9 @@ public class BrokerService {
         }
     }
 
-    // แยก Logic ออกมาเพื่อความสะอาด
+    // แยก Logic ออกมาเพื่อความสะอาด เอาไว้ update เมื่อ กดซื้อ order โดยเปลี่ยนจาก new เป็น fill พวกนี้
     private void processTradeUpdate(TradeUpdateEventV2 tradeUpdate) {
+
         // เช็คว่าเป็น Event "fill" (ซื้อขายสำเร็จ) หรือไม่
         if (tradeUpdate.getEvent() != null &&
                 "fill".equalsIgnoreCase(tradeUpdate.getEvent().toString())) {
@@ -105,11 +114,49 @@ public class BrokerService {
             try {
                 // Broker Model จะมี Order object มาให้เลย
                 Order order = tradeUpdate.getOrder();
-                String orderId = (order != null) ? order.getId().toString() : "Unknown_Order";
+                if (order == null || order.getId() == null) {
+                    log.warn("⚠️ Received fill event but Order object or ID is null");
+                    return;
+                }
+                String orderId = order.getId().toString();
 
                 // ตรวจสอบ Account ID จาก Client Order ID ที่เราฝากไว้
-                if (order != null && order.getClientOrderId() != null) {
-                    try {
+                if (order.getClientOrderId() != null) {
+                    try { //code บันทึกลง database
+                        Optional<OrderHistory> existingOrderOpt = orderHistoryRepository.findById(orderId);
+
+                        if (existingOrderOpt.isPresent()) {
+                            OrderHistory existingOrder = existingOrderOpt.get();
+
+                            // 2. อัปเดตข้อมูลฟิลด์ที่เพิ่งเกิดขึ้นจริงตอน Match สำเร็จ
+                            if (order.getStatus() != null) {
+                                existingOrder.setStatus(order.getStatus().name());
+                            } else {
+                                existingOrder.setStatus("FILLED"); // Fallback เผื่อไว้
+                            } // จะเปลี่ยนเป็น "FILLED"
+
+                            if (order.getFilledQty() != null) {
+                                existingOrder.setFilledQty(order.getFilledQty());
+                            }
+                            if (order.getFilledAvgPrice() != null) {
+                                existingOrder.setFilledAvgPrice(order.getFilledAvgPrice());
+                            }
+                            if (order.getFilledAt() != null) {
+                                existingOrder.setFilledAt(order.getFilledAt().toInstant());
+                            }
+
+                            // 3. บันทึกทับแถวเดิม (JPA จะใช้คำสั่ง UPDATE แทน INSERT เพราะมี ID เดิมอยู่แล้ว)
+                            orderHistoryRepository.save(existingOrder);
+                            log.info("✅ Database Updated: Order {} is now FILLED.", orderId);
+
+                        } else {
+                            // ⚠️ กรณีฉุกเฉิน: ได้รับแจ้งว่า Match สำเร็จ แต่หาใน Database ไม่เจอ!
+                            // (อาจเกิดจากตอนกดซื้อ Database เราล่มพอดี แต่คำสั่งวิ่งไปถึง Alpaca แล้ว)
+                            log.warn("⚠️ Received fill event for unknown Order ID: {}", orderId);
+
+                            // มืออาชีพระดับสูงจะเขียนโค้ดเพื่อ "สร้างแถวใหม่ (Insert)" ชดเชยตรงนี้
+                            // โดยดึงเอา UserAccount จาก ClientOrderId มาผูก แล้วสั่ง saveOrderHistory()
+                        }
                         // รับค่ามา เช่น "user-1234-random-A1"
                         String rawId = order.getClientOrderId();
 
@@ -124,20 +171,26 @@ public class BrokerService {
                         // แปลงกลับเป็น UUID
                         UUID accountId = UUID.fromString(realAccountIdString);
 
-                        // ดึงราคาและจำนวน (Broker Model มักส่งเป็น String หรือ BigDecimal)
-                        // ใช้ .toString() กันเหนียวแล้วค่อย parse
-                        double filledPrice = Double.parseDouble(tradeUpdate.getPrice().toString());
-                        double qty = Double.parseDouble(tradeUpdate.getQty().toString());
+                        if (tradeUpdate.getPrice() != null && tradeUpdate.getQty() != null) {
+                            BigDecimal filledPrice = new BigDecimal(tradeUpdate.getPrice().toString());
+                            BigDecimal qty = new BigDecimal(tradeUpdate.getQty().toString());
 
-                        // 🟢 คำนวณค่าธรรมเนียม 0.025%
-                        double totalCost = filledPrice * qty;
-                        double fee = totalCost * 0.025;
+                            // คำนวณยอดรวม (Price * Qty)
+                            BigDecimal totalCost = filledPrice.multiply(qty);
 
-                        // สั่งตัดเงิน
-                        collectTradingFee(accountId, fee);
+                            // คำนวณค่าธรรมเนียม 0.025% (0.00025) และปัดเศษทศนิยมให้เหลือ 4 ตำแหน่ง
+                            BigDecimal feePercentage = new BigDecimal("0.00025");
+                            BigDecimal fee = totalCost.multiply(feePercentage)
+                                    .setScale(4, RoundingMode.HALF_UP);
 
-                        log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}",
-                                orderId, accountId, fee);
+                            // สั่งตัดเงิน (คำแนะนำ: ต้องไปแก้ฟังก์ชัน collectTradingFee ให้รับพารามิเตอร์เป็น BigDecimal ด้วย)
+                            collectTradingFee(accountId, fee);
+
+                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}",
+                                    orderId, accountId, fee);
+                        } else {
+                            log.warn("⚠️ Price or Qty is missing in TradeUpdate for Order: {}", orderId);
+                        }
 
                     } catch (IllegalArgumentException e) {
                         log.warn("⚠️ Client Order ID is not a valid UUID: {}", order.getClientOrderId());
@@ -219,7 +272,7 @@ public class BrokerService {
             localAccount.setStatus(alpacaAccount.getStatus().name()); // .name() เพื่อแปลง Enum เป็น String เช่น "ACTIVE"
             localAccount.setPhoneNumber(requestDto.getPhoneNumber()); // เบอร์โทรเอาจากที่ User
 
-            return AccountRepository.save(localAccount);
+            return accountRepository.save(localAccount);
 
         } catch (Exception e) {
             // ในงานจริง ควรใช้ Logger (เช่น lombok @Slf4j) แทน System.out
@@ -262,7 +315,26 @@ public class BrokerService {
         } else {
             throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' หรือ 'notional' ห้ามใส่ทั้งคู่หรือปล่อยว่าง");
         }
-        return brokerAPI.broker().trading().createOrderForAccount(accountId, request);
+        /*return brokerAPI.broker().trading().createOrderForAccount(accountId, request);*/  //ไว้ซื้อแบบเก่า
+        Order createdOrder = brokerAPI.broker().trading().createOrderForAccount(accountId, request);
+        Optional<UserAccount> userOptional = accountRepository.findByAlpacaAccountId(accountId.toString());
+
+        if (userOptional.isPresent()) {
+            try {
+                // 3. เรียกใช้เมธอด saveOrderHistory เพื่อบันทึกสถานะ "NEW"
+                saveOrderHistory(createdOrder, userOptional.get());
+                log.info("✅ บันทึกออร์เดอร์สถานะ NEW ลง Database สำเร็จ: {}", createdOrder.getId());
+            } catch (Exception e) {
+                // มืออาชีพจะใช้ try-catch ครอบไว้เสมอ
+                // เผื่อ Database เราล่ม ออร์เดอร์ที่สร้างสำเร็จที่ Alpaca แล้ว จะได้ไม่เกิด Error ตีกลับไปหน้าบ้าน
+                log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์ลง Database: {}", createdOrder.getId(), e);
+            }
+        } else {
+            log.warn("⚠️ ไม่พบข้อมูลบัญชีผู้ใช้ในระบบ สำหรับ Alpaca ID: {} จึงไม่ได้บันทึกประวัติ", accountId);
+        }
+
+        //่ส่งข้อมูลออร์เดอร์กลับไปให้ Controller ตามปกติ
+        return createdOrder;
     }
 
     // ฟังก์ชันเติมเงินเข้า Firm Account แบบถูกวิธี (ใช้ Funding API)
@@ -451,7 +523,7 @@ public class BrokerService {
         }
     }
         //เก็บค่าธรรมเนียม
-    public  void  collectTradingFee(UUID userAccountId, Double FeeAmount) {
+    public  void  collectTradingFee(UUID userAccountId, BigDecimal FeeAmount) {
         String formattedFee = String.format("%.2f", FeeAmount);
         try {
              log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
@@ -469,7 +541,38 @@ public class BrokerService {
 
     public List<UserAccount> getAllLocalUsers() {
         log.info("Admin: Fetching all accounts from Local Database...");
-        return AccountRepository.findAll();
+        return accountRepository.findAll();
+    }
+
+    public void saveOrderHistory(Order order, UserAccount currentUser) {
+        OrderHistory trade = new OrderHistory();
+
+        // ใช้ != null ? ... : null เพื่อป้องกันการบันทึกคำว่า "null" ลง DB
+        trade.setOrderId(order.getId() != null ? order.getId().toString() : null);
+        trade.setUserAccount(currentUser);
+        trade.setSymbol(order.getSymbol());
+
+        trade.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
+        trade.setSide(order.getSide() != null ? order.getSide().name() : null);
+        trade.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
+        trade.setStatus(order.getStatus() != null ? order.getStatus().name() : null);
+
+        // สมมติว่าใน OrderHistory ของคุณ Qty ยังเป็น String อยู่ (แม้จะไม่แนะนำก็ตาม)
+        trade.setQty(order.getQty());
+        trade.setFilledQty(order.getFilledQty());
+        trade.setFilledAvgPrice(order.getFilledAvgPrice());
+        trade.setCommission(order.getCommission());
+
+        // การจัดการเวลา ใช้ Instant จาก java.time
+        if (order.getCreatedAt() != null) {
+            trade.setCreatedAt(order.getCreatedAt().toInstant());
+        }
+        if (order.getFilledAt() != null) {
+            trade.setFilledAt(order.getFilledAt().toInstant());
+        }
+
+        // บันทึกลง Database
+        orderHistoryRepository.save(trade);
     }
 }
 

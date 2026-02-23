@@ -84,9 +84,9 @@ public class BrokerController {
                 }
             }
 
-            OrderSide side = OrderSide.valueOf(orderSideStr);
-            OrderType type = OrderType.valueOf(orderTypeStr);
-            TimeInForce Time = TimeInForce.valueOf(timeInForceStr);
+            OrderSide side = OrderSide.valueOf(orderSideStr.toUpperCase());
+            OrderType type = OrderType.valueOf(orderTypeStr.toUpperCase());
+            TimeInForce Time = TimeInForce.valueOf(timeInForceStr.toUpperCase());
 
             log.info("Order Request: Account={} Symbol={} Side={} Type={}", accountId, symbol, side, type);
 
