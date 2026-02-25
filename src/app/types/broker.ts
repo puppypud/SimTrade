@@ -20,12 +20,12 @@ export interface getCryptoBars {
 }
 
 // สำหรับ Request ซื้อหุ้น
-export interface BuyStockRequest {   
+export interface BuyStockRequest {
   accountId: string;
   symbol: string;
   qty?: number;
   notional?: number;
-  OrderSide: 'BUY' | 'SELL' ;
+  OrderSide: 'BUY' | 'SELL';
   OrderType: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT' | 'TRAILING_STOP';
   TimeInForce: 'DAY' | 'GTC' | 'IOC' | 'FOK';
   limitPrice?: number;
@@ -58,7 +58,7 @@ export interface Order {
   extendedHours: boolean;
   commission: number;
 }
- 
+
 export interface AccountInfo {
   id: string;
   accountNumber: string;
@@ -74,17 +74,17 @@ export interface AccountInfo {
   createdAt: string;
 }
 export interface Position {
-assetId: string;
+  assetId: string;
   symbol: string;
   exchange: string;
   assetClass: string;
   assetMarginable: boolean;
-  avgEntryPrice: number;    
-  qty: number;              
-  side: string;             
+  avgEntryPrice: number;
+  qty: number;
+  side: string;
   marketValue: number;
-  costBasis: number;        
-  unrealizedPl: number;     
+  costBasis: number;
+  unrealizedPl: number;
   unrealizedPlpc: number;   // ค่า % ที่คูณ 100 แล้ว
   unrealizedIntradayPl: number;
   unrealizedIntradayPlpc: number;
@@ -134,4 +134,25 @@ export interface UserAccount {
     countryOfCitizenship: string;
   };
 }
- 
+
+export interface RegisterRequest {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  streetAddress: string[];
+  city: string;
+  state: string;
+  postalCode: string;
+  dateOfBirth: string;
+  taxId: string;
+  taxIdType: string;
+  countryOfCitizenship: string;
+  countryOfBirth: string;
+  countryOfTaxResidence: string;
+  isControlPerson: boolean;
+  isAffiliatedExchangeOrFinra: boolean;
+  isPoliticallyExposed: boolean;
+  immediateFamilyExposed: boolean;
+}

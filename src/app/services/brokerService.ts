@@ -1,8 +1,8 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote,UserAccount,getCryptoBars} from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
-  
+
   // 1. ซื้อหุ้น (ตรงกับ @PostMapping("/order/user"))
   buyStock: async (data: BuyStockRequest) => {
     const params: any = {
@@ -17,7 +17,7 @@ export const brokerService = {
 
     if (data.notional && data.notional > 0) {
       params.notional = data.notional;
-      params.type = 'MARKET'; 
+      params.type = 'MARKET';
       params.tif = 'DAY';
     } else {
       params.qty = data.qty;
@@ -63,26 +63,26 @@ export const brokerService = {
       exchange: item.exchange,
       assetClass: item.assetClass,
       assetMarginable: item.assetMarginable,
-      
+
       // 1. แปลง String เป็น Number
       qty: parseFloat(item.qty || "0"),
       avgEntryPrice: parseFloat(item.avgEntryPrice || "0"),
-      
+
       side: item.side,
       marketValue: item.marketValue,
       costBasis: item.costBasis,
       unrealizedPl: item.unrealizedPl,
-      
+
       // 2. แปลงทศนิยมเป็น % (คูณ 100) 
       unrealizedPlpc: (item.unrealizedPlpc || 0) * 100,
-      
+
       unrealizedIntradayPl: item.unrealizedIntradayPl,
       unrealizedIntradayPlpc: (item.unrealizedIntradayPlpc || 0) * 100,
-      
+
       currentPrice: item.currentPrice,
       lastdayPrice: item.lastdayPrice,
       changeToday: (item.changeToday || 0) * 100,
-      
+
       swapRate: item.swapRate,
       avgEntrySwapRate: item.avgEntrySwapRate,
       usd: item.usd
@@ -127,17 +127,17 @@ export const brokerService = {
 
   // ✅ 2. เพิ่มฟังก์ชันส่งคำสั่งซื้อขาย Crypto
   createCryptoOrder: async (
-    accountId: string, 
-    symbol: string, 
-    side: "BUY" | "SELL", 
-    amount: number, 
-    mode: "QTY" | "NOTIONAL", 
+    accountId: string,
+    symbol: string,
+    side: "BUY" | "SELL",
+    amount: number,
+    mode: "QTY" | "NOTIONAL",
     orderType: string,      // เพิ่ม
     timeInForce: string,    // เพิ่ม
     limitPrice?: number,
     stopPrice?: number      // เพิ่ม
   ) => {
-    
+
     const params: any = {
       accountId,
       symbol,
@@ -149,10 +149,10 @@ export const brokerService = {
     if (mode === "NOTIONAL") {
       params.notional = amount;
       // Notional บังคับเป็น Market Order เสมอ
-      params.OrderType = "MARKET"; 
+      params.OrderType = "MARKET";
     } else {
       params.qty = amount;
-      
+
       // ใส่ราคาตามประเภทออเดอร์
       if (limitPrice) params.limitPrice = limitPrice;
       if (stopPrice) params.stopPrice = stopPrice;
@@ -161,6 +161,12 @@ export const brokerService = {
     const response = await apiClient.post('/broker/orders/crypto', null, {
       params: params
     });
+    return response.data;
+  },
+
+  // 4. สมัครสมาชิก
+  registerUser: async (payload: RegisterRequest) => {
+    const response = await apiClient.post<UserAccount>('/broker/create-account', payload);
     return response.data;
   },
 };
