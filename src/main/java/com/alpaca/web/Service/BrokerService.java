@@ -108,11 +108,8 @@ public class BrokerService {
     private void processTradeUpdate(TradeUpdateEventV2 tradeUpdate) {
 
         // เช็คว่าเป็น Event "fill" (ซื้อขายสำเร็จ) หรือไม่
-        if (tradeUpdate.getEvent() != null &&
-                "fill".equalsIgnoreCase(tradeUpdate.getEvent().toString())) {
-
+        if (tradeUpdate.getEvent() != null && "fill".equalsIgnoreCase(tradeUpdate.getEvent().toString())) {
             try {
-                // Broker Model จะมี Order object มาให้เลย
                 Order order = tradeUpdate.getOrder();
                 if (order == null || order.getId() == null) {
                     log.warn("⚠️ Received fill event but Order object or ID is null");
@@ -120,77 +117,78 @@ public class BrokerService {
                 }
                 String orderId = order.getId().toString();
 
-                // ตรวจสอบ Account ID จาก Client Order ID ที่เราฝากไว้
                 if (order.getClientOrderId() != null) {
-                    try { //code บันทึกลง database
-                        Optional<OrderHistory> existingOrderOpt = orderHistoryRepository.findById(orderId);
-
-                        if (existingOrderOpt.isPresent()) {
-                            OrderHistory existingOrder = existingOrderOpt.get();
-
-                            // 2. อัปเดตข้อมูลฟิลด์ที่เพิ่งเกิดขึ้นจริงตอน Match สำเร็จ
-                            if (order.getStatus() != null) {
-                                existingOrder.setStatus(order.getStatus().name());
-                            } else {
-                                existingOrder.setStatus("FILLED"); // Fallback เผื่อไว้
-                            } // จะเปลี่ยนเป็น "FILLED"
-
-                            if (order.getFilledQty() != null) {
-                                existingOrder.setFilledQty(order.getFilledQty());
-                            }
-                            if (order.getFilledAvgPrice() != null) {
-                                existingOrder.setFilledAvgPrice(order.getFilledAvgPrice());
-                            }
-                            if (order.getFilledAt() != null) {
-                                existingOrder.setFilledAt(order.getFilledAt().toInstant());
-                            }
-
-                            // 3. บันทึกทับแถวเดิม (JPA จะใช้คำสั่ง UPDATE แทน INSERT เพราะมี ID เดิมอยู่แล้ว)
-                            orderHistoryRepository.save(existingOrder);
-                            log.info("✅ Database Updated: Order {} is now FILLED.", orderId);
-
-                        } else {
-                            // ⚠️ กรณีฉุกเฉิน: ได้รับแจ้งว่า Match สำเร็จ แต่หาใน Database ไม่เจอ!
-                            // (อาจเกิดจากตอนกดซื้อ Database เราล่มพอดี แต่คำสั่งวิ่งไปถึง Alpaca แล้ว)
-                            log.warn("⚠️ Received fill event for unknown Order ID: {}", orderId);
-
-                            // มืออาชีพระดับสูงจะเขียนโค้ดเพื่อ "สร้างแถวใหม่ (Insert)" ชดเชยตรงนี้
-                            // โดยดึงเอา UserAccount จาก ClientOrderId มาผูก แล้วสั่ง saveOrderHistory()
-                        }
-                        // รับค่ามา เช่น "user-1234-random-A1"
+                    try {
+                        // 1. ดึง Account ID ออกมาก่อนเพื่อเตรียมใช้งาน
                         String rawId = order.getClientOrderId();
-
-                        String realAccountIdString = "";
-                        if (rawId.length() >= 36) {
-                            realAccountIdString = rawId.substring(0, 36);
-                        } else {
-                            // กรณีผิดพลาด (เผื่อมี Order เก่าหลุดมา)
-                            realAccountIdString = rawId;
-                        }
-
-                        // แปลงกลับเป็น UUID
+                        String realAccountIdString = rawId.length() >= 36 ? rawId.substring(0, 36) : rawId;
                         UUID accountId = UUID.fromString(realAccountIdString);
 
+                        // 2. คำนวณค่าธรรมเนียม (ย้ายขึ้นมาทำก่อนเซฟ DB)
+                        BigDecimal fee = BigDecimal.ZERO;
                         if (tradeUpdate.getPrice() != null && tradeUpdate.getQty() != null) {
                             BigDecimal filledPrice = new BigDecimal(tradeUpdate.getPrice().toString());
                             BigDecimal qty = new BigDecimal(tradeUpdate.getQty().toString());
-
-                            // คำนวณยอดรวม (Price * Qty)
                             BigDecimal totalCost = filledPrice.multiply(qty);
-
-                            // คำนวณค่าธรรมเนียม 0.025% (0.00025) และปัดเศษทศนิยมให้เหลือ 4 ตำแหน่ง
                             BigDecimal feePercentage = new BigDecimal("0.00025");
-                            BigDecimal fee = totalCost.multiply(feePercentage)
-                                    .setScale(4, RoundingMode.HALF_UP);
-
-                            // สั่งตัดเงิน (คำแนะนำ: ต้องไปแก้ฟังก์ชัน collectTradingFee ให้รับพารามิเตอร์เป็น BigDecimal ด้วย)
-                            collectTradingFee(accountId, fee);
-
-                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}",
-                                    orderId, accountId, fee);
+                            fee = totalCost.multiply(feePercentage).setScale(4, RoundingMode.HALF_UP);
                         } else {
                             log.warn("⚠️ Price or Qty is missing in TradeUpdate for Order: {}", orderId);
                         }
+
+                        // 3. เริ่มกระบวนการตรวจสอบและบันทึก DB (Upsert)
+                        Optional<OrderHistory> existingOrderOpt = orderHistoryRepository.findById(orderId);
+                        OrderHistory historyToSave;
+
+                        if (existingOrderOpt.isPresent()) {
+                            historyToSave = existingOrderOpt.get();
+
+                            // เช็คเพื่อป้องกันการหักเงินซ้ำ (Idempotency)
+                            if ("FILLED".equalsIgnoreCase(historyToSave.getStatus())) {
+                                log.info("ℹ️ Order {} is already FILLED. Skipping to prevent duplicate fee deduction.", orderId);
+                                return;
+                            }
+                            log.info("ℹ️ Found existing order {}, updating to FILLED.", orderId);
+
+                        } else {
+                            // ⚠️ ถ้าหาไม่เจอ (เกิด Race Condition) ให้ "สร้างใหม่" รอไว้เลย
+                            log.warn("⚠️ Order {} not found in DB yet (Race Condition). Creating a new filled record ahead of time.", orderId);
+                            historyToSave = new OrderHistory();
+                            historyToSave.setOrderId(orderId);
+                            historyToSave.setSymbol(order.getSymbol());
+                            historyToSave.setSide(order.getSide() != null ? order.getSide().name() : null);
+                            historyToSave.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
+
+                            historyToSave.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
+                            historyToSave.setQty(order.getQty());
+                            if (order.getCreatedAt() != null) {
+                                historyToSave.setCreatedAt(order.getCreatedAt().toInstant());
+                            }
+
+                            // เอา UserAccount มาผูกให้ครบ
+                            accountRepository.findByAlpacaAccountId(accountId.toString())
+                                    .ifPresent(historyToSave::setUserAccount);
+                        }
+
+                        // 4. หักเงินค่าธรรมเนียม
+                        if (fee.compareTo(BigDecimal.ZERO) > 0) {
+                            collectTradingFee(accountId, fee);
+                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}", orderId, accountId, fee);
+                        }
+
+                        // 5. อัปเดตข้อมูลให้ครบถ้วนก่อนเซฟ
+                        historyToSave.setStatus(order.getStatus() != null ? order.getStatus().name() : "FILLED");
+                        historyToSave.setFilledQty(order.getFilledQty());
+                        historyToSave.setFilledAvgPrice(order.getFilledAvgPrice());
+                        historyToSave.setCommission(fee); // ✅ ใส่ค่า Commission ลง Object แล้ว!
+
+                        if (order.getFilledAt() != null) {
+                            historyToSave.setFilledAt(order.getFilledAt().toInstant());
+                        }
+
+                        // 6. บันทึกลง Database (บรรทัดเดียวจบ)
+                        orderHistoryRepository.save(historyToSave);
+                        log.info("✅ Database Updated: Order {} is now FILLED with commission.", orderId);
 
                     } catch (IllegalArgumentException e) {
                         log.warn("⚠️ Client Order ID is not a valid UUID: {}", order.getClientOrderId());
@@ -466,9 +464,9 @@ public class BrokerService {
 
         // 🔍 Log 1: ดูข้อมูลดิบที่ส่งเข้ามาจาก Controller
         log.info("=================================================");
-        log.info("🕵️ [CryptoOrder] Start Creating Order...");
-        log.info("👉 Inputs: Account={}, Symbol={}, Side={}, Type={}", accountId, cleanSymbol, side, type);
-        log.info("💰 Values: Qty={}, Notional={}, LimitPrice={}", qty, notional, limitPrice);
+        log.info(" [CryptoOrder] Start Creating Order...");
+        log.info(" Inputs: Account={}, Symbol={}, Side={}, Type={}", accountId, cleanSymbol, side, type);
+        log.info(" Values: Qty={}, Notional={}, LimitPrice={}", qty, notional, limitPrice);
 
         // 2. เตรียม Request
         CreateOrderRequest request = new CreateOrderRequest()
@@ -481,16 +479,25 @@ public class BrokerService {
         if (qty != null && notional == null) {
             // กรณีระบุจำนวนเหรียญ
             request.qty(qty);
-            request.type(type); // ใช้ Type ที่ส่งมา (MARKET หรือ LIMIT)
+            request.type(type); // ใช้ Type ที่ส่งมา (MARKET, LIMIT, STOP, STOP_LIMIT)
 
-            // เช็คและใส่ Limit Price
+            // ✅ 1. เช็คและใส่ Limit Price
             if (type == OrderType.LIMIT || type == OrderType.STOP_LIMIT) {
                 if (limitPrice != null) {
                     request.limitPrice(limitPrice);
                     log.info("✅ Set Limit Price: {}", limitPrice);
                 } else {
                     log.error("❌ Error: Limit Order but Limit Price is NULL");
-                    throw new IllegalArgumentException("Limit Order ต้องใส่ราคา (Limit Price) เสมอ");
+                    throw new IllegalArgumentException("Limit Order / Stop Limit ต้องใส่ราคา (Limit Price) เสมอ");
+                }
+            }
+            if (type == OrderType.STOP || type == OrderType.STOP_LIMIT) {
+                if (stopPrice != null) {
+                    request.stopPrice(stopPrice);
+                    log.info("✅ Set Stop Price: {}", stopPrice);
+                } else {
+                    log.error("❌ Error: Stop Order but Stop Price is NULL");
+                    throw new IllegalArgumentException("Stop Order / Stop Limit ต้องใส่ราคา (Stop Price) เสมอ");
                 }
             }
         } else if (notional != null && qty == null) {
@@ -506,16 +513,28 @@ public class BrokerService {
         // 📦 Log 2: ดูหน้าตา Request สุดท้ายที่จะส่งไป Alpaca
         log.info("🚀 [CryptoOrder] Sending Request to Alpaca: {}", request.toString());
 
-        // 4. ยิงคำสั่ง
+        // 4. ยิงคำสั่ง และบันทึกลง Database ทันที
         try {
             Order order = brokerAPI.broker().trading().createOrderForAccount(accountId, request);
 
-            // ✅ Log 3: ถ้าสำเร็จ ได้ Order ID อะไรกลับมา
+            // ✅ สิ่งที่เพิ่มเข้ามา: ค้นหา User และบันทึกสถานะ NEW ลง Database
+            Optional<UserAccount> userOptional = accountRepository.findByAlpacaAccountId(accountId.toString());
+            if (userOptional.isPresent()) {
+                try {
+                    // เรียกใช้เมธอด saveOrderHistory ที่เราเพิ่งแก้เรื่องกันการทับสถานะ FILLED ไป
+                    saveOrderHistory(order, userOptional.get());
+                    log.info("✅ บันทึกออร์เดอร์คริปโตสถานะ NEW ลง Database สำเร็จ: {}", order.getId());
+                } catch (Exception dbEx) {
+                    // ต้องครอบ try-catch ไว้เสมอ เผื่อ DB ล่ม คำสั่งซื้อที่สำเร็จแล้วจะได้ไม่ถูกตีกลับเป็น Error 500 ไปหา User
+                    log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์คริปโตลง Database: {}", order.getId(), dbEx);
+                }
+            } else {
+                log.warn("⚠️ ไม่พบข้อมูลบัญชีผู้ใช้ในระบบ สำหรับ Alpaca ID: {} จึงไม่ได้บันทึกประวัติออร์เดอร์คริปโต", accountId);
+            }
             log.info("✅ [CryptoOrder] SUCCESS! Order ID: {}, Status: {}", order.getId(), order.getStatus());
             log.info("=================================================");
             return order;
-
-        } catch (ApiException e) {
+        }catch (ApiException e) {
             // ❌ Log 4: ถ้าพัง พังเพราะอะไร (ปริ้น Response Body ออกมาดูเลย)
             log.error("🔥 [CryptoOrder] FAILED! Alpaca Error: {}", e.getMessage());
             log.error("🔥 [CryptoOrder] Response Body: {}", e.getResponseBody()); // ทีเด็ดอยู่ตรงนี้! มันจะบอกว่าผิดตรงไหน
