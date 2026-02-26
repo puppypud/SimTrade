@@ -1,15 +1,20 @@
 package com.alpaca.web.Service;
 
+import com.alpaca.web.dto.StockSearchDto;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.MarketDataWebsocketSourceType;
 import net.jacobpeterson.alpaca.model.util.apitype.TraderAPIEndpointType;
 import net.jacobpeterson.alpaca.openapi.broker.model.Clock;
+import net.jacobpeterson.alpaca.openapi.brokerapi.model.Asset;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.CryptoLatestLoc;
+import net.jacobpeterson.alpaca.openapi.trader.model.Assets;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import net.jacobpeterson.alpaca.AlpacaAPI; // Import เพิ่ม
 import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType; // Import เพิ่ม
 import jakarta.annotation.PostConstruct; // Import เพิ่ม
+import net.jacobpeterson.alpaca.openapi.tradingapi.model.AssetClass;
 import org.slf4j.Logger;
+import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -31,6 +36,7 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import net.jacobpeterson.alpaca.openapi.trader.ApiException;
 
@@ -417,5 +423,49 @@ public class MarketDataService {
             statusData.put("message", "ระบบขัดข้องภายใน");
         }
         return statusData;
+    }
+
+    /// code ไว้ดึงข้อมูลตัวหุ้น มา และเก็บใน menony
+    @Cacheable("allTradableAssets")
+    public List<StockSearchDto> getTradableAssets() {
+        try {
+            // ดึงข้อมูลหุ้นทั้งหมดที่มีสถานะ ACTIVE และเป็นหุ้น US
+            // ลองเปลี่ยนเป็นแบบนี้ดูครับ
+            List<Assets> assets = alpacaAPI.trader().assets().getV2Assets("active", "us_equity", null, null);
+
+            // แมปข้อมูลเป็น DTO เพื่อส่งเฉพาะสิ่งที่หน้าบ้านต้องใช้
+                // นำข้อมูล List<Assets> มาแปลงเป็น DTO
+            return assets.stream()
+                    // เช็กก่อนว่าหุ้นตัวนี้ยอมให้เทรดบน Alpaca จริงๆ (getTradable มักคืนค่าเป็น Boolean)
+                    .filter(asset -> Boolean.TRUE.equals(asset.getTradable()))
+                    .map(asset -> new StockSearchDto(
+                            asset.getSymbol(),
+                            asset.getName(),
+                            asset.getExchange().toString()
+                    ))
+                    .collect(Collectors.toList());
+
+        } catch (Exception e) {
+            throw new RuntimeException("ไม่สามารถดึงข้อมูลรายชื่อหุ้นจาก Alpaca API ได้: " + e.getMessage());
+        }
+    }
+
+    /// code Search Function หุ้น คือรับค่า keyword แต่รับมาจากหน้าบ้าน
+    public List<StockSearchDto> searchAssets(String keyword) {
+        List<StockSearchDto> allAssets = getTradableAssets();
+
+        if (keyword == null || keyword.trim().length() < 2) {
+            return List.of();
+        }
+
+        String searchString = keyword.trim().toLowerCase();
+
+        return allAssets.stream()
+                .filter(asset ->
+                        (asset.getSymbol() != null && asset.getSymbol().toLowerCase().startsWith(searchString)) ||
+                                (asset.getName() != null && asset.getName().toLowerCase().contains(searchString))
+                )
+                .limit(20)
+                .collect(Collectors.toList());
     }
 }

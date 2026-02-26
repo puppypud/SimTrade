@@ -15,7 +15,4 @@ public class StockInfoDTO {
     private Long marketCap;
     private Long volume;
     private String category;
-
-
-
 }

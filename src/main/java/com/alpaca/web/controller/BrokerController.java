@@ -3,6 +3,7 @@ package com.alpaca.web.controller;
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.dto.StockSearchDto;
 import com.alpaca.web.entity.UserAccount;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
@@ -419,5 +420,21 @@ public class BrokerController {
                 "maintenanceActive", active,
                 "message", "อัปเดตสถานะ Maintenance สำเร็จ"
         ));
+    }
+
+    @GetMapping("/assets/search")
+    public ResponseEntity<?> searchAssets(
+            @RequestParam("keyword") String keyword
+    ) {
+        try {
+            // เรียกใช้ Service ที่คุณเพิ่งเขียน
+            List<StockSearchDto> results = marketDataService.searchAssets(keyword);
+
+            // ส่งผลลัพธ์กลับไปให้หน้าบ้าน
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            log.error("Failed to search assets with keyword: {}", keyword, e);
+            return ResponseEntity.internalServerError().body("❌ Error searching assets: " + e.getMessage());
+        }
     }
 }
