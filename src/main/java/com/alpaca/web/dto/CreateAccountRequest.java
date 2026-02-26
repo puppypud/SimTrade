@@ -14,6 +14,7 @@ import java.util.List;
 public class CreateAccountRequest {
     // 1. ข้อมูลพื้นฐาน (Basic Info)
     private String email;
+    private String password;
     private String firstName;
     private String lastName;
     private String phoneNumber;

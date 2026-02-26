@@ -264,7 +264,8 @@ public class BrokerService {
 
             // 6. บันทึกลง Database ของเรา
             UserAccount localAccount = new UserAccount();
-            localAccount.setEmail("requestDto.getEmail()");
+            localAccount.setEmail(requestDto.getEmail());
+            localAccount.setPassword(requestDto.getPassword()); // เซฟรหัสผ่านลงฐานข้อมูล (Plain-text ไปก่อนตามแผน)
             localAccount.setAlpacaAccountId(String.valueOf(alpacaAccount.getId()));
             localAccount.setAccountNumber(alpacaAccount.getAccountNumber());
             localAccount.setStatus(alpacaAccount.getStatus().name()); // .name() เพื่อแปลง Enum เป็น String เช่น "ACTIVE"
