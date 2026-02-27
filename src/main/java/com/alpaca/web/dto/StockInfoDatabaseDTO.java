@@ -8,11 +8,12 @@ import java.math.BigDecimal;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class StockInfoDTO {
+public class StockInfoDatabaseDTO {
     private String symbol;
     private String name;
     private BigDecimal beta;
     private Long marketCap;
     private Long volume;
     private String category;
+    private String industry;
 }

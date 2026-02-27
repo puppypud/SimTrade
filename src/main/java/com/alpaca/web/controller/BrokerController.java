@@ -2,7 +2,9 @@ package com.alpaca.web.controller;
 
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
+import com.alpaca.web.Service.StockAnalysisService;
 import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.dto.StockInfoDatabaseDTO;
 import com.alpaca.web.dto.StockSearchDto;
 import com.alpaca.web.entity.UserAccount;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
@@ -27,12 +29,13 @@ public class BrokerController {
     private final BrokerService brokerService;
     private final MarketDataService marketDataService; // เพิ่มตัวแปร Service
     private final AccountRepository accountRepository;
-
+    private final StockAnalysisService stockAnalysisService;
     //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
-    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository) {
+    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository, StockAnalysisService stockAnalysisService, StockAnalysisService stockAnalysisService1) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
+        this.stockAnalysisService = stockAnalysisService1;
     }
 
 
@@ -435,6 +438,26 @@ public class BrokerController {
         } catch (Exception e) {
             log.error("Failed to search assets with keyword: {}", keyword, e);
             return ResponseEntity.internalServerError().body("❌ Error searching assets: " + e.getMessage());
+        }
+    }
+
+
+    @GetMapping("/assets/info")
+    public ResponseEntity<?> getStockInfoDetail(@RequestParam("symbol") String symbol) {
+        try {
+            // 3. เรียกผ่านตัวแปร instance
+            StockInfoDatabaseDTO info = stockAnalysisService.getStockInfo(symbol);
+
+            if (info == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("❌ ไม่พบข้อมูลหุ้น: " + symbol + " ทั้งในระบบและแหล่งข้อมูลภายนอก");
+            }
+
+            return ResponseEntity.ok(info);
+
+        } catch (Exception e) {
+            // ... log error
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
 }

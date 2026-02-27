@@ -37,4 +37,7 @@ public class StockAsset {
     // --- ระบบเปิดปิดของ Admin ---
     @Column(name = "is_tradable", nullable = false)
     private boolean isTradable = true; // เอาไว้ให้ Admin บล็อกหุ้นตัวนี้ไม่ให้คนซื้อได้
+
+    @Column(name = "industry" , length = 50 )
+    private String industry;
 }
