@@ -4,32 +4,43 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, User, Phone, MapPin, Calendar, CreditCard, ShieldAlert } from 'lucide-react';
+import { RegisterRequest } from '../types/broker';
+import { brokerService } from '../services/brokerService';
+
+interface RegisterFormState extends Omit<RegisterRequest, 'streetAddress' | 'password'> {
+    password?: string;
+    confirmPassword?: string;
+    streetAddressLine1: string;
+    streetAddressLine2: string;
+}
+
+const INITIAL_FORM_STATE: RegisterFormState = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phoneNumber: '',
+    streetAddressLine1: '',
+    streetAddressLine2: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    dateOfBirth: '',
+    taxId: '',
+    taxIdType: 'USA_SSN',
+    countryOfCitizenship: 'USA',
+    countryOfBirth: 'USA',
+    countryOfTaxResidence: 'USA',
+    isControlPerson: false,
+    isAffiliatedExchangeOrFinra: false,
+    isPoliticallyExposed: false,
+    immediateFamilyExposed: false
+};
 
 export default function RegisterPage() {
     const router = useRouter();
-    const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        phoneNumber: '',
-        streetAddressLine1: '',
-        streetAddressLine2: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        dateOfBirth: '',
-        taxId: '',
-        taxIdType: 'USA_SSN',
-        countryOfCitizenship: 'USA',
-        countryOfBirth: 'USA',
-        countryOfTaxResidence: 'USA',
-        isControlPerson: false,
-        isAffiliatedExchangeOrFinra: false,
-        isPoliticallyExposed: false,
-        immediateFamilyExposed: false
-    });
+    const [formData, setFormData] = useState<RegisterFormState>(INITIAL_FORM_STATE);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -49,7 +60,7 @@ export default function RegisterPage() {
         setIsLoading(true);
         setError('');
 
-        if (formData.password !== formData.confirmPassword) {
+        if (!formData.password || formData.password !== formData.confirmPassword) {
             setError('Passwords do not match');
             setIsLoading(false);
             return;
@@ -61,7 +72,7 @@ export default function RegisterPage() {
             return;
         }
 
-        const payload = {
+        const payload: RegisterRequest = {
             email: formData.email,
             password: formData.password,
             firstName: formData.firstName,
@@ -85,10 +96,16 @@ export default function RegisterPage() {
 
         console.log('Register payload:', payload);
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
-
-        router.push('/onboarding');
+        try {
+            const data = await brokerService.registerUser(payload);
+            console.log('Registration success:', data);
+            router.push('/onboarding');
+        } catch (err: any) {
+            console.error('Registration failed:', err);
+            setError(err.response?.data?.message || err.response?.data || 'Failed to create account. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
