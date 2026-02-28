@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, MarketStatus, AdminActionResponse, StockSearchDto, StockInfoDatabaseDTO } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
 
@@ -43,6 +43,14 @@ export const brokerService = {
   // 3. ดึงออเดอร์ทั้งหมด
   getAllOrders: async (accountId: string) => {
     const response = await apiClient.get('/broker/order/get/all-order', {
+      params: { accountId }
+    });
+    return response.data;
+  },
+
+  // 1/9. ดึงข้อมูลคำสั่งซื้อแบบระบุ ID (Get Single Order)
+  getSingleOrder: async (accountId: string, orderId: string) => {
+    const response = await apiClient.get(`/broker/order/${orderId}`, {
       params: { accountId }
     });
     return response.data;
@@ -107,6 +115,12 @@ export const brokerService = {
     return response.data;
   },
 
+  // 2/9. ดึงข้อมูลทรัพย์สินของทุกบัญชี (Admin - Get All Users Equity)
+  getAllUsersEquity: async () => {
+    const response = await apiClient.get('/broker/admin/users-equity');
+    return response.data;
+  },
+
   getCryptoBars: async (symbol: string, viewType: string): Promise<StockBar[]> => {
     // ยิงไปที่ Endpoint ใหม่ /crypto-bar
     const response = await apiClient.get('/broker/order/crypto-bar', {
@@ -164,9 +178,55 @@ export const brokerService = {
     return response.data;
   },
 
-  // 4. สมัครสมาชิก
+  // 3/9. สมัครสมาชิก (Create Account) (มีอยู่แล้ว ปรับให้ชัดเจนว่าคือข้อ 3)
   registerUser: async (payload: RegisterRequest) => {
     const response = await apiClient.post<UserAccount>('/broker/create-account', payload);
     return response.data;
   },
+
+  // 4/9. เติมเงินเข้าบัญชีบริษัท (Admin - Fund Firm Account)
+  fundFirmAccount: async (amount: number): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/fund-firm', null, {
+      params: { amount }
+    });
+    return response.data;
+  },
+
+  // 5/9. เติมเงินเข้าบัญชีผู้ใช้ (Admin - Fund User Account)
+  fundUserAccount: async (accountId: string, amount: number): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/fund-user', null, {
+      params: { accountId, amount }
+    });
+    return response.data;
+  },
+
+  // 6/9. ดึงสถานะของตลาด (Get Market Status)
+  getMarketStatus: async (): Promise<MarketStatus> => {
+    const response = await apiClient.get('/broker/market/status');
+    return response.data;
+  },
+
+  // 7/9. เปิด/ปิดโหมดปรับปรุงระบบ (Admin - Toggle Maintenance)
+  toggleMaintenance: async (active: boolean, message: string): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/market/maintenance', null, {
+      params: { active, message }
+    });
+    return response.data;
+  },
+
+  // 8/9. ค้นหาชื่อหุ้น/ทรัพย์สิน (Search Assets)
+  searchAssets: async (keyword: string): Promise<StockSearchDto[]> => {
+    const response = await apiClient.get('/broker/assets/search', {
+      params: { keyword }
+    });
+    return response.data;
+  },
+
+  // 9/9. ข้อมูลรายละเอียดทางสถิติหุ้น (Get Stock Info)
+  getStockInfoDetail: async (symbol: string): Promise<StockInfoDatabaseDTO> => {
+    const response = await apiClient.get('/broker/assets/info', {
+      params: { symbol }
+    });
+    return response.data;
+  }
 };

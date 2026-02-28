@@ -4,29 +4,67 @@ import React, { useEffect, useState } from "react";
 import Navbar from "@/src/app/components/layout/Navbar";
 import { brokerService } from "@/src/app/services/brokerService";
 import { UserAccount } from "@/src/app/types/broker";
-// ใช้ Heroicons สำหรับไอคอนสวยๆ (ถ้าไม่มีให้ลง npm install @heroicons/react)
-import { ChevronDownIcon, ChevronUpIcon, UserIcon, PhoneIcon, MapPinIcon, BanknotesIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronUpIcon, UserIcon, PhoneIcon, MapPinIcon, BanknotesIcon, CalendarIcon, PlusCircleIcon, CurrencyDollarIcon } from "@heroicons/react/24/outline";
+import FundFirmModal from "@/src/app/components/features/FundFirmModal";
+import FundUserModal from "@/src/app/components/features/FundUserModal";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedRow, setExpandedRow] = useState<string | null>(null); // State สำหรับแถวที่ถูกขยาย
+  const [totalEquity, setTotalEquity] = useState<number | null>(null);
+  const [isMaintenance, setIsMaintenance] = useState<boolean>(false);
+  const [dashboardLoading, setDashboardLoading] = useState<boolean>(true);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
+  const [isFundFirmModalOpen, setIsFundFirmModalOpen] = useState(false);
+  const [fundUserTarget, setFundUserTarget] = useState<{ id: string, name: string } | null>(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchData = async () => {
       try {
-        const data = await brokerService.getAllAccounts();
-        setUsers(data);
+        const [usersData, equityData, statusData] = await Promise.all([
+          brokerService.getAllAccounts(),
+          brokerService.getAllUsersEquity(),
+          brokerService.getMarketStatus()
+        ]);
+        setUsers(usersData);
+        setTotalEquity(equityData);
+        setIsMaintenance(statusData.isMaintenanceMode);
       } catch (err: any) {
-        console.error("Error fetching users:", err);
-        setError("ไม่สามารถดึงข้อมูลผู้ใช้งานได้");
+        console.error("Error fetching admin data:", err);
+        setError("ไม่สามารถดึงข้อมูลระบบได้");
       } finally {
         setLoading(false);
+        setDashboardLoading(false);
       }
     };
-    fetchUsers();
+    fetchData();
   }, []);
+
+  const refreshDashboardData = async () => {
+    setDashboardLoading(true);
+    try {
+      const equityData = await brokerService.getAllUsersEquity();
+      setTotalEquity(equityData);
+    } catch (err) {
+      console.error("Failed to refresh dashboard data", err);
+    } finally {
+      setDashboardLoading(false);
+    }
+  };
+
+  const handleToggleMaintenance = async () => {
+    if (!confirm(`Are you sure you want to turn ${isMaintenance ? 'OFF' : 'ON'} maintenance mode?`)) return;
+    try {
+      const message = !isMaintenance ? "System is under maintenance. Trading is temporarily disabled." : "";
+      const response = await brokerService.toggleMaintenance(!isMaintenance, message);
+      setIsMaintenance(!isMaintenance); // Assuming success correctly updates it server-side. Wait for data refetch on reload if needed.
+      alert(`Maintenance mode turned ${!isMaintenance ? 'ON' : 'OFF'} successfully.`);
+    } catch (err: any) {
+      console.error("Failed to toggle maintenance:", err);
+      alert("Failed to update maintenance mode.");
+    }
+  };
 
   const toggleRow = (userId: string) => {
     if (expandedRow === userId) {
@@ -57,22 +95,91 @@ export default function AdminUsersPage() {
 
       {/* Main Content (เพิ่ม pt-24 ดันเนื้อหาลงมาไม่ให้ทับ Navbar) */}
       <main className="container mx-auto px-4 pt-24 pb-12">
-        
+
         {/* Header Section */}
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              จัดการสมาชิก <span className="text-indigo-600">Admin Panel</span>
+              จัดการระบบ <span className="text-indigo-600">Admin Panel</span>
             </h1>
             <p className="mt-2 text-sm text-gray-500">
-              รายชื่อผู้ใช้งานทั้งหมดในระบบ SimTrade
+              ควบคุมการทำงานของระบบและจัดการข้อมูลสมาชิก SimTrade
             </p>
           </div>
           <div className="mt-4 md:mt-0">
-            <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
-              <UserIcon className="w-4 h-4 mr-2" />
-              สมาชิกทั้งหมด: {users.length} คน
-            </span>
+            <button
+              onClick={() => setIsFundFirmModalOpen(true)}
+              className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+            >
+              <PlusCircleIcon className="w-5 h-5 mr-2" />
+              Fund Firm Account
+            </button>
+          </div>
+        </div>
+
+        {/* Dashboard Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* Total Equity Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-center">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-green-100 rounded-lg text-green-700">
+                <BanknotesIcon className="w-6 h-6" />
+              </div>
+              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Users Equity</h2>
+            </div>
+            {dashboardLoading ? (
+              <div className="h-10 w-32 bg-gray-200 animate-pulse rounded mt-2"></div>
+            ) : (
+              <div className="text-4xl font-extrabold text-gray-900 mt-1">
+                {totalEquity !== null ? formatCurrency(totalEquity) : "-"}
+              </div>
+            )}
+          </div>
+
+          {/* Users Count Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-center">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-700">
+                <UserIcon className="w-6 h-6" />
+              </div>
+              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Subscribed Users</h2>
+            </div>
+            {dashboardLoading ? (
+              <div className="h-10 w-24 bg-gray-200 animate-pulse rounded mt-2"></div>
+            ) : (
+              <div className="text-4xl font-extrabold text-gray-900 mt-1">
+                {users.length} <span className="text-lg font-medium text-gray-500">Accounts</span>
+              </div>
+            )}
+          </div>
+
+          {/* Maintenance Mode Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${isMaintenance ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">System Status</h2>
+              </div>
+              <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${isMaintenance ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                {isMaintenance ? 'MAINTENANCE' : 'ONLINE'}
+              </span>
+            </div>
+
+            <button
+              onClick={handleToggleMaintenance}
+              disabled={dashboardLoading}
+              className={`mt-4 w-full py-2.5 px-4 rounded-xl font-bold text-sm transition-all shadow-sm ${isMaintenance
+                ? 'bg-gray-800 hover:bg-gray-900 text-white'
+                : 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200'
+                }`}
+            >
+              {isMaintenance ? 'Turn System Online' : 'Enable Maintenance Mode'}
+            </button>
           </div>
         </div>
 
@@ -92,14 +199,14 @@ export default function AdminUsersPage() {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">เลขบัญชี</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">ยอดเงิน (Equity)</th>
                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
-                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">รายละเอียด</th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">จัดการ</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
                     <React.Fragment key={user.id}>
                       {/* แถวหลัก (Main Row) */}
-                      <tr 
+                      <tr
                         onClick={() => toggleRow(user.id)}
                         className={`cursor-pointer transition-colors duration-200 ${expandedRow === user.id ? "bg-indigo-50" : "hover:bg-gray-50"}`}
                       >
@@ -139,20 +246,34 @@ export default function AdminUsersPage() {
 
                         {/* 5. Status */}
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                          }`}>
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                            }`}>
                             {user.status}
                           </span>
                         </td>
 
-                        {/* 6. Expand Button */}
+                        {/* 6. Actions (Fund + Expand) */}
                         <td className="px-6 py-4 whitespace-nowrap text-center text-gray-400">
-                          {expandedRow === user.id ? (
-                            <ChevronUpIcon className="w-5 h-5 mx-auto text-indigo-600" />
-                          ) : (
-                            <ChevronDownIcon className="w-5 h-5 mx-auto" />
-                          )}
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setFundUserTarget({
+                                  id: user.id,
+                                  name: `${user.identity?.givenName || ''} ${user.identity?.familyName || ''}`.trim() || 'Unknown User'
+                                });
+                              }}
+                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-colors tooltip-trigger"
+                              title="Fund User Account"
+                            >
+                              <CurrencyDollarIcon className="w-5 h-5" />
+                            </button>
+                            {expandedRow === user.id ? (
+                              <ChevronUpIcon className="w-5 h-5 text-indigo-600" />
+                            ) : (
+                              <ChevronDownIcon className="w-5 h-5" />
+                            )}
+                          </div>
                         </td>
                       </tr>
 
@@ -161,7 +282,7 @@ export default function AdminUsersPage() {
                         <tr className="bg-indigo-50">
                           <td colSpan={6} className="px-6 py-6 border-b border-indigo-100">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
-                              
+
                               {/* Card 1: ข้อมูลส่วนตัว */}
                               <div className="bg-white p-4 rounded-lg shadow-sm border border-indigo-100">
                                 <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
@@ -209,6 +330,20 @@ export default function AdminUsersPage() {
           )}
         </div>
       </main>
+
+      <FundFirmModal
+        isOpen={isFundFirmModalOpen}
+        onClose={() => setIsFundFirmModalOpen(false)}
+        onSuccess={refreshDashboardData}
+      />
+
+      <FundUserModal
+        isOpen={!!fundUserTarget}
+        onClose={() => setFundUserTarget(null)}
+        onSuccess={refreshDashboardData}
+        userId={fundUserTarget?.id || ''}
+        userName={fundUserTarget?.name || ''}
+      />
     </div>
   );
 }
