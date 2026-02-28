@@ -134,4 +134,59 @@ export interface UserAccount {
     countryOfCitizenship: string;
   };
 }
- 
+
+// ------------------------------------------------------------------
+// Types added mapping to backend DTOs for unimplemented features
+// ------------------------------------------------------------------
+
+export interface CreateAccountRequest {
+  email?: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+  streetAddress?: string[];
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  dateOfBirth?: string; // YYYY-MM-DD
+  taxId?: string;
+  taxIdType?: string;
+  countryOfCitizenship?: string;
+  countryOfBirth?: string;
+  countryOfTaxResidence?: string;
+  isControlPerson?: boolean;
+  isAffiliatedExchangeOrFinra?: boolean;
+  isPoliticallyExposed?: boolean;
+  immediateFamilyExposed?: boolean;
+}
+
+export interface StockSearchDto {
+  symbol: string;
+  name: string;
+  exchange: string;
+}
+
+export interface StockInfoDatabaseDTO {
+  symbol: string;
+  name: string;
+  beta: number;
+  marketCap: number;
+  volume: number;
+  category: string;
+  industry: string;
+}
+
+// Matches the backend UserAccount entity in com.alpaca.web.entity.UserAccount
+export interface LocalUserAccount {
+  id: number;
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  accountNumber: string;
+  phoneNumber: string;
+  status: string;
+  alpacaAccountId: string;
+  createdAt: string;
+}
