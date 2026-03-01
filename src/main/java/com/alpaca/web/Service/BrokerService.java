@@ -3,7 +3,6 @@ package com.alpaca.web.Service;
 import com.alpaca.web.Repository.AccountRepository;
 import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.dto.CreateAccountRequest;
-import com.alpaca.web.dto.OnboardingRequest;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -27,7 +26,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Transfer;
 import net.jacobpeterson.alpaca.openapi.broker.model.Account;
 import net.jacobpeterson.alpaca.openapi.broker.model.Agreement;
 import net.jacobpeterson.alpaca.openapi.broker.model.Contact;
-import net.jacobpeterson.alpaca.openapi.broker.model.TransferType;      // แยกไฟล์
+import net.jacobpeterson.alpaca.openapi.broker.model.TransferType; // แยกไฟล์
 import net.jacobpeterson.alpaca.openapi.broker.model.TransferDirection; // แยกไฟล์
 import net.jacobpeterson.alpaca.openapi.broker.model.TransferTiming;
 import net.jacobpeterson.alpaca.openapi.broker.model.AccountCreationRequest; // ต้องมีตัวนี้
@@ -37,10 +36,8 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Identity;
 import net.jacobpeterson.alpaca.openapi.broker.model.TaxIdType;
 import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
 
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 
@@ -61,7 +58,6 @@ public class BrokerService {
         this.orderHistoryRepository = orderHistoryRepository;
         this.accountRepository = accountRepository;
     }
-
 
     @PostConstruct
     public void init() {
@@ -106,7 +102,8 @@ public class BrokerService {
         }
     }
 
-    // แยก Logic ออกมาเพื่อความสะอาด เอาไว้ update เมื่อ กดซื้อ order โดยเปลี่ยนจาก new เป็น fill พวกนี้
+    // แยก Logic ออกมาเพื่อความสะอาด เอาไว้ update เมื่อ กดซื้อ order โดยเปลี่ยนจาก
+    // new เป็น fill พวกนี้
     private void processTradeUpdate(TradeUpdateEventV2 tradeUpdate) {
 
         // เช็คว่าเป็น Event "fill" (ซื้อขายสำเร็จ) หรือไม่
@@ -147,21 +144,25 @@ public class BrokerService {
 
                             // เช็คเพื่อป้องกันการหักเงินซ้ำ (Idempotency)
                             if ("FILLED".equalsIgnoreCase(historyToSave.getStatus())) {
-                                log.info("ℹ️ Order {} is already FILLED. Skipping to prevent duplicate fee deduction.", orderId);
+                                log.info("ℹ️ Order {} is already FILLED. Skipping to prevent duplicate fee deduction.",
+                                        orderId);
                                 return;
                             }
                             log.info("ℹ️ Found existing order {}, updating to FILLED.", orderId);
 
                         } else {
                             // ⚠️ ถ้าหาไม่เจอ (เกิด Race Condition) ให้ "สร้างใหม่" รอไว้เลย
-                            log.warn("⚠️ Order {} not found in DB yet (Race Condition). Creating a new filled record ahead of time.", orderId);
+                            log.warn(
+                                    "⚠️ Order {} not found in DB yet (Race Condition). Creating a new filled record ahead of time.",
+                                    orderId);
                             historyToSave = new OrderHistory();
                             historyToSave.setOrderId(orderId);
                             historyToSave.setSymbol(order.getSymbol());
                             historyToSave.setSide(order.getSide() != null ? order.getSide().name() : null);
                             historyToSave.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
 
-                            historyToSave.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
+                            historyToSave
+                                    .setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
                             historyToSave.setQty(order.getQty());
                             if (order.getCreatedAt() != null) {
                                 historyToSave.setCreatedAt(order.getCreatedAt().toInstant());
@@ -175,7 +176,8 @@ public class BrokerService {
                         // 4. หักเงินค่าธรรมเนียม
                         if (fee.compareTo(BigDecimal.ZERO) > 0) {
                             collectTradingFee(accountId, fee);
-                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}", orderId, accountId, fee);
+                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}", orderId, accountId,
+                                    fee);
                         }
 
                         // 5. อัปเดตข้อมูลให้ครบถ้วนก่อนเซฟ
@@ -205,7 +207,6 @@ public class BrokerService {
         }
     }
 
-
     public AlpacaAPI getApi() {
         return this.brokerAPI;
     }
@@ -215,45 +216,39 @@ public class BrokerService {
     // ข้อมูลบัญชีบริษัท (Firm Account)
     private static final String FIRM_ACCOUNT_ID = "f34e892f-10ab-3c84-810f-bcbb24f5b975"; // UUID (ใช้ตอนโอน Journal)
     private static final String FIRM_ACCOUNT_NUMBER = "9967544SW"; // เลขบัญชี (ใช้ตอนเสกเงิน Magic)
-    String savedAccountId = "cccc73bb-c37e-4987-b059-075da0dfee8a"; //เป็น hardcode สำหรับ user
-    String AccountNumber = "9967544SW"; //hardcode สำหรับ user
-    String savedAccountId_2 = "9d35fa1a-d10b-484c-abd5-6501dfee1ded" ;//เป็น hardcode สำหรับ user แบบที่ เทรด crypto
+    String savedAccountId = "cccc73bb-c37e-4987-b059-075da0dfee8a"; // เป็น hardcode สำหรับ user
+    String AccountNumber = "9967544SW"; // hardcode สำหรับ user
+    String savedAccountId_2 = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";// เป็น hardcode สำหรับ user แบบที่ เทรด crypto
 
     @Transactional
     public UserAccount createAccount(CreateAccountRequest requestDto) {
         try {
-            // 💡 สุ่ม Tax ID (SSN) รูปแบบ XXX-XX-XXXX เพื่อไม่ให้ซ้ำกันในระบบ Sandbox
-            String randomSSN = String.format("%03d-%02d-%04d",
-                    (int)(Math.random() * 900) + 100,
-                    (int)(Math.random() * 90) + 10,
-                    (int)(Math.random() * 9000) + 1000);
-
-            // 1. สร้าง Contact (Hardcode ที่อยู่)
+            // 1. สร้าง Contact จาก DTO
             Contact contact = new Contact()
                     .emailAddress(requestDto.getEmail())
                     .phoneNumber(requestDto.getPhoneNumber())
-                    .streetAddress(Arrays.asList("123 Crypto Street", "Apt 4B")) // Hardcode
-                    .city("San Francisco") // Hardcode
-                    .state("CA") // Hardcode
-                    .postalCode("94105"); // Hardcode
+                    .streetAddress(requestDto.getStreetAddress())
+                    .city(requestDto.getCity())
+                    .state(requestDto.getState())
+                    .postalCode(requestDto.getPostalCode());
 
-            // 2. สร้าง Identity (Hardcode วันเกิด, สัญชาติ และ SSN ที่สุ่มมา)
+            // 2. สร้าง Identity จาก DTO
             Identity identity = new Identity()
                     .givenName(requestDto.getFirstName())
                     .familyName(requestDto.getLastName())
-                    .dateOfBirth(LocalDate.parse("1990-01-01")) // Hardcode วันเกิด (ต้องอายุ 18+)
-                    .taxId(randomSSN) // ใช้ SSN ที่สุ่ม
-                    .taxIdType(TaxIdType.USA_SSN) // Hardcode
-                    .countryOfCitizenship("USA") // Hardcode
-                    .countryOfBirth("USA") // Hardcode
-                    .countryOfTaxResidence("USA"); // Hardcode
+                    .dateOfBirth(requestDto.getDateOfBirth())
+                    .taxId(requestDto.getTaxId())
+                    .taxIdType(TaxIdType.valueOf(requestDto.getTaxIdType())) // แปลง String เป็น Enum
+                    .countryOfCitizenship(requestDto.getCountryOfCitizenship())
+                    .countryOfBirth(requestDto.getCountryOfBirth())
+                    .countryOfTaxResidence(requestDto.getCountryOfTaxResidence());
 
-            // 3. สร้าง Disclosures (Hardcode เป็น false ทั้งหมด)
+            // 3. สร้าง Disclosures จาก DTO
             Disclosures disclosures = new Disclosures()
-                    .isControlPerson(false)
-                    .isAffiliatedExchangeOrFinra(false)
-                    .isPoliticallyExposed(false)
-                    .immediateFamilyExposed(false);
+                    .isControlPerson(requestDto.isControlPerson())
+                    .isAffiliatedExchangeOrFinra(requestDto.isAffiliatedExchangeOrFinra())
+                    .isPoliticallyExposed(requestDto.isPoliticallyExposed())
+                    .immediateFamilyExposed(requestDto.isImmediateFamilyExposed());
 
             // 4. ประกอบร่างเป็น AccountCreationRequest
             AccountCreationRequest alpacaReq = new AccountCreationRequest()
@@ -261,11 +256,14 @@ public class BrokerService {
                     .identity(identity)
                     .disclosures(disclosures)
                     .agreements(Arrays.asList(
-                            new Agreement().agreement(AgreementType.MARGIN_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
-                            new Agreement().agreement(AgreementType.ACCOUNT_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
-                            new Agreement().agreement(AgreementType.CUSTOMER_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1"),
-                            new Agreement().agreement(AgreementType.CRYPTO_AGREEMENT).signedAt(OffsetDateTime.now()).ipAddress("127.0.0.1")
-                    ));
+                            new Agreement().agreement(AgreementType.MARGIN_AGREEMENT).signedAt(OffsetDateTime.now())
+                                    .ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.ACCOUNT_AGREEMENT).signedAt(OffsetDateTime.now())
+                                    .ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.CUSTOMER_AGREEMENT).signedAt(OffsetDateTime.now())
+                                    .ipAddress("127.0.0.1"),
+                            new Agreement().agreement(AgreementType.CRYPTO_AGREEMENT).signedAt(OffsetDateTime.now())
+                                    .ipAddress("127.0.0.1")));
 
             // 5. ยิง API ไปสร้างที่ Alpaca
             Account alpacaAccount = brokerAPI.broker().accounts().createAccount(alpacaReq);
@@ -273,23 +271,24 @@ public class BrokerService {
             // 6. บันทึกลง Database ของเรา
             UserAccount localAccount = new UserAccount();
             localAccount.setEmail(requestDto.getEmail());
-            localAccount.setPassword(requestDto.getPassword());
+            localAccount.setPassword(requestDto.getPassword()); // เซฟรหัสผ่านลงฐานข้อมูล (Plain-text ไปก่อนตามแผน)
             localAccount.setAlpacaAccountId(String.valueOf(alpacaAccount.getId()));
             localAccount.setAccountNumber(alpacaAccount.getAccountNumber());
-            localAccount.setStatus(alpacaAccount.getStatus().name());
-            localAccount.setPhoneNumber(requestDto.getPhoneNumber());
-            localAccount.setFirstName(requestDto.getFirstName()); // อย่าลืมเซฟลง DB
-            localAccount.setLastName(requestDto.getLastName());   // อย่าลืมเซฟลง DB
+            localAccount.setStatus(alpacaAccount.getStatus().name()); // .name() เพื่อแปลง Enum เป็น String เช่น
+                                                                      // "ACTIVE"
+            localAccount.setPhoneNumber(requestDto.getPhoneNumber()); // เบอร์โทรเอาจากที่ User
 
             return accountRepository.save(localAccount);
 
         } catch (Exception e) {
+            // ในงานจริง ควรใช้ Logger (เช่น lombok @Slf4j) แทน System.out
             throw new RuntimeException("ไม่สามารถสร้างบัญชีได้: " + e.getMessage(), e);
         }
     }
 
     // สั่งซื้อหุ้นUser ---
-    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif ,BigDecimal limitPrice ,BigDecimal stopPrice) throws ApiException {
+    public Order createOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side,
+            OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
         log.info("Creating Order: Account={} Symbol={} Qty={} Notional={}", accountId, symbol, qty, notional);
         String shortSuffix = UUID.randomUUID().toString().substring(0, 6);
         String uniqueClientOrderId = accountId.toString() + "-" + shortSuffix;
@@ -299,7 +298,7 @@ public class BrokerService {
                 .clientOrderId(uniqueClientOrderId);
         if (qty != null && notional == null) {
             request.qty(qty);
-            request.type(type);       // ใช้ Type ตามที่ส่งมา (Limit/Market)
+            request.type(type); // ใช้ Type ตามที่ส่งมา (Limit/Market)
             request.timeInForce(tif); // ใช้ TIF ตามที่ส่งมา
             if (type == OrderType.LIMIT || type == OrderType.STOP_LIMIT) {
                 if (limitPrice != null) {
@@ -317,13 +316,19 @@ public class BrokerService {
             }
         } else if (notional != null && qty == null) {
             request.notional(notional);
-            log.warn("Overriding OrderType to MARKET and TIF to DAY for Notional order");  //กฎของ Alpaca:ได้แค่ 2 เงื่อนไข คือ ราคาตลาด กับ ระยะเวลา 1 วัน
+            log.warn("Overriding OrderType to MARKET and TIF to DAY for Notional order"); // กฎของ Alpaca:ได้แค่ 2
+                                                                                          // เงื่อนไข คือ ราคาตลาด กับ
+                                                                                          // ระยะเวลา 1 วัน
             request.type(OrderType.MARKET);
             request.timeInForce(TimeInForce.DAY);
         } else {
-            throw new IllegalArgumentException("ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' หรือ 'notional' ห้ามใส่ทั้งคู่หรือปล่อยว่าง");
+            throw new IllegalArgumentException(
+                    "ต้องเลือกใส่อย่างใดอย่างหนึ่งระหว่าง 'qty' หรือ 'notional' ห้ามใส่ทั้งคู่หรือปล่อยว่าง");
         }
-        /*return brokerAPI.broker().trading().createOrderForAccount(accountId, request);*/  //ไว้ซื้อแบบเก่า
+        /*
+         * return brokerAPI.broker().trading().createOrderForAccount(accountId,
+         * request);
+         */ // ไว้ซื้อแบบเก่า
         Order createdOrder = brokerAPI.broker().trading().createOrderForAccount(accountId, request);
         Optional<UserAccount> userOptional = accountRepository.findByAlpacaAccountId(accountId.toString());
 
@@ -334,14 +339,15 @@ public class BrokerService {
                 log.info("✅ บันทึกออร์เดอร์สถานะ NEW ลง Database สำเร็จ: {}", createdOrder.getId());
             } catch (Exception e) {
                 // มืออาชีพจะใช้ try-catch ครอบไว้เสมอ
-                // เผื่อ Database เราล่ม ออร์เดอร์ที่สร้างสำเร็จที่ Alpaca แล้ว จะได้ไม่เกิด Error ตีกลับไปหน้าบ้าน
+                // เผื่อ Database เราล่ม ออร์เดอร์ที่สร้างสำเร็จที่ Alpaca แล้ว จะได้ไม่เกิด
+                // Error ตีกลับไปหน้าบ้าน
                 log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์ลง Database: {}", createdOrder.getId(), e);
             }
         } else {
             log.warn("⚠️ ไม่พบข้อมูลบัญชีผู้ใช้ในระบบ สำหรับ Alpaca ID: {} จึงไม่ได้บันทึกประวัติ", accountId);
         }
 
-        //่ส่งข้อมูลออร์เดอร์กลับไปให้ Controller ตามปกติ
+        // ่ส่งข้อมูลออร์เดอร์กลับไปให้ Controller ตามปกติ
         return createdOrder;
     }
 
@@ -364,15 +370,16 @@ public class BrokerService {
             log.error("เติมเงินไม่สำเร็จ", e);
         }
     }
-    //เติมเงินให้ user
+
+    // เติมเงินให้ user
     public void addMoneyToUserAccount(UUID userAccountId, Double amount) {
         try {
             log.info("Admin: กำลังโอนเงินจาก Firm -> User {} จำนวน ${}", userAccountId, amount);
 
             CreateJournalRequest journalRequest = new CreateJournalRequest()
-                    .entryType(JournalEntryType.JNLC)       // JNLC = Journal Cash
+                    .entryType(JournalEntryType.JNLC) // JNLC = Journal Cash
                     .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID)) // ต้นทาง: เงินจาก Firm
-                    .toAccount(userAccountId)                      // ปลายทาง: เข้ากระเป๋า User
+                    .toAccount(userAccountId) // ปลายทาง: เข้ากระเป๋า User
                     .amount(String.valueOf(amount))
                     .description("Deposit by Admin (Sandbox Magic)");
 
@@ -384,20 +391,21 @@ public class BrokerService {
             throw new RuntimeException("Error funding user account: " + e.getMessage());
         }
     }
-    //เติมเงินเข้าบัญชีเรา
+
+    // เติมเงินเข้าบัญชีเรา
     public void addMoneyToFirmAccount(Double amount) {
         try {
             log.info("Admin: กำลังเสกเงินเข้า Firm Account จำนวน ${}", amount);
 
             CreateTransferRequest transferRequest = new CreateTransferRequest()
-                    .transferType(TransferType.WIRE)       // จำลองการโอนแบบ Wire
+                    .transferType(TransferType.WIRE) // จำลองการโอนแบบ Wire
                     .direction(TransferDirection.INCOMING) // ขาเข้า (เติมเงิน)
-                    .timing(TransferTiming.IMMEDIATE)      // ทันที
+                    .timing(TransferTiming.IMMEDIATE) // ทันที
                     .amount(BigDecimal.valueOf(amount));
 
             Transfer transfer = brokerAPI.broker().funding().createTransferForAccount(
                     UUID.fromString(FIRM_ACCOUNT_ID), // <--- ปิดวงเล็บตรงนี้
-                    transferRequest                   // <--- parameter ตัวที่ 2
+                    transferRequest // <--- parameter ตัวที่ 2
             );
             log.info("✅ เติมเงินเข้า Firm สำเร็จ! Transfer ID: {}", transfer.getId());
 
@@ -433,8 +441,7 @@ public class BrokerService {
                 symbols,
                 null,
                 null,
-                null
-        );
+                null);
     }
 
     public TradeAccount getAccount(UUID accountId) {
@@ -447,7 +454,7 @@ public class BrokerService {
         }
     }
 
-    public List<Position> getPositions(UUID accountId) throws Exception {   //ดึง order หรือ หุ้นที่ user ถืออยู่
+    public List<Position> getPositions(UUID accountId) throws Exception { // ดึง order หรือ หุ้นที่ user ถืออยู่
         log.info("getPositions accountId: " + accountId);
         return brokerAPI.broker().trading().getPositionsForAccount(accountId);
     }
@@ -460,10 +467,11 @@ public class BrokerService {
                 null,
                 null,
                 "desc", // sort (desc = ใหม่สุดขึ้นก่อน)
-                null
-        );
+                null);
     }
-    public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side, OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
+
+    public Order createCryptoOrder(UUID accountId, String symbol, BigDecimal qty, BigDecimal notional, OrderSide side,
+            OrderType type, TimeInForce tif, BigDecimal limitPrice, BigDecimal stopPrice) throws ApiException {
         String shortSuffix = UUID.randomUUID().toString().substring(0, 6);
         String uniqueClientOrderId = accountId.toString() + "-" + shortSuffix;
         // 1. จัดการ Symbol
@@ -535,34 +543,38 @@ public class BrokerService {
                     saveOrderHistory(order, userOptional.get());
                     log.info("✅ บันทึกออร์เดอร์คริปโตสถานะ NEW ลง Database สำเร็จ: {}", order.getId());
                 } catch (Exception dbEx) {
-                    // ต้องครอบ try-catch ไว้เสมอ เผื่อ DB ล่ม คำสั่งซื้อที่สำเร็จแล้วจะได้ไม่ถูกตีกลับเป็น Error 500 ไปหา User
+                    // ต้องครอบ try-catch ไว้เสมอ เผื่อ DB ล่ม
+                    // คำสั่งซื้อที่สำเร็จแล้วจะได้ไม่ถูกตีกลับเป็น Error 500 ไปหา User
                     log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์คริปโตลง Database: {}", order.getId(), dbEx);
                 }
             } else {
-                log.warn("⚠️ ไม่พบข้อมูลบัญชีผู้ใช้ในระบบ สำหรับ Alpaca ID: {} จึงไม่ได้บันทึกประวัติออร์เดอร์คริปโต", accountId);
+                log.warn("⚠️ ไม่พบข้อมูลบัญชีผู้ใช้ในระบบ สำหรับ Alpaca ID: {} จึงไม่ได้บันทึกประวัติออร์เดอร์คริปโต",
+                        accountId);
             }
             log.info("✅ [CryptoOrder] SUCCESS! Order ID: {}, Status: {}", order.getId(), order.getStatus());
             log.info("=================================================");
             return order;
-        }catch (ApiException e) {
+        } catch (ApiException e) {
             // ❌ Log 4: ถ้าพัง พังเพราะอะไร (ปริ้น Response Body ออกมาดูเลย)
             log.error("🔥 [CryptoOrder] FAILED! Alpaca Error: {}", e.getMessage());
-            log.error("🔥 [CryptoOrder] Response Body: {}", e.getResponseBody()); // ทีเด็ดอยู่ตรงนี้! มันจะบอกว่าผิดตรงไหน
+            log.error("🔥 [CryptoOrder] Response Body: {}", e.getResponseBody()); // ทีเด็ดอยู่ตรงนี้!
+                                                                                  // มันจะบอกว่าผิดตรงไหน
             throw e;
         }
     }
-        //เก็บค่าธรรมเนียม
-    public  void  collectTradingFee(UUID userAccountId, BigDecimal FeeAmount) {
+
+    // เก็บค่าธรรมเนียม
+    public void collectTradingFee(UUID userAccountId, BigDecimal FeeAmount) {
         String formattedFee = String.format("%.2f", FeeAmount);
         try {
-             log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
-             CreateJournalRequest journalRequest = new CreateJournalRequest()
-                     .entryType(JournalEntryType.JNLC)
-                     .fromAccount(userAccountId)
-                     .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
-                     .amount(formattedFee)
-                     .description("Tradeing commission Fee");
-             brokerAPI.broker().journals().createJournal(journalRequest);
+            log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
+            CreateJournalRequest journalRequest = new CreateJournalRequest()
+                    .entryType(JournalEntryType.JNLC)
+                    .fromAccount(userAccountId)
+                    .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
+                    .amount(formattedFee)
+                    .description("Tradeing commission Fee");
+            brokerAPI.broker().journals().createJournal(journalRequest);
         } catch (ApiException e) {
             log.error("ไม่สามารถเก็บค่าธรรมเนียมได้ {}", e.getMessage());
         }
@@ -603,19 +615,4 @@ public class BrokerService {
         // บันทึกลง Database
         orderHistoryRepository.save(trade);
     }
-
-    @Transactional
-    public UserAccount saveOnboardingData(OnboardingRequest request) {
-
-        UserAccount user = accountRepository.findByAlpacaAccountId(request.getAccountId())
-                .orElseThrow(() -> new RuntimeException("ไม่พบบัญชีผู้ใช้งาน ID: " + request.getAccountId()));
-
-        // อัปเดตข้อมูล
-        user.setTraderType(request.getTraderType());
-        user.setRiskBehavior(request.getRiskBehavior());
-
-        // Save ลง Database
-        return accountRepository.save(user);
-    }
 }
-

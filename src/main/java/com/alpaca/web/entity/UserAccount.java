@@ -41,13 +41,6 @@ public class UserAccount {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "trader_type")
-    private String traderType;
-
-
-    @Column(name = "risk_behavior")
-    private String riskBehavior;
-
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

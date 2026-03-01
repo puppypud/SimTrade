@@ -4,7 +4,6 @@ import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.Service.StockAnalysisService;
 import com.alpaca.web.dto.CreateAccountRequest;
-import com.alpaca.web.dto.OnboardingRequest;
 import com.alpaca.web.dto.StockInfoDatabaseDTO;
 import com.alpaca.web.dto.StockSearchDto;
 import com.alpaca.web.entity.UserAccount;
@@ -23,7 +22,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("broker")
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost"})
+@CrossOrigin(origins = { "http://localhost:3000", "http://localhost" })
 public class BrokerController {
 
     private final Logger log = LoggerFactory.getLogger(BrokerController.class);
@@ -31,16 +30,19 @@ public class BrokerController {
     private final MarketDataService marketDataService; // เพิ่มตัวแปร Service
     private final AccountRepository accountRepository;
     private final StockAnalysisService stockAnalysisService;
-    //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
-    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository, StockAnalysisService stockAnalysisService, StockAnalysisService stockAnalysisService1) {
+
+    // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
+    public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
+            AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
+            StockAnalysisService stockAnalysisService1) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
         this.stockAnalysisService = stockAnalysisService1;
     }
 
-
-    @PostMapping("/order/user")   //รับได้2แบบ1.accountId(แก้ไข) หรือ 2. email แต่รับด้วย email เพื่อความปลอดภัยให้หน้าบ้านไม่รู้จักหลังบ้าน
+    @PostMapping("/order/user") // รับได้2แบบ1.accountId(แก้ไข) หรือ 2. email แต่รับด้วย email
+                                // เพื่อความปลอดภัยให้หน้าบ้านไม่รู้จักหลังบ้าน
     public ResponseEntity<?> buyStockForUser(
             @RequestParam("email") String email,
             @RequestParam("symbol") String symbol,
@@ -52,7 +54,7 @@ public class BrokerController {
             @RequestParam("OrderType") String orderTypeStr,
             @RequestParam("TimeInForce") String timeInForceStr) { // เอา throws Exception ออก แล้ว try-catch ข้างในแทน
         try {
-            //mapping  user กับ ใน database จาก email ที่  หน้าบ้านส่งมาเพื่อความปลอดภัย
+            // mapping user กับ ใน database จาก email ที่ หน้าบ้านส่งมาเพื่อความปลอดภัย
             Optional<UserAccount> userOptional = accountRepository.findByEmail(email);
             if (userOptional.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -62,7 +64,7 @@ public class BrokerController {
             String alpacaIdStr = userOptional.get().getAlpacaAccountId();
             UUID accountId = UUID.fromString(alpacaIdStr);
 
-            //เช็คตลาดว่าเปิด/ปิด/ปรับปรุง ไหม เพื่อซื้อขาย
+            // เช็คตลาดว่าเปิด/ปิด/ปรับปรุง ไหม เพื่อซื้อขาย
             Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
             String currentStatus = (String) marketStatus.get("status");
 
@@ -80,7 +82,8 @@ public class BrokerController {
             }
             // 1. เช็คสภาพคล่อง
             Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
-            if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
+            if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY
+                    && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
                 if (quote.containsKey("askPrice")) {
                     double currentAsk = Double.parseDouble(quote.get("askPrice").toString());
                     if (currentAsk == 0) {
@@ -105,16 +108,14 @@ public class BrokerController {
                     type,
                     Time,
                     limitPrice,
-                    stopPrice
-            );
+                    stopPrice);
 
             // 3. แจ้ง User ว่ารับคำสั่งแล้ว (สถานะจะเป็น NEW หรือ ACCEPTED)
             return ResponseEntity.ok(Map.of(
                     "message", "Order submitted successfully",
                     "orderId", order.getId(),
                     "status", order.getStatus(),
-                    "symbol", order.getSymbol()
-            ));
+                    "symbol", order.getSymbol()));
 
         } catch (IllegalArgumentException e) {
             log.error("Validation Error: {}", e.getMessage());
@@ -142,8 +143,7 @@ public class BrokerController {
     @GetMapping("/order/{orderId}")
     public ResponseEntity<?> getSingleOrder(
             @RequestParam("accountId") UUID accountId,
-            @PathVariable("orderId") String orderId
-    ) {
+            @PathVariable("orderId") String orderId) {
         try {
             Order order = brokerService.getSingleOrder(accountId, orderId);
             return ResponseEntity.ok(order);
@@ -191,8 +191,7 @@ public class BrokerController {
     @GetMapping("/order/stock-bar")
     public ResponseEntity<?> getStockBar(
             @RequestParam("symbols") String symbols,
-            @RequestParam("viewType") String viewType
-    ) {
+            @RequestParam("viewType") String viewType) {
         try {
             List<StockBar> stockBars = marketDataService.getStockBars(symbols, viewType);
             return ResponseEntity.ok(stockBars);
@@ -216,8 +215,7 @@ public class BrokerController {
 
     @GetMapping("/positions/{accountId}")
     public ResponseEntity<?> getPositionInfo(
-            @PathVariable("accountId") UUID accountId
-    ) {
+            @PathVariable("accountId") UUID accountId) {
         try {
             List<Position> positions = brokerService.getPositions(accountId);
             return ResponseEntity.ok(positions);
@@ -247,9 +245,11 @@ public class BrokerController {
     @GetMapping("/admin/users")
     public ResponseEntity<?> getAllUsers() {
         try {
-            //ดึงจาก api Alpaca มาตรงๆ
-            /*List<Account> accounts = brokerService.getAllAccounts();
-            return ResponseEntity.ok(accounts);*/
+            // ดึงจาก api Alpaca มาตรงๆ
+            /*
+             * List<Account> accounts = brokerService.getAllAccounts();
+             * return ResponseEntity.ok(accounts);
+             */
             List<UserAccount> localAccounts = brokerService.getAllLocalUsers();
             return ResponseEntity.ok(localAccounts);
 
@@ -258,6 +258,7 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("❌ Error fetching users: " + e.getMessage());
         }
     }
+
     @GetMapping("/admin/users-equity")
     public ResponseEntity<?> getAllUsersEquity() {
         try {
@@ -297,7 +298,7 @@ public class BrokerController {
 
     @PostMapping("/admin/fund-firm")
     public ResponseEntity<?> fundFirmAccount(
-            @RequestParam("amount") Double amount  // <-- รับค่าจาก URL Parameter
+            @RequestParam("amount") Double amount // <-- รับค่าจาก URL Parameter
     ) {
         try {
             if (amount == null || amount <= 0) {
@@ -315,8 +316,7 @@ public class BrokerController {
     @PostMapping("/admin/fund-user")
     public ResponseEntity<?> fundUserAccount(
             @RequestParam("accountId") UUID accountId,
-            @RequestParam("amount") Double amount
-    ) {
+            @RequestParam("amount") Double amount) {
         try {
             if (amount == null || amount <= 0) {
                 return ResponseEntity.badRequest().body("❌ กรุณาระบุจำนวนเงิน (amount) ให้ถูกต้อง");
@@ -332,7 +332,7 @@ public class BrokerController {
 
     @GetMapping("/order/crypto-bar")
     public ResponseEntity<?> getCryptoBar(
-            @RequestParam("symbol") String symbol,  // รับค่าเช่น "BTC" หรือ "ETH"
+            @RequestParam("symbol") String symbol, // รับค่าเช่น "BTC" หรือ "ETH"
             @RequestParam("viewType") String viewType // รับค่าเช่น "1D", "1W"
     ) {
         try {
@@ -363,8 +363,7 @@ public class BrokerController {
             @RequestParam(value = "OrderType", defaultValue = "MARKET") String orderTypeStr,
             @RequestParam(value = "TimeInForce", defaultValue = "GTC") String timeInForceStr,
             @RequestParam(value = "limitPrice", required = false) BigDecimal limitPrice,
-            @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice
-    ) {
+            @RequestParam(value = "stopPrice", required = false) BigDecimal stopPrice) {
         try {
             Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
             String currentStatus = (String) marketStatus.get("status");
@@ -381,21 +380,21 @@ public class BrokerController {
 
             // ส่งค่าทั้งหมดไปให้ BrokerService สร้างออเดอร์
             Order order = brokerService.createCryptoOrder(
-                    accountId, symbol, qty, notional, side, type, tif, limitPrice, stopPrice
-            );
+                    accountId, symbol, qty, notional, side, type, tif, limitPrice, stopPrice);
             return ResponseEntity.ok(order);
 
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("❌ Error: " + e.getMessage());
         }
     }
-      @GetMapping("/quote/crypto")
+
+    @GetMapping("/quote/crypto")
     public ResponseEntity<?> getLatestCryptoQuote(@RequestParam("symbol") String symbol) {
         try {
             // เรียกใช้ Service ตัวที่เราเพิ่งแก้เสร็จ
             Map<String, Object> data = marketDataService.getLatestQuote(symbol);
 
-            if (data.isEmpty() || (data.containsKey("price") && (double)data.get("price") == 0)) {
+            if (data.isEmpty() || (data.containsKey("price") && (double) data.get("price") == 0)) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ ไม่พบข้อมูล Crypto: " + symbol);
             }
             return ResponseEntity.ok(data);
@@ -403,6 +402,7 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
     }
+
     @GetMapping("/market/status")
     public ResponseEntity<?> getMarketStatus() {
         try {
@@ -422,14 +422,12 @@ public class BrokerController {
         return ResponseEntity.ok(Map.of(
                 "success", true,
                 "maintenanceActive", active,
-                "message", "อัปเดตสถานะ Maintenance สำเร็จ"
-        ));
+                "message", "อัปเดตสถานะ Maintenance สำเร็จ"));
     }
 
     @GetMapping("/assets/search")
     public ResponseEntity<?> searchAssets(
-            @RequestParam("keyword") String keyword
-    ) {
+            @RequestParam("keyword") String keyword) {
         try {
             // เรียกใช้ Service ที่คุณเพิ่งเขียน
             List<StockSearchDto> results = marketDataService.searchAssets(keyword);
@@ -441,7 +439,6 @@ public class BrokerController {
             return ResponseEntity.internalServerError().body("❌ Error searching assets: " + e.getMessage());
         }
     }
-
 
     @GetMapping("/assets/info")
     public ResponseEntity<?> getStockInfoDetail(@RequestParam("symbol") String symbol) {
@@ -459,17 +456,6 @@ public class BrokerController {
         } catch (Exception e) {
             // ... log error
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
-        }
-    }
-
-    @PostMapping("/user/onboarding")
-    public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
-        try {
-            // โยนเข้า Service ไปจัดการ
-            brokerService.saveOnboardingData(request);
-            return ResponseEntity.ok().body("บันทึกข้อมูล Onboarding สำเร็จ");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
     }
 }
