@@ -462,7 +462,7 @@ public class BrokerController {
         }
     }
 
-    @PostMapping("/user/onboarding")
+    @PatchMapping("/user/onboarding")
     public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
         try {
             // โยนเข้า Service ไปจัดการ
