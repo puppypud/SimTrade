@@ -3,10 +3,7 @@ package com.alpaca.web.controller;
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.Service.StockAnalysisService;
-import com.alpaca.web.dto.CreateAccountRequest;
-import com.alpaca.web.dto.OnboardingRequest;
-import com.alpaca.web.dto.StockInfoDatabaseDTO;
-import com.alpaca.web.dto.StockSearchDto;
+import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.UserAccount;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
@@ -482,5 +479,35 @@ public class BrokerController {
             System.out.println("❌ Error: " + e.getMessage());
             return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
+    }
+
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        if (request.getEmail() == null || request.getPassword() == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "กรุณาระบุอีเมลและรหัสผ่าน"));
+        }
+
+        Optional<UserAccount> userOpt = accountRepository.findByEmail(request.getEmail());
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "อีเมลหรือรหัสผ่านไม่ถูกต้อง"));
+        }
+
+        UserAccount user = userOpt.get();
+        // เทียบรหัสผ่านแบบข้อความธรรมดา (จากการตรวจสอบก่อนหน้านี้ว่าไม่มีการเข้ารหัส)
+        if (!user.getPassword().equals(request.getPassword())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "อีเมลหรือรหัสผ่านไม่ถูกต้อง"));
+        }
+
+        // คืนค่าข้อมูลที่จำเป็นเพื่อนำไปเก็บใน Frontend Context (เช่น id และ
+        // alpacaAccountId)
+        return ResponseEntity.ok(Map.of(
+                "id", user.getId(),
+                "email", user.getEmail(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "alpacaAccountId", user.getAlpacaAccountId()));
     }
 }
