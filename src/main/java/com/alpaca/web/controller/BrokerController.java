@@ -464,11 +464,22 @@ public class BrokerController {
 
     @PostMapping("/user/onboarding")
     public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
+// 💡 เพิ่มบรรทัดนี้เพื่อปริ้นดูว่า Backend รับค่าอะไรมาบ้าง!
+        System.out.println("📥 รับ Request Onboarding:");
+        System.out.println("Email: " + request.getEmail());
+        System.out.println("TraderType: " + request.getTraderType());
+        System.out.println("RiskBehavior: " + request.getRiskBehavior());
+
         try {
+            if (request.getEmail() == null || request.getEmail().isBlank()) {
+                return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: ไม่พบ Email ในคำขอ");
+            }
+
             // โยนเข้า Service ไปจัดการ
             brokerService.saveOnboardingData(request);
-            return ResponseEntity.ok().body("บันทึกข้อมูล Onboarding สำเร็จ");
+            return ResponseEntity.ok(Map.of("message", "บันทึกข้อมูล Onboarding สำเร็จ"));
         } catch (Exception e) {
+            System.out.println("❌ Error: " + e.getMessage());
             return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
     }
