@@ -3,7 +3,7 @@ import lombok.Data;
 
 @Data
 public class OnboardingRequest {
-    private String accountId;
+    private String email;
     private String traderType;
     private String riskBehavior;
 }

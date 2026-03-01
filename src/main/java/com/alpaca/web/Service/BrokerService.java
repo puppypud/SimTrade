@@ -607,8 +607,8 @@ public class BrokerService {
     @Transactional
     public UserAccount saveOnboardingData(OnboardingRequest request) {
 
-        UserAccount user = accountRepository.findByAlpacaAccountId(request.getAccountId())
-                .orElseThrow(() -> new RuntimeException("ไม่พบบัญชีผู้ใช้งาน ID: " + request.getAccountId()));
+        UserAccount user = accountRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new RuntimeException("ไม่พบบัญชีผู้ใช้งาน email: " + request.getEmail()));
 
         // อัปเดตข้อมูล
         user.setTraderType(request.getTraderType());
