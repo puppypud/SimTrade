@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import StockLWChart from '@/src/app/components/ui/Chart';
 import TradeTabs from '@/src/app/components/features/TradeTabs';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
+import StockInfoPanel from '@/src/app/components/features/StockInfoPanel';
 import { ArrowLeft } from 'lucide-react';
 
 export default function TradeStockPage() {
@@ -84,9 +85,12 @@ function TradeStockContent() {
 
                         {/* Chart */}
                         {currentSymbol ? (
-                            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 flex-1 min-h-[500px]">
-                                <StockLWChart symbol={currentSymbol} />
-                            </div>
+                            <>
+                                <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 flex-1 min-h-[500px]">
+                                    <StockLWChart symbol={currentSymbol} />
+                                </div>
+                                <StockInfoPanel symbol={currentSymbol} />
+                            </>
                         ) : (
                             // Empty State
                             <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 min-h-[500px] flex flex-col items-center justify-center text-muted bg-surface w-full h-full">

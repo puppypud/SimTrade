@@ -203,4 +203,43 @@ export interface LocalUserAccount {
   status: string;
   alpacaAccountId: string;
   createdAt: string;
+<<<<<<< HEAD
+=======
+}
+
+export interface RegisterRequest {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+  streetAddress: string[];
+  city: string;
+  state: string;
+  postalCode: string;
+  dateOfBirth: string;
+  taxId: string;
+  taxIdType: string;
+  countryOfCitizenship: string;
+  countryOfBirth: string;
+  countryOfTaxResidence: string;
+  isControlPerson: boolean;
+  isAffiliatedExchangeOrFinra: boolean;
+  isPoliticallyExposed: boolean;
+  immediateFamilyExposed: boolean;
+}
+
+export interface MarketStatus {
+  isOpen: boolean;
+  marketType: string;
+  nextOpen: string;
+  nextClose: string;
+  isMaintenanceMode: boolean;
+  maintenanceMessage?: string;
+}
+
+export interface AdminActionResponse {
+  success: boolean;
+  message: string;
+>>>>>>> 50db443aaa0affde40f8a0f221ad1f03aa2da7fb
 }

@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from 'next-themes';
 import { User, LogOut, Sun, Moon } from 'lucide-react';
+import MarketStatusBadge from '../features/MarketStatusBadge';
+import SearchBar from '../features/SearchBar';
 
 const Navbar = () => {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const [searchInput, setSearchInput] = useState('');
 
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -31,12 +32,6 @@ const Navbar = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' && searchInput.trim()) {
-      router.push(`/trade?symbol=${searchInput.toUpperCase()}`);
-    }
-  };
-
   return (
     <div className="bg-surface shadow-sm border-b border-theme-border z-50 relative transition-colors duration-300">
 
@@ -45,8 +40,8 @@ const Navbar = () => {
       {/* ------------------------------------------------------------ */}
       <div className="flex items-center justify-between px-6 py-3">
 
-        {/* 1. Left: Logo */}
-        <div className="flex items-center flex-shrink-0 w-1/4"> {/* กำหนด width เพื่อช่วยจัด center ให้ search */}
+        {/* 1. Left: Logo & Market Status */}
+        <div className="flex items-center gap-4 flex-shrink-0 w-1/4">
           <a href="/" aria-label="Home">
             <img
               src="https://www.svgrepo.com/show/491978/gas-costs.svg"
@@ -55,25 +50,12 @@ const Navbar = () => {
               alt="Logo"
             />
           </a>
+          <MarketStatusBadge />
         </div>
 
         {/* 2. Center: Search Bar (แยกออกมาอยู่ด้านบน ตรงกลาง) */}
-        <div className="flex-1 flex justify-center max-w-2xl ">
-          <div className="relative w-full">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              className="w-full bg-background border border-theme-border text-foreground text-sm rounded-4xl focus:ring-2 focus:ring-gold focus:border-gold block pl-10 p-2.5 outline-none transition-all placeholder-muted"
-              placeholder="Search symbol (e.g. AAPL)..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-            />
-          </div>
+        <div className="flex-1 flex justify-center max-w-2xl px-4">
+          <SearchBar />
         </div>
 
         {/* 3. Right: Login / Signup or User Profile */}
@@ -170,8 +152,8 @@ const Navbar = () => {
               <Link href="/login" className="text-muted hover:text-foreground font-medium transition-colors">
                 Login
               </Link>
-              <Link href="/signup" className="px-4 py-2 bg-gold text-foreground rounded-md font-medium hover:bg-gold-hover transition-colors shadow-sm">
-                Get started
+              <Link href="/register" className="px-4 py-2 bg-gold text-[#1A1A1A] rounded-md font-medium hover:bg-gold-hover transition-colors shadow-sm">
+                Sign up
               </Link>
             </>
           )}
