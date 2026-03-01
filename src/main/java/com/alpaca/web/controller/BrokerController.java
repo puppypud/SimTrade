@@ -19,7 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
-@EnableRetry
+
 @RestController
 @RequestMapping("broker")
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost"})
