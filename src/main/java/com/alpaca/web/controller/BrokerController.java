@@ -141,10 +141,17 @@ public class BrokerController {
     @GetMapping("/order/{orderId}")
     public ResponseEntity<?> getSingleOrder(
             @RequestParam("accountId") UUID accountId,
-            @PathVariable("orderId") String orderId
-    ) {
+            @PathVariable("orderId") String orderId) {
         try {
             Order order = brokerService.getSingleOrder(accountId, orderId);
+
+            // ✅ คำนวณรวบยอด Fee เข้าไปให้ด้วย
+            if (order.getFilledAvgPrice() != null && order.getFilledQty() != null) {
+                BigDecimal totalCost = order.getFilledAvgPrice().multiply(order.getFilledQty());
+                BigDecimal fee = totalCost.multiply(BigDecimal.valueOf(0.025)).setScale(2, RoundingMode.HALF_UP);
+                order.setCommission(fee);
+            }
+
             return ResponseEntity.ok(order);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Order ID: " + orderId + " not found.");
@@ -190,8 +197,7 @@ public class BrokerController {
     @GetMapping("/order/stock-bar")
     public ResponseEntity<?> getStockBar(
             @RequestParam("symbols") String symbols,
-            @RequestParam("viewType") String viewType
-    ) {
+            @RequestParam("viewType") String viewType) {
         try {
             List<StockBar> stockBars = marketDataService.getStockBars(symbols, viewType);
             return ResponseEntity.ok(stockBars);
@@ -388,7 +394,7 @@ public class BrokerController {
             return ResponseEntity.badRequest().body("❌ Error: " + e.getMessage());
         }
     }
-      @GetMapping("/quote/crypto")
+    @GetMapping("/quote/crypto")
     public ResponseEntity<?> getLatestCryptoQuote(@RequestParam("symbol") String symbol) {
         try {
             // เรียกใช้ Service ตัวที่เราเพิ่งแก้เสร็จ
@@ -463,7 +469,7 @@ public class BrokerController {
 
     @PostMapping("/user/onboarding")
     public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
-// 💡 เพิ่มบรรทัดนี้เพื่อปริ้นดูว่า Backend รับค่าอะไรมาบ้าง!
+        // 💡 เพิ่มบรรทัดนี้เพื่อปริ้นดูว่า Backend รับค่าอะไรมาบ้าง!
         System.out.println("📥 รับ Request Onboarding:");
         System.out.println("Email: " + request.getEmail());
         System.out.println("TraderType: " + request.getTraderType());
