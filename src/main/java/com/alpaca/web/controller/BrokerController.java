@@ -11,6 +11,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpa
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.web.bind.annotation.*;
 import com.alpaca.web.Repository.AccountRepository;
 
@@ -18,6 +19,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
 
+@EnableRetry
 @RestController
 @RequestMapping("broker")
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost"})
@@ -509,5 +511,21 @@ public class BrokerController {
                 "firstName", user.getFirstName(),
                 "lastName", user.getLastName(),
                 "alpacaAccountId", user.getAlpacaAccountId()));
+    }
+    @PostMapping("/register")
+    public ResponseEntity<UserAccount> register(@RequestBody CreateAccountRequest request) {
+        // 1. สร้างบัญชี (จะ Commit ลง DB ทันทีเมื่อจบ Method นี้)
+        UserAccount newUser = brokerService.createAccount(request);
+
+        // 2. สั่งโอนเงิน (เรียกผ่าน bean 'brokerService' เพื่อให้ @Retryable ทำงาน)
+        try {
+            log.info("💸 กำลังสั่งโอนเงินเริ่มต้นสำหรับ: {}", newUser.getEmail());
+            brokerService.addMoneyToUserAccount(UUID.fromString(newUser.getAlpacaAccountId()), 100000.0);
+        } catch (Exception e) {
+            // ถ้า Retry จนครบแล้วยังไม่ผ่าน เราแค่ Log ไว้ (User ยังใช้งานบัญชีได้ปกติ แค่รอเงินเข้า)
+            log.error("🛑 การโอนเงินเริ่มต้นล้มเหลว: {}", e.getMessage());
+        }
+
+        return ResponseEntity.ok(newUser);
     }
 }

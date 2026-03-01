@@ -47,6 +47,8 @@ import java.util.*;
 import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -286,17 +288,8 @@ public class BrokerService {
             localAccount.setFirstName(requestDto.getFirstName()); // อย่าลืมเซฟลง DB
             localAccount.setLastName(requestDto.getLastName());   // อย่าลืมเซฟลง DB
 
-            UserAccount savedAccount = accountRepository.save(localAccount);
 
-            // แจกเงิน 100,000 ทันทีหลังสร้างบัญชี
-            try {
-                addMoneyToUserAccount(UUID.fromString(savedAccount.getAlpacaAccountId()), 100000.0);
-                log.info("✅ แจกเงินเริ่มต้น $100,000 ให้บัญชีใหม่สำเร็จ: {}", savedAccount.getEmail());
-            } catch (Exception e) {
-                log.error("❌ แจกเงินเริ่มต้น 100,000 ล้มเหลวสำหรับบัญชี: {}", savedAccount.getAlpacaAccountId(), e);
-            }
-
-            return savedAccount;
+            return accountRepository.save(localAccount);
 
         } catch (Exception e) {
             throw new RuntimeException("ไม่สามารถสร้างบัญชีได้: " + e.getMessage(), e);
@@ -380,24 +373,29 @@ public class BrokerService {
         }
     }
     //เติมเงินให้ user
-    public void addMoneyToUserAccount(UUID userAccountId, Double amount) {
-        try {
-            log.info("Admin: กำลังโอนเงินจาก Firm -> User {} จำนวน ${}", userAccountId, amount);
+    @Retryable(
+            retryFor = { ApiException.class, IllegalStateException.class },
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 2000)
+    )
+    public void addMoneyToUserAccount(UUID userAccountId, Double amount) throws ApiException {
+        AccountExtended account = brokerAPI.broker().accounts().getAccount(userAccountId);
 
-            CreateJournalRequest journalRequest = new CreateJournalRequest()
-                    .entryType(JournalEntryType.JNLC)       // JNLC = Journal Cash
-                    .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID)) // ต้นทาง: เงินจาก Firm
-                    .toAccount(userAccountId)                      // ปลายทาง: เข้ากระเป๋า User
-                    .amount(String.valueOf(amount))
-                    .description("Deposit by Admin (Sandbox Magic)");
-
-            brokerAPI.broker().journals().createJournal(journalRequest);
-            log.info("✅ เสกเงินให้ User สำเร็จ!");
-
-        } catch (ApiException e) {
-            log.error("❌ ไม่สามารถเสกเงินให้ User ได้ (ตรวจสอบยอดเงิน Firm หรือ ID)", e);
-            throw new RuntimeException("Error funding user account: " + e.getMessage());
+        // ถ้าไม่ ACTIVE ให้โยน Exception เพื่อให้ @Retryable ทำงานใหม่โดยอัตโนมัติ
+        if (!"ACTIVE".equals(account.getStatus().toString())) {
+            throw new IllegalStateException("Account is not active yet");
         }
+
+        // ส่วนการทำ Journal (ไม่ต้องครอบ try-catch ชั้นนี้ ให้ @Retryable คุมแทน)
+        CreateJournalRequest journalRequest = new CreateJournalRequest()
+                .entryType(JournalEntryType.JNLC)
+                .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID))
+                .toAccount(userAccountId)
+                .amount(String.valueOf(amount))
+                .description("Deposit by Admin");
+
+        brokerAPI.broker().journals().createJournal(journalRequest);
+        log.info("✅ โอนเงินสำเร็จ!");
     }
     //เติมเงินเข้าบัญชีเรา
     public void addMoneyToFirmAccount(Double amount) {
