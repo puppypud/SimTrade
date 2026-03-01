@@ -4,8 +4,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 // Define the shape of our user
 export interface User {
+    id: number;
     email: string;
-    name?: string;
+    firstName?: string;
+    lastName?: string;
+    alpacaAccountId?: string;
+    name?: string; // keeping name for backwards compatibility
 }
 
 // Define the context shape

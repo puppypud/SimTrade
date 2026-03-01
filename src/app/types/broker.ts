@@ -171,8 +171,8 @@ export interface RegisterRequest {
 
 export interface OnboardingRequest {
   email: string;
-  risk_behavior: string;
-  trader_type: string;
+  riskBehavior: string;
+  traderType: string;
 }
 
 export interface StockSearchDto {

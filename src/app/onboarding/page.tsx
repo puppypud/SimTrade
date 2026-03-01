@@ -320,6 +320,50 @@ const PART2_QUESTIONS: Question[] = [
 
 const ALL_QUESTIONS = [...PART1_QUESTIONS, ...PART2_QUESTIONS];
 
+interface RiskBehaviorDef {
+    key: string;
+    thaiName: string;
+    englishName: string;
+    description: string;
+    questions: string[];
+    threshold: number;
+}
+
+const RISK_BEHAVIOR_DEFS: RiskBehaviorDef[] = [
+    {
+        key: 'SELLING_WINNERS_TOO_EARLY',
+        thaiName: 'การขายหุ้นที่ได้กำไรเร็วเกินไป',
+        englishName: 'Selling Winners Too Early',
+        description: 'พฤติกรรมการรีบขายหุ้นที่กำลังทำกำไรเร็วเกินไป เนื่องจากความกลัวว่ากำไรจะหายไป ทำให้พลาดโอกาสทำกำไรก้อนใหญ่',
+        questions: ['p2_3', 'p2_8', 'p2_13'],
+        threshold: 2
+    },
+    {
+        key: 'HOLDING_LOSERS_TOO_LONG',
+        thaiName: 'การถือหุ้นที่ขาดทุนนานเกินไป',
+        englishName: 'Holding Losers Too Long',
+        description: 'พฤติกรรมการทนถือหุ้นที่ขาดทุนไว้ในพอร์ตนานเกินไปโดยไม่ยอมตัดขาดทุน (Cut Loss) เนื่องจากความไม่กล้ายอมรับความผิดพลาด',
+        questions: ['p2_2', 'p2_4', 'p2_12'],
+        threshold: 2
+    },
+    {
+        key: 'FOMO',
+        thaiName: 'การกลัวพลาดโอกาส',
+        englishName: 'Fear Of Missing Out (FOMO)',
+        description: 'พฤติกรรมการรีบซื้อหุ้นตามกระแสหรือตามฝูงชนอย่างขาดเหตุผล เพียงเพราะกลัวว่าจะพลาดโอกาสทำกำไร',
+        questions: ['p2_1', 'p2_6', 'p2_7', 'p2_9'],
+        threshold: 2
+    },
+    {
+        key: 'PANIC_SELL',
+        thaiName: 'การขายแบบตื่นตระหนก',
+        englishName: 'Panic Sell',
+        description: 'พฤติกรรมการเทขายหุ้นอย่างรวดเร็วและใช้อารมณ์เมื่อตลาดปรับตัวลงแรง โดยขาดการวิเคราะห์ปัจจัยพื้นฐาน',
+        questions: ['p2_5', 'p2_10'],
+        threshold: 1
+    }
+];
+
 type AnswerMap = Record<string, string>;
 
 export default function OnboardingPage() {
@@ -331,7 +375,7 @@ export default function OnboardingPage() {
 
     // Result States
     const [identity, setIdentity] = useState('');
-    const [riskProfile, setRiskProfile] = useState('');
+    const [detectedBehaviors, setDetectedBehaviors] = useState<RiskBehaviorDef[]>([]);
     const [stockPicking, setStockPicking] = useState('');
     const [advice, setAdvice] = useState('');
 
@@ -377,50 +421,45 @@ export default function OnboardingPage() {
     };
 
     const calculateResults = () => {
-        // Evaluate Part 1
+        // ===== Part 1: Trader Type =====
         const p1Answers = PART1_QUESTIONS.map(q => answers[q.id] || 'A');
         const p1Result = getMostFrequent(p1Answers);
 
         let traderIdentity = '';
         let traderStock = '';
         if (p1Result === 'A') {
-            traderIdentity = 'คุณคือ Scalper';
+            traderIdentity = 'Scalper';
             traderStock = 'หุ้นที่มีสภาพคล่องสูงมาก มีความผันผวนสูงในกรอบสั้นๆ';
         } else if (p1Result === 'B') {
-            traderIdentity = 'คุณคือ Day Trader';
+            traderIdentity = 'Day Trader';
             traderStock = 'หุ้นที่มีวอลุ่มเข้าในวันนั้นๆ และจับจังหวะสวิงในวันดักข่าวสาร';
         } else if (p1Result === 'C') {
-            traderIdentity = 'คุณคือ Swing Trader ผู้หาโอกาสจากรอบตลาด';
+            traderIdentity = 'Swing Trader';
             traderStock = 'หุ้นวัฏจักร (Cyclical Stocks) หรือหุ้นที่ติดแนวรับแนวต้านชัดเจน เช่น PTT, TOP, IVL';
         } else {
-            traderIdentity = 'คุณคือ Position Trader / Investor';
+            traderIdentity = 'Position Trader / Investor';
             traderStock = 'หุ้น Blue Chip หรือหุ้นพื้นฐานดีที่มีปันผลสม่ำเสมอ เช่น กลุ่มธนาคาร พลังงาน โครงสร้างพื้นฐาน';
         }
 
-        // Evaluate Part 2
-        const p2Answers = PART2_QUESTIONS.map(q => answers[q.id] || 'A');
-        const p2Result = getMostFrequent(p2Answers);
+        // ===== Part 2: Risk Behavior Detection =====
+        const detected = RISK_BEHAVIOR_DEFS.filter(behavior => {
+            const riskyCount = behavior.questions.filter(qId => {
+                const answer = answers[qId];
+                return answer === 'C' || answer === 'D';
+            }).length;
+            return riskyCount >= behavior.threshold;
+        });
 
-        let riskText = '';
         let adviceText = '';
-
-        if (p2Result === 'A') {
-            riskText = 'เสี่ยงต่ำ/มีวินัย: คุณจัดการความเสี่ยงได้อย่างยอดเยี่ยมและไม่หวั่นไหวกับความผันผวน';
-            adviceText = 'รักษาวินัยแบบนี้ต่อไป และหมั่นอัพเดทความรู้ในตลาดเสมอ ทบทวนแผนเป็นระยะเมื่อตลาดเปลี่ยนสภาวะตลาด';
-        } else if (p2Result === 'B') {
-            riskText = 'เริ่มมีความเสี่ยง: คุณมีวินัยโดยรวมดี แต่อาจมีบางครั้งที่อารมณ์พาไปบ้าง';
-            adviceText = 'เตือนตัวเองเสมอเมื่อแผนหลุด หรือตั้ง Alert เพื่อหลีกเลี่ยงการถูกอารมณ์ครอบงำ';
-        } else if (p2Result === 'C') {
-            riskText = 'จุดอ่อนของคุณคือ Disposition Effect (ทนรวยไม่ได้ แต่ทนขาดทุนได้ดีเกินไป)';
-            adviceText = 'คำแนะนำ: ลองแบ่งขายหุ้นทำกำไรเป็นส่วนๆ (Partial Sell) และเคร่งครัดเรื่องการตั้ง Stop Loss ตั้งแต่วันแรกที่ซื้อ';
+        if (detected.length === 0) {
+            adviceText = 'คุณมีวินัยในการเทรดที่ดีมาก! รักษาพฤติกรรมแบบนี้ต่อไป และหมั่นอัพเดทความรู้ในตลาดเสมอ';
         } else {
-            riskText = 'คุณอยู่ในความเสี่ยงวิกฤต: (FOMO, Overtrade หรือ ถือทนหลุดดอย)';
-            adviceText = 'หยุดพักการเทรดชั่วคราว ดึงสติและกลับมาศึกษาเรื่อง Money Management อย่างจริงจัง อย่าให้พอร์ตพังไปมากกว่านี้';
+            adviceText = 'ควรระวังและปรับปรุงพฤติกรรมเสี่ยงที่ตรวจพบ เพื่อเพิ่มโอกาสทำกำไรอย่างยั่งยืนในระยะยาว';
         }
 
         setIdentity(traderIdentity);
         setStockPicking(traderStock);
-        setRiskProfile(riskText);
+        setDetectedBehaviors(detected);
         setAdvice(adviceText);
 
         setIsFinished(true);
@@ -433,11 +472,12 @@ export default function OnboardingPage() {
             const email = userStr ? JSON.parse(userStr).email : '';
 
             if (email) {
-                console.log('Submitting onboarding data:', { email, riskBehavior: riskProfile, traderType: identity });
+                const behaviorNames = detectedBehaviors.map(b => b.englishName).join(', ');
+                console.log('Submitting onboarding data:', { email, riskBehavior: behaviorNames, traderType: identity });
                 await brokerService.submitOnboarding({
                     email: email,
-                    risk_behavior: riskProfile,
-                    trader_type: identity
+                    riskBehavior: behaviorNames || 'None',
+                    traderType: identity
                 });
             } else {
                 console.warn('No user email found to submit onboarding data');
@@ -462,8 +502,8 @@ export default function OnboardingPage() {
                         <p className="mt-2 text-lg text-muted">ผลลัพธ์ต่อไปนี้ถูกประมวลผลจากคำตอบของคุณเพื่อปรับแต่งกลยุทธ์ที่เหมาะสม</p>
                     </div>
 
+                    {/* Row 1: Identity + Stock Picking */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
-                        {/* Box 1 */}
                         <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-3 bg-blue-500/10 rounded-xl">
@@ -471,21 +511,9 @@ export default function OnboardingPage() {
                                 </div>
                                 <h3 className="text-lg font-bold text-foreground">Identity Profile</h3>
                             </div>
-                            <p className="text-foreground text-lg leading-relaxed">{identity}</p>
+                            <p className="text-foreground text-2xl font-extrabold">{identity}</p>
                         </div>
 
-                        {/* Box 2 */}
-                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-red-500/10 rounded-xl">
-                                    <AlertTriangle className="w-6 h-6 text-red-500" />
-                                </div>
-                                <h3 className="text-lg font-bold text-foreground">Risk Profile & Weakness</h3>
-                            </div>
-                            <p className="text-foreground text-lg leading-relaxed">{riskProfile}</p>
-                        </div>
-
-                        {/* Box 3 */}
                         <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="p-3 bg-emerald-500/10 rounded-xl">
@@ -495,17 +523,48 @@ export default function OnboardingPage() {
                             </div>
                             <p className="text-foreground text-lg leading-relaxed"><span className="font-semibold">กลุ่มหุ้นที่เหมาะกับคุณ: </span>{stockPicking}</p>
                         </div>
+                    </div>
 
-                        {/* Box 4 */}
-                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-gold/10 rounded-xl">
-                                    <MessagesSquare className="w-6 h-6 text-gold" />
-                                </div>
-                                <h3 className="text-lg font-bold text-foreground">Personalized Advice</h3>
+                    {/* Risk Behaviors Section */}
+                    <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="p-3 bg-red-500/10 rounded-xl">
+                                <AlertTriangle className="w-6 h-6 text-red-500" />
                             </div>
-                            <p className="text-foreground text-lg leading-relaxed font-medium">คำแนะนำ: {advice}</p>
+                            <div>
+                                <h3 className="text-lg font-bold text-foreground">Risk Behavior Analysis</h3>
+                                <p className="text-sm text-muted">พฤติกรรมเสี่ยงที่ตรวจพบจากคำตอบของคุณ</p>
+                            </div>
                         </div>
+
+                        {detectedBehaviors.length === 0 ? (
+                            <div className="text-center py-8">
+                                <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-3" />
+                                <p className="text-lg font-semibold text-emerald-500">ไม่พบพฤติกรรมเสี่ยง!</p>
+                                <p className="text-muted mt-1">คุณมีวินัยในการเทรดที่ดีมาก</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {detectedBehaviors.map((behavior, idx) => (
+                                    <div key={behavior.key} className="border border-red-500/30 bg-red-500/5 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 100}ms` }}>
+                                        <h4 className="font-bold text-red-400 text-base mb-1">{behavior.englishName}</h4>
+                                        <p className="text-sm font-semibold text-foreground mb-2">{behavior.thaiName}</p>
+                                        <p className="text-sm text-muted leading-relaxed">{behavior.description}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Advice */}
+                    <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="p-3 bg-gold/10 rounded-xl">
+                                <MessagesSquare className="w-6 h-6 text-gold" />
+                            </div>
+                            <h3 className="text-lg font-bold text-foreground">Personalized Advice</h3>
+                        </div>
+                        <p className="text-foreground text-lg leading-relaxed font-medium">คำแนะนำ: {advice}</p>
                     </div>
 
                     <div className="flex justify-center mt-12">

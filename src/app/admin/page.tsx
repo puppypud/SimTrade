@@ -17,7 +17,34 @@ export default function AdminUsersPage() {
   const [dashboardLoading, setDashboardLoading] = useState<boolean>(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [isFundFirmModalOpen, setIsFundFirmModalOpen] = useState(false);
-  const [fundUserTarget, setFundUserTarget] = useState<{ id: string, name: string } | null>(null);
+  const [fundingTargetId, setFundingTargetId] = useState<string | null>(null);
+
+  const handleFundUserQuick = async (e: React.MouseEvent, accountId: string, fullName: string) => {
+    e.stopPropagation();
+
+    // prompt ง่ายๆ ให้แอดมินระบุยอดเงิน
+    const amountStr = window.prompt(`แจกเงิน (USD) ให้ผู้ใช้: ${fullName}`, "10000");
+    if (!amountStr) return; // User ยกเลิก
+
+    const amount = Number(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      alert("⚠️ กรุณาระบุจำนวนเงินที่ถูกต้อง");
+      return;
+    }
+
+    try {
+      setFundingTargetId(accountId);
+      await brokerService.fundUserAccount(accountId, amount);
+      alert(`✅ แจกแจกเงินจำนวน $${amount.toLocaleString()} ให้บัญชี ${fullName} สำเร็จ!`);
+      // สั่งดึงข้อมูลล่าสุดใหม่
+      await refreshDashboardData();
+    } catch (error) {
+      console.error("Failed to fund user account", error);
+      alert("❌ ไม่สามารถแจกเงินได้ กรุณาลองใหม่");
+    } finally {
+      setFundingTargetId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -256,17 +283,18 @@ export default function AdminUsersPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-center text-gray-400">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setFundUserTarget({
-                                  id: user.id,
-                                  name: `${user.identity?.givenName || ''} ${user.identity?.familyName || ''}`.trim() || 'Unknown User'
-                                });
-                              }}
-                              className="p-1.5 rounded-lg text-indigo-600 hover:bg-indigo-50 border border-transparent hover:border-indigo-200 transition-colors tooltip-trigger"
+                              onClick={(e) => handleFundUserQuick(
+                                e,
+                                user.id,
+                                `${user.identity?.givenName || ''} ${user.identity?.familyName || ''}`.trim() || 'Unknown User'
+                              )}
+                              disabled={fundingTargetId === user.id}
+                              className={`p-1.5 rounded-lg text-indigo-600 border border-transparent transition-colors tooltip-trigger flex items-center gap-1 font-semibold ${fundingTargetId === user.id ? "opacity-50 cursor-wait bg-indigo-50" : "hover:bg-indigo-100 hover:border-indigo-300 bg-indigo-50"
+                                }`}
                               title="Fund User Account"
                             >
                               <CurrencyDollarIcon className="w-5 h-5" />
+                              <span className="text-xs">แจกเงิน</span>
                             </button>
                             {expandedRow === user.id ? (
                               <ChevronUpIcon className="w-5 h-5 text-indigo-600" />
@@ -335,14 +363,6 @@ export default function AdminUsersPage() {
         isOpen={isFundFirmModalOpen}
         onClose={() => setIsFundFirmModalOpen(false)}
         onSuccess={refreshDashboardData}
-      />
-
-      <FundUserModal
-        isOpen={!!fundUserTarget}
-        onClose={() => setFundUserTarget(null)}
-        onSuccess={refreshDashboardData}
-        userId={fundUserTarget?.id || ''}
-        userName={fundUserTarget?.name || ''}
       />
     </div>
   );

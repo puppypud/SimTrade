@@ -1,23 +1,55 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
 import OrderTableClient from "@/src/app/components/features/OrderTableClient";
+import { useAuth } from "@/src/context/AuthContext";
 
-export default async function HistoryPage() {
-  const accountId = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
-  let orders: Order[] = [];
+export default function HistoryPage() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-  try {
-    orders = await brokerService.getAllOrders(accountId);
-    // เรียงลำดับ ใหม่ -> เก่า
-    orders.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  useEffect(() => {
+    const fetchOrders = async () => {
+      if (!user?.alpacaAccountId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const fetchedOrders = await brokerService.getAllOrders(user.alpacaAccountId);
+        // เรียงลำดับ ใหม่ -> เก่า
+        fetchedOrders.sort(
+          (a: Order, b: Order) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setOrders(fetchedOrders);
+      } catch (e) {
+        console.error("Failed to fetch orders", e);
+        setError(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrders();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-gray-500">
+        Loading History...
+      </div>
     );
-  } catch (e) {
-    console.error("Failed to fetch orders", e);
+  }
+
+  if (error || !user?.alpacaAccountId) {
     return (
       <div className="p-10 text-center text-red-500">
-        ไม่สามารถดึงข้อมูลประวัติการเทรดได้ในขณะนี้
+        {error ? "ไม่สามารถดึงข้อมูลประวัติการเทรดได้ในขณะนี้" : "Please log in to view execution history."}
       </div>
     );
   }
@@ -32,8 +64,7 @@ export default async function HistoryPage() {
           </p>
         </div>
 
-        <OrderTableClient orders={orders} accountId={accountId} />
-
+        <OrderTableClient orders={orders} accountId={user.alpacaAccountId} />
       </div>
     </div>
   );

@@ -26,18 +26,46 @@ export default function LoginPage() {
         setIsLoading(true);
         setError('');
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        if (!formData.email || !formData.password) {
+            setError('Please enter both email and password.');
+            setIsLoading(false);
+            return;
+        }
 
-        // Basic mock validation
-        if (formData.email && formData.password) {
-            // Set user state globally
-            login({ email: formData.email, name: formData.email.split('@')[0] });
+        try {
+            const response = await fetch('http://localhost:8080/broker/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: formData.email,
+                    password: formData.password
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(data.message || 'Login failed.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Set user state globally using data returned from API
+            login({
+                id: data.id,
+                email: data.email,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                alpacaAccountId: data.alpacaAccountId,
+                name: data.firstName || data.email.split('@')[0]
+            });
 
             // Redirect after successful login
             router.push('/');
-        } else {
-            setError('Invalid email or password');
+        } catch (err: any) {
+            setError('Failed to connect to the server. Please check if the backend is running.');
             setIsLoading(false);
         }
     };

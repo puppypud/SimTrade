@@ -4,12 +4,11 @@ import React, { useState, useEffect } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { AccountInfo } from "@/src/app/types/broker";
 import { Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface TradeTabsCryptoProps {
   symbol: string;
 }
-
-const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
 
 const formatPrice = (val: any) => {
   const num = Number(val);
@@ -18,6 +17,7 @@ const formatPrice = (val: any) => {
 };
 
 export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
+  const { user } = useAuth();
   // --- State ---
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [inputMode, setInputMode] = useState<"COIN" | "USD">("COIN");
@@ -77,15 +77,16 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
   // 1. Fetch Account
   useEffect(() => {
     const fetchAccount = async () => {
+      if (!user?.alpacaAccountId) return;
       try {
-        const data = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+        const data = await brokerService.getAccountInfo(user.alpacaAccountId);
         setAccount(data);
       } catch (error) {
         console.error("Failed to fetch account info", error);
       }
     };
     fetchAccount();
-  }, []);
+  }, [user]);
 
   // 2. Real-time Quote
   useEffect(() => {
@@ -126,8 +127,14 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
     setMessage(null);
 
     try {
+      if (!user?.alpacaAccountId) {
+        setMessage({ type: "error", text: "Please log in to trade." });
+        setLoading(false);
+        return;
+      }
+
       await brokerService.createCryptoOrder(
-        HARDCODED_ACCOUNT_ID,
+        user.alpacaAccountId,
         symbol,
         orderSide,
         Number(amount),
@@ -143,7 +150,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
       setMessage({ type: "success", text: `Success! ${orderSide} order placed.` });
       setAmount("");
 
-      const updatedAccount = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+      const updatedAccount = await brokerService.getAccountInfo(user.alpacaAccountId);
       setAccount(updatedAccount);
 
     } catch (error: any) {

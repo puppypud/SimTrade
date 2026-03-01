@@ -9,14 +9,14 @@ import {
   StockQuote,
 } from "@/src/app/types/broker";
 import { Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface TradeTabsProps {
   symbol: string;
 }
 
-const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
-
 export default function TradeTabs({ symbol }: TradeTabsProps) {
+  const { user } = useAuth();
   // State หลัก
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [orderType, setOrderType] = useState<BuyStockRequest["OrderType"]>("MARKET");
@@ -78,15 +78,16 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   // ดึงข้อมูล Account
   useEffect(() => {
     const fetchAccount = async () => {
+      if (!user?.alpacaAccountId) return;
       try {
-        const data = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+        const data = await brokerService.getAccountInfo(user.alpacaAccountId);
         setAccount(data);
       } catch (error) {
         console.error("Failed to fetch account info", error);
       }
     };
     fetchAccount();
-  }, []);
+  }, [user]);
 
   // ดึงราคา Real-time
   useEffect(() => {
@@ -133,12 +134,18 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     setMessage(null);
 
     try {
+      if (!user?.alpacaAccountId) {
+        setMessage({ type: "error", text: "Please log in to trade." });
+        setLoading(false);
+        return;
+      }
+
       // ✅ Logic การ Map ค่า targetPrice ไปใส่ให้ถูก Field ตาม OrderType
       const priceValue = targetPrice === "" ? undefined : Number(targetPrice);
 
       // เตรียม Payload
       const payload: BuyStockRequest = {
-        accountId: HARDCODED_ACCOUNT_ID,
+        accountId: user.alpacaAccountId,
         symbol: symbol,
         OrderSide: orderSide,
         OrderType: orderType,
@@ -175,7 +182,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       setTargetPrice(""); // Reset ราคาหลังส่ง
 
       const updatedAccount = await brokerService.getAccountInfo(
-        HARDCODED_ACCOUNT_ID
+        user.alpacaAccountId
       );
       setAccount(updatedAccount);
     } catch (error: any) {

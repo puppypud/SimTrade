@@ -8,6 +8,7 @@ import { useTheme } from 'next-themes';
 import { User, LogOut, Sun, Moon } from 'lucide-react';
 import MarketStatusBadge from '../features/MarketStatusBadge';
 import SearchBar from '../features/SearchBar';
+import { brokerService } from '@/src/app/services/brokerService';
 
 const Navbar = () => {
   const router = useRouter();
@@ -17,10 +18,32 @@ const Navbar = () => {
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const [buyingPower, setBuyingPower] = useState<number | null>(null);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
+
+  React.useEffect(() => {
+    const fetchBuyingPower = async () => {
+      if (!user?.alpacaAccountId) return;
+      try {
+        const data = await brokerService.getAccountInfo(user.alpacaAccountId);
+        setBuyingPower(Number(data.buyingPower));
+      } catch (error) {
+        console.error("Failed to fetch buying power", error);
+      }
+    };
+    fetchBuyingPower();
+  }, [user]);
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+    }).format(amount);
+  };
 
   React.useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -75,7 +98,9 @@ const Navbar = () => {
               {/* Buying Power Display inside Navigation for quick context */}
               <div className="hidden lg:flex flex-col items-end justify-center mr-2">
                 <span className="text-[10px] text-muted font-bold uppercase tracking-wider mb-0.5">Buying Power</span>
-                <span className="text-sm font-extrabold text-gold leading-none">$10,000.00</span>
+                <span className="text-sm font-extrabold text-gold leading-none">
+                  {buyingPower !== null ? formatCurrency(buyingPower) : "Loading..."}
+                </span>
               </div>
 
               {/* Account Dropdown */}

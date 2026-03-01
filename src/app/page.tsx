@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import WatchlistPanel from '@/src/app/components/features/WatchlistPanel';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
 import ImageBannerCarousel from '@/src/app/components/features/ImageBannerCarousel';
+import { useAuth } from '@/src/context/AuthContext';
+import { useState, useEffect } from 'react';
 
 export default function DashboardPage() {
     return (
@@ -16,6 +18,31 @@ export default function DashboardPage() {
 
 function DashboardContent() {
     const router = useRouter();
+    const { user } = useAuth();
+
+    const [portfolioValue, setPortfolioValue] = useState<number | null>(null);
+    const [buyingPower, setBuyingPower] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (user && user.alpacaAccountId) {
+            fetch(`http://localhost:8080/broker/account/${user.alpacaAccountId}`)
+                .then(res => res.json())
+                .then(data => {
+                    // Update state using the data returned from Alpaca
+                    setPortfolioValue(data.equity || 0);
+                    setBuyingPower(data.buying_power || 0);
+                })
+                .catch(err => {
+                    console.error("Failed to fetch account info:", err);
+                });
+        }
+    }, [user]);
+
+    // Format currency Helper
+    const formatCurrency = (value: number | null) => {
+        if (value === null) return "$0.00";
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+    };
 
     return (
         <div className="min-h-[calc(100vh-64px)] bg-background text-foreground font-sans p-4 md:p-8 transition-colors duration-300">
@@ -35,12 +62,16 @@ function DashboardContent() {
                     <div className="bg-surface px-6 py-3 rounded-2xl shadow-sm border border-theme-border flex items-center gap-8 transition-colors duration-300">
                         <div>
                             <p className="text-xs text-muted font-medium mb-1 uppercase tracking-wider">Portfolio Value</p>
-                            <p className="text-xl font-bold text-foreground">$10,000.00</p>
+                            <p className="text-xl font-bold text-foreground">
+                                {portfolioValue !== null ? formatCurrency(portfolioValue) : "Loading..."}
+                            </p>
                         </div>
                         <div className="h-10 w-px bg-theme-border"></div>
                         <div>
                             <p className="text-xs text-muted font-medium mb-1 uppercase tracking-wider">Buying Power</p>
-                            <p className="text-xl font-bold text-gold">$10,000.00</p>
+                            <p className="text-xl font-bold text-gold">
+                                {buyingPower !== null ? formatCurrency(buyingPower) : "Loading..."}
+                            </p>
                         </div>
                     </div>
                 </div>

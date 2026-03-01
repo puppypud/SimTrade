@@ -4,8 +4,10 @@ import React, { useEffect, useState } from "react";
 import { AccountInfo } from "@/src/app/types/broker"; // อย่าลืม import interface ที่สร้างเมื่อกี้
 import { brokerService } from "@/src/app/services/brokerService";
 import PortfolioTable from "@/src/app/components/features/PortfolioTable";
+import { useAuth } from "@/src/context/AuthContext";
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [account, setAccount] = useState<AccountInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -20,9 +22,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchAccountData = async () => {
+      if (!user?.alpacaAccountId) return;
       try {
         const data = await brokerService.getAccountInfo(
-          "9d35fa1a-d10b-484c-abd5-6501dfee1ded"
+          user.alpacaAccountId
         );
         setAccount(data);
       } catch (error) {
@@ -33,7 +36,7 @@ export default function DashboardPage() {
     };
 
     fetchAccountData();
-  }, []);
+  }, [user]);
 
   if (loading)
     return (
@@ -88,9 +91,8 @@ export default function DashboardPage() {
             </h2>
             {/* Today's Change Indicator */}
             <div
-              className={`flex items-center text-lg font-medium ${
-                isPositive ? "text-green-600" : "text-red-600"
-              }`}
+              className={`flex items-center text-lg font-medium ${isPositive ? "text-green-600" : "text-red-600"
+                }`}
             >
               {isPositive ? "▲" : "▼"} {formatCurrency(Math.abs(todaysChange))}{" "}
               (Today)
@@ -195,7 +197,11 @@ export default function DashboardPage() {
       <div className="p-6">
         <h2 className="text-2xl font-bold text-white mb-6">My Portfolio</h2>
         {/* ส่ง accountId ของ user เข้าไป */}
-        <PortfolioTable accountId="9d35fa1a-d10b-484c-abd5-6501dfee1ded" />
+        {user?.alpacaAccountId ? (
+          <PortfolioTable accountId={user.alpacaAccountId} />
+        ) : (
+          <p className="text-gray-500">Please log in to view portfolio.</p>
+        )}
       </div>
     </div>
   );
