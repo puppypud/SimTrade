@@ -10,8 +10,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.scheduling.annotation.EnableAsync;
 
-@EnableRetry
+@EnableRetry   // เปิดใช้งานการทำซ้ำ (Retry)
+@EnableAsync   // เปิดใช้งานการรันเบื้องหลัง (Background Task)
 @SpringBootApplication
 @EnableCaching
 public class Application {

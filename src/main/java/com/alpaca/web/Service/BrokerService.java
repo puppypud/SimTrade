@@ -49,7 +49,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.EnableRetry;
+import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 
@@ -374,31 +376,36 @@ public class BrokerService {
             log.error("เติมเงินไม่สำเร็จ", e);
         }
     }
+
     //เติมเงินให้ user
+    @Async
     @Retryable(
             retryFor = { ApiException.class, IllegalStateException.class },
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 2000)
+            maxAttempts = 15, // 💡 เพิ่มรอบเป็น 15 ครั้ง (เผื่อ Alpaca ช้า)
+            backoff = @Backoff(delay = 5000) // 💡 รอ 5 วินาทีก่อนลองใหม่ (รวมเวลาพยายามคือ 15 * 5 = 75 วินาที)
     )
     public void addMoneyToUserAccount(UUID userAccountId, Double amount) throws ApiException {
+        log.info("⏳ [Background Task] กำลังตรวจสอบบัญชี {} เพื่อเติมเงิน...", userAccountId);
         AccountExtended account = brokerAPI.broker().accounts().getAccount(userAccountId);
 
-        // ถ้าไม่ ACTIVE ให้โยน Exception เพื่อให้ @Retryable ทำงานใหม่โดยอัตโนมัติ
+        // ถ้าสถานะยังไม่ ACTIVE ให้โยน Error ออกไป เพื่อให้ @Retryable สั่งรอ 5 วิแล้วทำงานใหม่
         if (!"ACTIVE".equals(account.getStatus().toString())) {
+            log.warn("⚠️ บัญชี {} ยังไม่ ACTIVE รอทำซ้ำ...", userAccountId);
             throw new IllegalStateException("Account is not active yet");
         }
 
-        // ส่วนการทำ Journal (ไม่ต้องครอบ try-catch ชั้นนี้ ให้ @Retryable คุมแทน)
+        // เมื่อ ACTIVE แล้วถึงจะรันบรรทัดล่างนี้
         CreateJournalRequest journalRequest = new CreateJournalRequest()
                 .entryType(JournalEntryType.JNLC)
                 .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID))
                 .toAccount(userAccountId)
                 .amount(String.valueOf(amount))
-                .description("Deposit by Admin");
+                .description("Deposit by Admin Initial Fund");
 
         brokerAPI.broker().journals().createJournal(journalRequest);
-        log.info("✅ โอนเงินสำเร็จ!");
+        log.info("✅ โอนเงิน $100,000 เข้าบัญชี {} เรียบร้อยแล้ว!", userAccountId);
     }
+
     //เติมเงินเข้าบัญชีเรา
     public void addMoneyToFirmAccount(Double amount) {
         try {
