@@ -4,6 +4,7 @@ import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.Service.StockAnalysisService;
 import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.dto.OnboardingRequest;
 import com.alpaca.web.dto.StockInfoDatabaseDTO;
 import com.alpaca.web.dto.StockSearchDto;
 import com.alpaca.web.entity.UserAccount;
@@ -458,6 +459,17 @@ public class BrokerController {
         } catch (Exception e) {
             // ... log error
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/user/onboarding")
+    public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
+        try {
+            // โยนเข้า Service ไปจัดการ
+            brokerService.saveOnboardingData(request);
+            return ResponseEntity.ok().body("บันทึกข้อมูล Onboarding สำเร็จ");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("เกิดข้อผิดพลาด: " + e.getMessage());
         }
     }
 }

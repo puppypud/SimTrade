@@ -3,6 +3,7 @@ package com.alpaca.web.Service;
 import com.alpaca.web.Repository.AccountRepository;
 import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.dto.CreateAccountRequest;
+import com.alpaca.web.dto.OnboardingRequest;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
 import io.github.cdimascio.dotenv.Dotenv;
@@ -39,6 +40,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.CreateJournalRequest;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.*;
 
@@ -220,32 +222,38 @@ public class BrokerService {
     @Transactional
     public UserAccount createAccount(CreateAccountRequest requestDto) {
         try {
-            // 1. สร้าง Contact จาก DTO
+            // 💡 สุ่ม Tax ID (SSN) รูปแบบ XXX-XX-XXXX เพื่อไม่ให้ซ้ำกันในระบบ Sandbox
+            String randomSSN = String.format("%03d-%02d-%04d",
+                    (int)(Math.random() * 900) + 100,
+                    (int)(Math.random() * 90) + 10,
+                    (int)(Math.random() * 9000) + 1000);
+
+            // 1. สร้าง Contact (Hardcode ที่อยู่)
             Contact contact = new Contact()
                     .emailAddress(requestDto.getEmail())
                     .phoneNumber(requestDto.getPhoneNumber())
-                    .streetAddress(requestDto.getStreetAddress())
-                    .city(requestDto.getCity())
-                    .state(requestDto.getState())
-                    .postalCode(requestDto.getPostalCode());
+                    .streetAddress(Arrays.asList("123 Crypto Street", "Apt 4B")) // Hardcode
+                    .city("San Francisco") // Hardcode
+                    .state("CA") // Hardcode
+                    .postalCode("94105"); // Hardcode
 
-            // 2. สร้าง Identity จาก DTO
+            // 2. สร้าง Identity (Hardcode วันเกิด, สัญชาติ และ SSN ที่สุ่มมา)
             Identity identity = new Identity()
                     .givenName(requestDto.getFirstName())
                     .familyName(requestDto.getLastName())
-                    .dateOfBirth(requestDto.getDateOfBirth())
-                    .taxId(requestDto.getTaxId())
-                    .taxIdType(TaxIdType.valueOf(requestDto.getTaxIdType())) // แปลง String เป็น Enum
-                    .countryOfCitizenship(requestDto.getCountryOfCitizenship())
-                    .countryOfBirth(requestDto.getCountryOfBirth())
-                    .countryOfTaxResidence(requestDto.getCountryOfTaxResidence());
+                    .dateOfBirth(LocalDate.parse("1990-01-01")) // Hardcode วันเกิด (ต้องอายุ 18+)
+                    .taxId(randomSSN) // ใช้ SSN ที่สุ่ม
+                    .taxIdType(TaxIdType.USA_SSN) // Hardcode
+                    .countryOfCitizenship("USA") // Hardcode
+                    .countryOfBirth("USA") // Hardcode
+                    .countryOfTaxResidence("USA"); // Hardcode
 
-            // 3. สร้าง Disclosures จาก DTO
+            // 3. สร้าง Disclosures (Hardcode เป็น false ทั้งหมด)
             Disclosures disclosures = new Disclosures()
-                    .isControlPerson(requestDto.isControlPerson())
-                    .isAffiliatedExchangeOrFinra(requestDto.isAffiliatedExchangeOrFinra())
-                    .isPoliticallyExposed(requestDto.isPoliticallyExposed())
-                    .immediateFamilyExposed(requestDto.isImmediateFamilyExposed());
+                    .isControlPerson(false)
+                    .isAffiliatedExchangeOrFinra(false)
+                    .isPoliticallyExposed(false)
+                    .immediateFamilyExposed(false);
 
             // 4. ประกอบร่างเป็น AccountCreationRequest
             AccountCreationRequest alpacaReq = new AccountCreationRequest()
@@ -265,16 +273,17 @@ public class BrokerService {
             // 6. บันทึกลง Database ของเรา
             UserAccount localAccount = new UserAccount();
             localAccount.setEmail(requestDto.getEmail());
-            localAccount.setPassword(requestDto.getPassword()); // เซฟรหัสผ่านลงฐานข้อมูล (Plain-text ไปก่อนตามแผน)
+            localAccount.setPassword(requestDto.getPassword());
             localAccount.setAlpacaAccountId(String.valueOf(alpacaAccount.getId()));
             localAccount.setAccountNumber(alpacaAccount.getAccountNumber());
-            localAccount.setStatus(alpacaAccount.getStatus().name()); // .name() เพื่อแปลง Enum เป็น String เช่น "ACTIVE"
-            localAccount.setPhoneNumber(requestDto.getPhoneNumber()); // เบอร์โทรเอาจากที่ User
+            localAccount.setStatus(alpacaAccount.getStatus().name());
+            localAccount.setPhoneNumber(requestDto.getPhoneNumber());
+            localAccount.setFirstName(requestDto.getFirstName()); // อย่าลืมเซฟลง DB
+            localAccount.setLastName(requestDto.getLastName());   // อย่าลืมเซฟลง DB
 
             return accountRepository.save(localAccount);
 
         } catch (Exception e) {
-            // ในงานจริง ควรใช้ Logger (เช่น lombok @Slf4j) แทน System.out
             throw new RuntimeException("ไม่สามารถสร้างบัญชีได้: " + e.getMessage(), e);
         }
     }
@@ -593,6 +602,20 @@ public class BrokerService {
 
         // บันทึกลง Database
         orderHistoryRepository.save(trade);
+    }
+
+    @Transactional
+    public UserAccount saveOnboardingData(OnboardingRequest request) {
+
+        UserAccount user = accountRepository.findByAlpacaAccountId(request.getAccountId())
+                .orElseThrow(() -> new RuntimeException("ไม่พบบัญชีผู้ใช้งาน ID: " + request.getAccountId()));
+
+        // อัปเดตข้อมูล
+        user.setTraderType(request.getTraderType());
+        user.setRiskBehavior(request.getRiskBehavior());
+
+        // Save ลง Database
+        return accountRepository.save(user);
     }
 }
 
