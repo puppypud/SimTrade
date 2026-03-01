@@ -27,7 +27,7 @@ import net.jacobpeterson.alpaca.openapi.broker.model.Transfer;
 import net.jacobpeterson.alpaca.openapi.broker.model.Account;
 import net.jacobpeterson.alpaca.openapi.broker.model.Agreement;
 import net.jacobpeterson.alpaca.openapi.broker.model.Contact;
-import net.jacobpeterson.alpaca.openapi.broker.model.TransferType;      // แยกไฟล์
+import net.jacobpeterson.alpaca.openapi.broker.model.TransferType; // แยกไฟล์
 import net.jacobpeterson.alpaca.openapi.broker.model.TransferDirection; // แยกไฟล์
 import net.jacobpeterson.alpaca.openapi.broker.model.TransferTiming;
 import net.jacobpeterson.alpaca.openapi.broker.model.AccountCreationRequest; // ต้องมีตัวนี้
@@ -147,21 +147,25 @@ public class BrokerService {
 
                             // เช็คเพื่อป้องกันการหักเงินซ้ำ (Idempotency)
                             if ("FILLED".equalsIgnoreCase(historyToSave.getStatus())) {
-                                log.info("ℹ️ Order {} is already FILLED. Skipping to prevent duplicate fee deduction.", orderId);
+                                log.info("ℹ️ Order {} is already FILLED. Skipping to prevent duplicate fee deduction.",
+                                        orderId);
                                 return;
                             }
                             log.info("ℹ️ Found existing order {}, updating to FILLED.", orderId);
 
                         } else {
                             // ⚠️ ถ้าหาไม่เจอ (เกิด Race Condition) ให้ "สร้างใหม่" รอไว้เลย
-                            log.warn("⚠️ Order {} not found in DB yet (Race Condition). Creating a new filled record ahead of time.", orderId);
+                            log.warn(
+                                    "⚠️ Order {} not found in DB yet (Race Condition). Creating a new filled record ahead of time.",
+                                    orderId);
                             historyToSave = new OrderHistory();
                             historyToSave.setOrderId(orderId);
                             historyToSave.setSymbol(order.getSymbol());
                             historyToSave.setSide(order.getSide() != null ? order.getSide().name() : null);
                             historyToSave.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
 
-                            historyToSave.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
+                            historyToSave
+                                    .setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
                             historyToSave.setQty(order.getQty());
                             if (order.getCreatedAt() != null) {
                                 historyToSave.setCreatedAt(order.getCreatedAt().toInstant());
@@ -175,7 +179,8 @@ public class BrokerService {
                         // 4. หักเงินค่าธรรมเนียม
                         if (fee.compareTo(BigDecimal.ZERO) > 0) {
                             collectTradingFee(accountId, fee);
-                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}", orderId, accountId, fee);
+                            log.info("✅ Auto-Deduct Fee Success: Order {} | Account {} | Fee ${}", orderId, accountId,
+                                    fee);
                         }
 
                         // 5. อัปเดตข้อมูลให้ครบถ้วนก่อนเซฟ
@@ -281,7 +286,17 @@ public class BrokerService {
             localAccount.setFirstName(requestDto.getFirstName()); // อย่าลืมเซฟลง DB
             localAccount.setLastName(requestDto.getLastName());   // อย่าลืมเซฟลง DB
 
-            return accountRepository.save(localAccount);
+            UserAccount savedAccount = accountRepository.save(localAccount);
+
+            // แจกเงิน 100,000 ทันทีหลังสร้างบัญชี
+            try {
+                addMoneyToUserAccount(UUID.fromString(savedAccount.getAlpacaAccountId()), 100000.0);
+                log.info("✅ แจกเงินเริ่มต้น $100,000 ให้บัญชีใหม่สำเร็จ: {}", savedAccount.getEmail());
+            } catch (Exception e) {
+                log.error("❌ แจกเงินเริ่มต้น 100,000 ล้มเหลวสำหรับบัญชี: {}", savedAccount.getAlpacaAccountId(), e);
+            }
+
+            return savedAccount;
 
         } catch (Exception e) {
             throw new RuntimeException("ไม่สามารถสร้างบัญชีได้: " + e.getMessage(), e);
@@ -555,14 +570,14 @@ public class BrokerService {
     public  void  collectTradingFee(UUID userAccountId, BigDecimal FeeAmount) {
         String formattedFee = String.format("%.2f", FeeAmount);
         try {
-             log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
-             CreateJournalRequest journalRequest = new CreateJournalRequest()
-                     .entryType(JournalEntryType.JNLC)
-                     .fromAccount(userAccountId)
-                     .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
-                     .amount(formattedFee)
-                     .description("Tradeing commission Fee");
-             brokerAPI.broker().journals().createJournal(journalRequest);
+            log.info("Fee : กำลังเก็บค่าธรรมเนียมจาก user {} จำนวน ${}", userAccountId, FeeAmount);
+            CreateJournalRequest journalRequest = new CreateJournalRequest()
+                    .entryType(JournalEntryType.JNLC)
+                    .fromAccount(userAccountId)
+                    .toAccount(UUID.fromString(FIRM_ACCOUNT_ID))
+                    .amount(formattedFee)
+                    .description("Tradeing commission Fee");
+            brokerAPI.broker().journals().createJournal(journalRequest);
         } catch (ApiException e) {
             log.error("ไม่สามารถเก็บค่าธรรมเนียมได้ {}", e.getMessage());
         }
