@@ -7,11 +7,9 @@ import { Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, User, Phone, MapPin,
 import { RegisterRequest } from '../types/broker';
 import { brokerService } from '../services/brokerService';
 
-interface RegisterFormState extends Omit<RegisterRequest, 'streetAddress' | 'password'> {
+interface RegisterFormState extends Omit<RegisterRequest, 'password'> {
     password?: string;
     confirmPassword?: string;
-    streetAddressLine1: string;
-    streetAddressLine2: string;
 }
 
 const INITIAL_FORM_STATE: RegisterFormState = {
@@ -21,21 +19,6 @@ const INITIAL_FORM_STATE: RegisterFormState = {
     password: '',
     confirmPassword: '',
     phoneNumber: '',
-    streetAddressLine1: '',
-    streetAddressLine2: '',
-    city: '',
-    state: '',
-    postalCode: '',
-    dateOfBirth: '',
-    taxId: '',
-    taxIdType: 'USA_SSN',
-    countryOfCitizenship: 'USA',
-    countryOfBirth: 'USA',
-    countryOfTaxResidence: 'USA',
-    isControlPerson: false,
-    isAffiliatedExchangeOrFinra: false,
-    isPoliticallyExposed: false,
-    immediateFamilyExposed: false
 };
 
 export default function RegisterPage() {
@@ -77,21 +60,7 @@ export default function RegisterPage() {
             password: formData.password,
             firstName: formData.firstName,
             lastName: formData.lastName,
-            phoneNumber: formData.phoneNumber,
-            streetAddress: [formData.streetAddressLine1, formData.streetAddressLine2].filter(Boolean),
-            city: formData.city,
-            state: formData.state,
-            postalCode: formData.postalCode,
-            dateOfBirth: formData.dateOfBirth,
-            taxId: formData.taxId,
-            taxIdType: formData.taxIdType,
-            countryOfCitizenship: formData.countryOfCitizenship,
-            countryOfBirth: formData.countryOfBirth,
-            countryOfTaxResidence: formData.countryOfTaxResidence,
-            isControlPerson: formData.isControlPerson,
-            isAffiliatedExchangeOrFinra: formData.isAffiliatedExchangeOrFinra,
-            isPoliticallyExposed: formData.isPoliticallyExposed,
-            immediateFamilyExposed: formData.immediateFamilyExposed
+            phoneNumber: formData.phoneNumber
         };
 
         console.log('Register payload:', payload);
@@ -99,6 +68,13 @@ export default function RegisterPage() {
         try {
             const data = await brokerService.registerUser(payload);
             console.log('Registration success:', data);
+
+            // Save basic user info so onboarding can send it later
+            localStorage.setItem('simtrade_user', JSON.stringify({
+                email: payload.email,
+                name: payload.firstName
+            }));
+
             router.push('/onboarding');
         } catch (err: any) {
             console.error('Registration failed:', err);
@@ -135,10 +111,6 @@ export default function RegisterPage() {
                                     <label className="block text-sm font-medium text-muted mb-1">Last Name</label>
                                     <input name="lastName" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.lastName} onChange={handleChange} />
                                 </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Date of Birth</label>
-                                    <input name="dateOfBirth" type="date" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.dateOfBirth} onChange={handleChange} />
-                                </div>
                             </div>
                         </div>
 
@@ -167,100 +139,7 @@ export default function RegisterPage() {
                             </div>
                         </div>
 
-                        <hr className="border-theme-border my-6" />
 
-                        {/* Section 3: Address */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-gold" /> Address</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Street Address Line 1</label>
-                                    <input name="streetAddressLine1" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.streetAddressLine1} onChange={handleChange} />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Street Address Line 2 (Apt, Suite, etc.)</label>
-                                    <input name="streetAddressLine2" type="text" className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.streetAddressLine2} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">City</label>
-                                    <input name="city" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.city} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">State</label>
-                                    <input name="state" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.state} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Postal Code</label>
-                                    <input name="postalCode" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.postalCode} onChange={handleChange} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-theme-border my-6" />
-
-                        {/* Section 4: Tax & Citizenship */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-gold" /> Tax & Identity</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Tax ID Type</label>
-                                    <select name="taxIdType" className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.taxIdType} onChange={handleChange}>
-                                        <option value="USA_SSN">USA SSN</option>
-                                        <option value="USA_ITIN">USA ITIN</option>
-                                        <option value="FOREIGN_TAX_ID">Foreign Tax ID</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Tax ID</label>
-                                    <input name="taxId" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" placeholder="XXX-XX-XXXX" value={formData.taxId} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Citizenship</label>
-                                    <input name="countryOfCitizenship" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfCitizenship} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Birth</label>
-                                    <input name="countryOfBirth" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfBirth} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Tax Residence</label>
-                                    <input name="countryOfTaxResidence" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfTaxResidence} onChange={handleChange} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-theme-border my-6" />
-
-                        {/* Section 5: Regulatory Questions (Boolean) */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-gold" /> Regulatory Information</h3>
-                            <div className="space-y-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isControlPerson" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isControlPerson} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you a control person or affiliate of a public company?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isAffiliatedExchangeOrFinra" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isAffiliatedExchangeOrFinra} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you affiliated with an exchange or FINRA?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isPoliticallyExposed" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isPoliticallyExposed} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you a politically exposed person?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="immediateFamilyExposed" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.immediateFamilyExposed} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Is your immediate family a politically exposed person?</span>
-                                </label>
-                            </div>
-                        </div>
 
                         {error && (
                             <div className="rounded-md bg-red-900/30 border border-red-500/50 p-4">

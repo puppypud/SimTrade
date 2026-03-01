@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
 
@@ -169,4 +169,11 @@ export const brokerService = {
     const response = await apiClient.post<UserAccount>('/broker/create-account', payload);
     return response.data;
   },
+
+  // 5. ส่งข้อมูล Onboarding
+  submitOnboarding: async (payload: OnboardingRequest) => {
+    // กำหนด URL ส่งไปยัง Backend 
+    const response = await apiClient.post('/broker/user/onboarding', payload);
+    return response.data;
+  }
 };

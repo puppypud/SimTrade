@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Target, AlertTriangle, Briefcase, MessagesSquare, CheckCircle2, ChevronRight, ChevronLeft, Flag } from 'lucide-react';
 import Link from 'next/link';
+import { brokerService } from '../services/brokerService';
 
 interface Question {
     id: string;
@@ -425,7 +426,26 @@ export default function OnboardingPage() {
         setIsFinished(true);
     };
 
-    const finishOnboarding = () => {
+    const finishOnboarding = async () => {
+        try {
+            // Get email from localStorage saved during registration/login
+            const userStr = localStorage.getItem('simtrade_user');
+            const email = userStr ? JSON.parse(userStr).email : '';
+
+            if (email) {
+                console.log('Submitting onboarding data:', { email, riskBehavior: riskProfile, traderType: identity });
+                await brokerService.submitOnboarding({
+                    email: email,
+                    risk_behavior: riskProfile,
+                    trader_type: identity
+                });
+            } else {
+                console.warn('No user email found to submit onboarding data');
+            }
+        } catch (err) {
+            console.error('Failed to submit onboarding data:', err);
+        }
+
         // Save flag to local storage denoting onboarding is complete
         localStorage.setItem('simtrade_onboarded', 'true');
         // Redirect to Home page so they can actually use the system

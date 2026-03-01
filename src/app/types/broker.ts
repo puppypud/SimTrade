@@ -135,7 +135,6 @@ export interface UserAccount {
   };
 }
 
-<<<<<<< HEAD
 // ------------------------------------------------------------------
 // Types added mapping to backend DTOs for unimplemented features
 // ------------------------------------------------------------------
@@ -162,6 +161,20 @@ export interface CreateAccountRequest {
   immediateFamilyExposed?: boolean;
 }
 
+export interface RegisterRequest {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+}
+
+export interface OnboardingRequest {
+  email: string;
+  risk_behavior: string;
+  trader_type: string;
+}
+
 export interface StockSearchDto {
   symbol: string;
   name: string;
@@ -181,34 +194,13 @@ export interface StockInfoDatabaseDTO {
 // Matches the backend UserAccount entity in com.alpaca.web.entity.UserAccount
 export interface LocalUserAccount {
   id: number;
-=======
-export interface RegisterRequest {
->>>>>>> 0681bf33c07709386a70ae9b39be0c94f013905b
   email: string;
   password?: string;
   firstName: string;
   lastName: string;
-<<<<<<< HEAD
   accountNumber: string;
   phoneNumber: string;
   status: string;
   alpacaAccountId: string;
   createdAt: string;
-=======
-  phoneNumber: string;
-  streetAddress: string[];
-  city: string;
-  state: string;
-  postalCode: string;
-  dateOfBirth: string;
-  taxId: string;
-  taxIdType: string;
-  countryOfCitizenship: string;
-  countryOfBirth: string;
-  countryOfTaxResidence: string;
-  isControlPerson: boolean;
-  isAffiliatedExchangeOrFinra: boolean;
-  isPoliticallyExposed: boolean;
-  immediateFamilyExposed: boolean;
->>>>>>> 0681bf33c07709386a70ae9b39be0c94f013905b
 }
