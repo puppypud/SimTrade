@@ -1,9 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-<<<<<<< HEAD
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest } from '@/src/app/types/broker'; // import จากข้อ 2.3
-=======
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, MarketStatus, AdminActionResponse, StockSearchDto, StockInfoDatabaseDTO } from '@/src/app/types/broker'; // import จากข้อ 2.3
->>>>>>> 50db443aaa0affde40f8a0f221ad1f03aa2da7fb
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
 
@@ -188,12 +184,13 @@ export const brokerService = {
     return response.data;
   },
 
-<<<<<<< HEAD
   // 5. ส่งข้อมูล Onboarding
   submitOnboarding: async (payload: OnboardingRequest) => {
     // กำหนด URL ส่งไปยัง Backend 
     const response = await apiClient.post('/broker/user/onboarding', payload);
-=======
+    return response.data;
+  },
+
   // 4/9. เติมเงินเข้าบัญชีบริษัท (Admin - Fund Firm Account)
   fundFirmAccount: async (amount: number): Promise<AdminActionResponse> => {
     const response = await apiClient.post('/broker/admin/fund-firm', null, {
@@ -237,7 +234,6 @@ export const brokerService = {
     const response = await apiClient.get('/broker/assets/info', {
       params: { symbol }
     });
->>>>>>> 50db443aaa0affde40f8a0f221ad1f03aa2da7fb
     return response.data;
   }
 };
