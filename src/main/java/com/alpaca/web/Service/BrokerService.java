@@ -380,9 +380,9 @@ public class BrokerService {
 
     //เติมเงินให้ user
     @Async
-    @Retryable(
-            retryFor = { ApiException.class, IllegalStateException.class },
-            maxAttempts = 15, // 💡 เพิ่มรอบเป็น 15 ครั้ง (เผื่อ Alpaca ช้า)
+    @Retryable(retryFor = { ApiException.class, IllegalStateException.class }, maxAttempts = 15, // 💡 เพิ่มรอบเป็น 15
+                                                                                                 // ครั้ง (เผื่อ Alpaca
+                                                                                                 // ช้า)
             backoff = @Backoff(delay = 5000) // 💡 รอ 5 วินาทีก่อนลองใหม่ (รวมเวลาพยายามคือ 15 * 5 = 75 วินาที)
     )
     public void addMoneyToUserAccount(UUID userAccountId, Double amount) throws ApiException {
@@ -622,6 +622,10 @@ public class BrokerService {
         if (order.getFilledAt() != null) {
             trade.setFilledAt(order.getFilledAt().toInstant());
         }
+        trade.setClientOrderId(order.getClientOrderId());
+        trade.setTimeInForce(order.getTimeInForce() != null ? order.getTimeInForce().name() : null);
+        trade.setAssetId(order.getAssetId() != null ? order.getAssetId().toString() : null);
+        trade.setExtendedHours(order.getExtendedHours());
         // บันทึกลง Database
         orderHistoryRepository.save(trade);
     }

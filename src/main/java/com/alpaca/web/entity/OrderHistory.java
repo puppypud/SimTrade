@@ -69,4 +69,16 @@ public class OrderHistory {
     @Column(name = "limit_price", precision = 19, scale = 4)
     @JsonProperty("limitPrice") // 💡 แปลงเป็น limitPrice (CamalCase) ให้ตรงกับหน้าบ้าน
     private BigDecimal limitPrice;
+
+    @Column(name = "client_order_id")
+    private String clientOrderId;
+
+    @Column(name = "time_in_force", length = 10)
+    private String timeInForce;
+
+    @Column(name = "asset_id")
+    private String assetId;
+
+    @Column(name = "extended_hours")
+    private Boolean extendedHours;
 }
