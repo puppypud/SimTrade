@@ -62,6 +62,8 @@ public class BrokerService {
 
     private final OrderHistoryRepository orderHistoryRepository;
     private final AccountRepository accountRepository;
+    private static final BigDecimal FEE_RATE = new BigDecimal("0.00025"); // 0.025%  ///แก้ไขตรงนี้
+    private static final BigDecimal FEE_MULTIPLIER = BigDecimal.ONE.add(FEE_RATE); // 1.00025 สำหรับไว้หารยอด Notional
 
     public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository) {
         this.orderHistoryRepository = orderHistoryRepository;
@@ -138,8 +140,7 @@ public class BrokerService {
                             BigDecimal filledPrice = new BigDecimal(tradeUpdate.getPrice().toString());
                             BigDecimal qty = new BigDecimal(tradeUpdate.getQty().toString());
                             BigDecimal totalCost = filledPrice.multiply(qty);
-                            BigDecimal feePercentage = new BigDecimal("0.00025");
-                            fee = totalCost.multiply(feePercentage).setScale(4, RoundingMode.HALF_UP);
+                            fee = totalCost.multiply(FEE_RATE).setScale(4, RoundingMode.HALF_UP);
                         } else {
                             log.warn("⚠️ Price or Qty is missing in TradeUpdate for Order: {}", orderId);
                         }
@@ -329,7 +330,8 @@ public class BrokerService {
                 }
             }
         } else if (notional != null && qty == null) {
-            request.notional(notional);
+            BigDecimal actualNotional = notional.divide(FEE_MULTIPLIER, 4, RoundingMode.DOWN);
+            request.notional(actualNotional);
             log.warn("Overriding OrderType to MARKET and TIF to DAY for Notional order");  //กฎของ Alpaca:ได้แค่ 2 เงื่อนไข คือ ราคาตลาด กับ ระยะเวลา 1 วัน
             request.type(OrderType.MARKET);
             request.timeInForce(TimeInForce.DAY);
@@ -535,7 +537,8 @@ public class BrokerService {
             }
         } else if (notional != null && qty == null) {
             // กรณีระบุจำนวนเงิน -> บังคับ Market
-            request.notional(notional);
+            BigDecimal actualNotional = notional.divide(FEE_MULTIPLIER, 4, RoundingMode.DOWN);
+            request.notional(actualNotional);
             request.type(OrderType.MARKET);
             log.info("ℹ️ Using Notional Amount -> Force Market Order");
         } else {
