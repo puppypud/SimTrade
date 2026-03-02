@@ -7,6 +7,7 @@ export const brokerService = {
   buyStock: async (data: BuyStockRequest) => {
     const params: any = {
       accountId: data.accountId,
+      email: data.email,
       symbol: data.symbol,
       OrderSide: data.OrderSide,
       OrderType: data.OrderType,

@@ -145,7 +145,8 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
 
       // เตรียม Payload
       const payload: BuyStockRequest = {
-        accountId: user.alpacaAccountId,
+        accountId: user.alpacaAccountId || "",
+        email: user.email,
         symbol: symbol,
         OrderSide: orderSide,
         OrderType: orderType,
@@ -181,10 +182,21 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       setAmount("");
       setTargetPrice(""); // Reset ราคาหลังส่ง
 
+      // รอสักครู่เพื่อให้ Alpaca อัปเดตยอดคงเหลือในระบบ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const updatedAccount = await brokerService.getAccountInfo(
         user.alpacaAccountId
       );
       setAccount(updatedAccount);
+
+      // ดึงอีกรอบหลังจาก 3 วินาทีเพื่อความชัวร์ (เผื่อระบบประมวลผลช้า)
+      setTimeout(async () => {
+        if (user?.alpacaAccountId) {
+          const finalUpdate = await brokerService.getAccountInfo(user.alpacaAccountId);
+          setAccount(finalUpdate);
+        }
+      }, 3000);
     } catch (error: any) {
       console.error(error);
       setMessage({
@@ -196,9 +208,9 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     }
   };
 
-  const percentChange = quote && quote.openPrice
-    ? ((quote.price - quote.openPrice) / quote.openPrice) * 100
-    : 0;
+  const baselinePrice = quote?.prevClose || quote?.openPrice || 0;
+  const priceChange = quote ? quote.price - baselinePrice : 0;
+  const percentChange = baselinePrice !== 0 ? (priceChange / baselinePrice) * 100 : 0;
 
   const isBuy = orderSide === "BUY";
 

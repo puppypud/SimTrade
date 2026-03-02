@@ -136,8 +136,8 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                                 {order.timeInForce && <InfoItem label="ระยะเวลาคำสั่ง" value={order.timeInForce} />}
 
                                 <InfoItem
-                                    label="จำนวนที่ตั้งไว้"
-                                    value={order.qty !== null ? order.qty.toString() : (order.notional ? 'ยอดเงิน (Notional)' : '-')}
+                                    label="ปริมาณ / ยอดเงินที่สั่ง"
+                                    value={order.qty !== null ? `${order.qty} หุ้น` : (order.notional ? formatCurrency(order.notional) : '-')}
                                 />
                                 <InfoItem label="จำนวนที่ได้" value={order.filledQty?.toString() || '0'} />
 
@@ -152,7 +152,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                                     </span>
                                 </div>
                                 {order.extendedHours !== undefined && <InfoItem label="นอกเวลาทำการ" value={order.extendedHours ? "ใช่" : "ไม่"} />}
-                                {order.assetId && <InfoItem label="Asset ID" value={order.assetId.split('-')[0] + '...'} title={order.assetId} />}
+                                <InfoItem label="ประเภทสินทรัพย์" value={order.assetClass?.toUpperCase() || '-'} />
                             </div>
 
                             {/* Timestamps */}
@@ -160,23 +160,22 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                                 <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-1.5">
                                     <Clock className="w-3.5 h-3.5" /> ไทม์ไลน์
                                 </h4>
-                                <div className="flex flex-wrap gap-8 text-sm">
-                                    {(order.createdAt && order.createdAt !== order.submittedAt) && (
-                                        <div>
-                                            <span className="text-muted block text-xs mb-1">สร้างเมื่อ</span>
-                                            <span className="font-medium text-foreground">{formatDate(order.createdAt)}</span>
-                                        </div>
-                                    )}
-                                    <div>
-                                        <span className="text-muted block text-xs mb-1">ส่งคำสั่งเมื่อ</span>
-                                        <span className="font-medium text-foreground">{formatDate(order.submittedAt)}</span>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
+                                    <div className="flex flex-col">
+                                        <span className="text-muted text-xs mb-1">สร้างคำสั่ง</span>
+                                        <span className="font-medium text-foreground truncate">{formatDate(order.createdAt || order.submittedAt)}</span>
                                     </div>
-                                    {order.filledAt && (
-                                        <div>
-                                            <span className="text-muted block text-xs mb-1">สำเร็จเมื่อ</span>
-                                            <span className="font-medium text-foreground">{formatDate(order.filledAt)}</span>
-                                        </div>
-                                    )}
+                                    <div className="flex flex-col border-t sm:border-t-0 sm:border-l border-theme-border/50 sm:pl-4 pt-3 sm:pt-0">
+                                        <span className="text-muted text-xs mb-1">ส่งเข้าตลาด</span>
+                                        <span className="font-medium text-foreground truncate">{formatDate(order.submittedAt)}</span>
+                                    </div>
+                                    <div className="flex flex-col border-t sm:border-t-0 sm:border-l border-theme-border/50 sm:pl-4 pt-3 sm:pt-0">
+                                        <span className="text-muted text-xs mb-1">
+                                            {order.status === 'FILLED' ? 'จับคู่สำเร็จ' :
+                                                ['CANCELED', 'REJECTED'].includes(order.status) ? 'ยกเลิกเมื่อ' : 'อัปเดตล่าสุด'}
+                                        </span>
+                                        <span className="font-medium text-foreground truncate">{formatDate(order.filledAt || order.submittedAt)}</span>
+                                    </div>
                                 </div>
                             </div>
 

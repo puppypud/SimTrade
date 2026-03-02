@@ -150,8 +150,19 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
       setMessage({ type: "success", text: `Success! ${orderSide} order placed.` });
       setAmount("");
 
+      // รอสักครู่เพื่อให้ Alpaca อัปเดตยอดคงเหลือในระบบ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const updatedAccount = await brokerService.getAccountInfo(user.alpacaAccountId);
       setAccount(updatedAccount);
+
+      // ดึงเพิ่มอีกรอบหลังจาก 3 วินาทีเพื่อความชัวร์ (เผื่อข้อมูลยังไม่สะท้อนทันที)
+      setTimeout(async () => {
+        if (user?.alpacaAccountId) {
+          const finalUpdate = await brokerService.getAccountInfo(user.alpacaAccountId);
+          setAccount(finalUpdate);
+        }
+      }, 3000);
 
     } catch (error: any) {
       console.error(error);

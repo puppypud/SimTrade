@@ -22,6 +22,7 @@ export interface getCryptoBars {
 // สำหรับ Request ซื้อหุ้น
 export interface BuyStockRequest {
   accountId: string;
+  email: string;
   symbol: string;
   qty?: number;
   notional?: number;
@@ -105,6 +106,7 @@ export interface StockQuote {
   bidPrice: number;     // ราคาซื้อ (Bid)
   bidSize: number;
   openPrice?: number;   // ราคาเปิดวัน (Optional)
+  prevClose?: number;   // ราคาปิดวันก่อนหน้า
 }
 export interface cancelorder {
   orderId: string;
