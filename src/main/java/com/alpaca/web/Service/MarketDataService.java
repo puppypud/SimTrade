@@ -46,7 +46,7 @@ public class MarketDataService {
     private final RestTemplate restTemplate = new RestTemplate();
     private BrokerService brokerService;
     private AlpacaAPI alpacaAPI;
-    private boolean isMaintenanceActive = false;   //ตั้งค่าเริ่มต้นเป็น false
+    private boolean isMaintenanceActive = false; // ตั้งค่าเริ่มต้นเป็น false
     private String mintenanceMessage = "";
     @Value("***REDACTED_TRADING_KEY***")
     private String apiKey;
@@ -75,9 +75,11 @@ public class MarketDataService {
             log.error("Alpaca API Key/Secret is null via @Value");
         }
     }
+
     public MarketDataService(BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
         this.brokerService = brokerService;
     }
+
     public List<StockBar> getStockBars(String symbol, String viewType) {
         String cleanSymbol = symbol.trim();
         ZonedDateTime startTime;
@@ -90,8 +92,12 @@ public class MarketDataService {
 
             case "1D":
                 timeframe = "1Min";
-                // ถอยไปเริ่มที่ "เมื่อวาน" เวลา 09:30 แทน
-                startTime = targetOpen.minusDays(1);
+                // แก้ให้เริ่มที่เวลาเปิดตลาดของ "วันนี้" (หรือวันล่าสุดที่เปิด)
+                startTime = targetOpen;
+                // หากปัจจุบันยังไม่ถึงเวลาเปิดวันนี้ ให้ถอยไป 1 วันเพื่อให้มีข้อมูลโชว์
+                if (nowNY.isBefore(targetOpen)) {
+                    startTime = targetOpen.minusDays(1);
+                }
                 break;
 
             case "1W":
@@ -133,12 +139,12 @@ public class MarketDataService {
         OffsetDateTime startZDT = startTime.toOffsetDateTime();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
         String rawDate = startZDT.withOffsetSameInstant(ZoneOffset.UTC).format(formatter);
-        //log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}", cleanSymbol, viewType, timeframe, rawDate);
+        // log.info("Fetching Chart: {} | View: {} | Timeframe: {} | Start: {}",
+        // cleanSymbol, viewType, timeframe, rawDate);
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
         String urlString = String.format(
                 "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&limit=%d",
-                cleanSymbol, timeframe, rawDate, limit
-        );
+                cleanSymbol, timeframe, rawDate, limit);
         // แปลงเป็น URI Object เพื่อบังคับใช้ URL นี้เป๊ะๆ
         URI uri = URI.create(urlString);
         // 2. สร้าง Header (ใส่ Key)
@@ -197,8 +203,7 @@ public class MarketDataService {
         String cleanSymbol = symbol.trim().toUpperCase();
         String urlString = String.format(
                 "https://data.alpaca.markets/v2/stocks/%s/snapshot?feed=iex",
-                cleanSymbol
-        );
+                cleanSymbol);
 
         URI uri = URI.create(urlString);
         HttpHeaders headers = new HttpHeaders();
@@ -229,6 +234,10 @@ public class MarketDataService {
                 if (body.containsKey("dailyBar")) {
                     Map<String, Object> daily = (Map<String, Object>) body.get("dailyBar");
                     result.put("openPrice", daily.get("o"));
+                }
+                if (body.containsKey("prevDailyBar")) {
+                    Map<String, Object> prevDaily = (Map<String, Object>) body.get("prevDailyBar");
+                    result.put("prevClose", prevDaily.get("c"));
                 }
 
                 return result;
@@ -284,8 +293,7 @@ public class MarketDataService {
         // 3. สร้าง URL โดยใส่ parameter &start=... เข้าไปด้วย
         String urlString = String.format(
                 "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=%d&start=%s",
-                cleanSymbol, timeframe, limit, startStr
-        );
+                cleanSymbol, timeframe, limit, startStr);
 
         URI uri = URI.create(urlString);
         HttpHeaders headers = new HttpHeaders();
@@ -323,6 +331,7 @@ public class MarketDataService {
         }
         return Collections.emptyList();
     }
+
     public Map<String, Object> getLatestCryptoQuote(String symbol) {
         // 1. จัดการ Symbol ให้สะอาด และต้องมี /USD
         String cleanSymbol = symbol.trim().toUpperCase();
@@ -344,7 +353,8 @@ public class MarketDataService {
             // URL: /v1beta3/crypto/us/latest/trades
             String tradeUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/trades?symbols=" + cleanSymbol;
             try {
-                ResponseEntity<Map> response = restTemplate.exchange(URI.create(tradeUrl), HttpMethod.GET, entity, Map.class);
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(tradeUrl), HttpMethod.GET, entity,
+                        Map.class);
                 if (response.getBody() != null && response.getBody().containsKey("trades")) {
                     Map<String, Object> tradesMap = (Map<String, Object>) response.getBody().get("trades");
                     if (tradesMap.containsKey(cleanSymbol)) {
@@ -366,7 +376,8 @@ public class MarketDataService {
             // URL: /v1beta3/crypto/us/latest/quotes
             String quoteUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/quotes?symbols=" + cleanSymbol;
             try {
-                ResponseEntity<Map> response = restTemplate.exchange(URI.create(quoteUrl), HttpMethod.GET, entity, Map.class);
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(quoteUrl), HttpMethod.GET, entity,
+                        Map.class);
                 if (response.getBody() != null && response.getBody().containsKey("quotes")) {
                     Map<String, Object> quotesMap = (Map<String, Object>) response.getBody().get("quotes");
                     if (quotesMap.containsKey(cleanSymbol)) {
@@ -390,15 +401,16 @@ public class MarketDataService {
             return Map.of();
         }
     }
-    public void  setMaintenanceMode(boolean active,String message){
+
+    public void setMaintenanceMode(boolean active, String message) {
         this.isMaintenanceActive = active;
         this.mintenanceMessage = message != null ? message : "ระบบกำลังปิดปรับปรุงชั่วคราว";
         log.info("System Maintenance Mode set to: {} ", active);
     }
 
-    public Map<String,Object> getCurrentMaketStatus(){
+    public Map<String, Object> getCurrentMaketStatus() {
         Map<String, Object> statusData = new HashMap<>();
-        try{
+        try {
             Clock clock = brokerService.getApi().broker().clock().queryMarketClock();
             boolean isAlpacaOpen = clock.getIsOpen();
             if (isMaintenanceActive) {
@@ -434,15 +446,15 @@ public class MarketDataService {
             List<Assets> assets = alpacaAPI.trader().assets().getV2Assets("active", "us_equity", null, null);
 
             // แมปข้อมูลเป็น DTO เพื่อส่งเฉพาะสิ่งที่หน้าบ้านต้องใช้
-                // นำข้อมูล List<Assets> มาแปลงเป็น DTO
+            // นำข้อมูล List<Assets> มาแปลงเป็น DTO
             return assets.stream()
-                    // เช็กก่อนว่าหุ้นตัวนี้ยอมให้เทรดบน Alpaca จริงๆ (getTradable มักคืนค่าเป็น Boolean)
+                    // เช็กก่อนว่าหุ้นตัวนี้ยอมให้เทรดบน Alpaca จริงๆ (getTradable มักคืนค่าเป็น
+                    // Boolean)
                     .filter(asset -> Boolean.TRUE.equals(asset.getTradable()))
                     .map(asset -> new StockSearchDto(
                             asset.getSymbol(),
                             asset.getName(),
-                            asset.getExchange().toString()
-                    ))
+                            asset.getExchange().toString()))
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
@@ -461,10 +473,9 @@ public class MarketDataService {
         String searchString = keyword.trim().toLowerCase();
 
         return allAssets.stream()
-                .filter(asset ->
-                        (asset.getSymbol() != null && asset.getSymbol().toLowerCase().startsWith(searchString)) ||
-                                (asset.getName() != null && asset.getName().toLowerCase().contains(searchString))
-                )
+                .filter(asset -> (asset.getSymbol() != null && asset.getSymbol().toLowerCase().startsWith(searchString))
+                        ||
+                        (asset.getName() != null && asset.getName().toLowerCase().contains(searchString)))
                 .limit(20)
                 .collect(Collectors.toList());
     }
