@@ -19,13 +19,15 @@ const formatDate = (dateString: string) => {
     });
 };
 
-const formatCurrency = (amount: number | null) => {
+const formatCurrency = (amount: number | string | null | undefined) => {
     if (amount === null || amount === undefined) return "-";
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(num)) return "-";
     return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
         minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(num);
 };
 
 const getStatusColor = (status: string) => {
@@ -90,9 +92,14 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                 </tr>
                             ) : (
                                 orders.map((order) => {
-                                    const totalValue = order.filledQty && order.filledAvgPrice
-                                        ? order.filledQty * order.filledAvgPrice
-                                        : order.notional || 0;
+                                    const fQty = typeof order.filledQty === 'string' ? parseFloat(order.filledQty) : (order.filledQty || 0);
+                                    const fPrice = typeof order.filledAvgPrice === 'string' ? parseFloat(order.filledAvgPrice) : (order.filledAvgPrice || 0);
+                                    const notional = typeof order.notional === 'string' ? parseFloat(order.notional) : (order.notional || 0);
+                                    const limitPrice = typeof order.limitPrice === 'string' ? parseFloat(order.limitPrice) : (order.limitPrice || 0);
+
+                                    const totalValue = fQty > 0 && fPrice > 0
+                                        ? fQty * fPrice
+                                        : notional;
 
                                     const isBuy = order.side === "BUY";
                                     const canCancel = CANCELLABLE_STATUSES.includes(order.status);
@@ -122,8 +129,8 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                                             {order.orderType}
                                                         </span>
                                                     </div>
-                                                    {order.limitPrice && order.limitPrice > 0 && (
-                                                        <span className="text-xs text-gray-400 ml-1">Price is {formatCurrency(order.limitPrice)}</span>
+                                                    {limitPrice > 0 && (
+                                                        <span className="text-xs text-gray-400 ml-1">Price is {formatCurrency(limitPrice)}</span>
                                                     )}
                                                 </div>
                                             </td>
@@ -133,13 +140,13 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4 text-right font-mono">
-                                                {order.filledQty > 0 ? (
-                                                    <span className="text-gray-900 font-medium">{new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(order.filledQty)}</span>
+                                                {fQty > 0 ? (
+                                                    <span className="text-gray-900 font-medium">{new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(fQty)}</span>
                                                 ) : <span className="text-gray-300">-</span>}
                                             </td>
                                             <td className="px-6 py-4 text-right font-mono">
-                                                {order.filledAvgPrice ? (
-                                                    <span className="text-gray-900">{formatCurrency(order.filledAvgPrice)}</span>
+                                                {fPrice > 0 ? (
+                                                    <span className="text-gray-900">{formatCurrency(fPrice)}</span>
                                                 ) : <span className="text-gray-300">-</span>}
                                             </td>
                                             <td className="px-6 py-4 text-right font-mono font-bold text-gray-800">

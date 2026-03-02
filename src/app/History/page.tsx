@@ -24,7 +24,7 @@ export default function HistoryPage() {
         // เรียงลำดับ ใหม่ -> เก่า
         fetchedOrders.sort(
           (a: Order, b: Order) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
         );
         setOrders(fetchedOrders);
       } catch (e) {

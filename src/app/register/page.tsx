@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, User, Phone, MapPin, Calendar, CreditCard, ShieldAlert } from 'lucide-react';
 import { RegisterRequest } from '../types/broker';
 import { brokerService } from '../services/brokerService';
+import { useAuth } from '@/src/context/AuthContext';
 
 interface RegisterFormState extends Omit<RegisterRequest, 'password'> {
     password?: string;
@@ -23,6 +24,7 @@ const INITIAL_FORM_STATE: RegisterFormState = {
 
 export default function RegisterPage() {
     const router = useRouter();
+    const { login } = useAuth(); // ดึง login จาก Context มาใช้ตรงๆ เพื่อ Login เลย
     const [formData, setFormData] = useState<RegisterFormState>(INITIAL_FORM_STATE);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
@@ -69,12 +71,18 @@ export default function RegisterPage() {
             const data = await brokerService.registerUser(payload);
             console.log('Registration success:', data);
 
-            // Save basic user info so onboarding can send it later
-            localStorage.setItem('simtrade_user', JSON.stringify({
-                email: payload.email,
-                name: payload.firstName
-            }));
+            // เมื่อสมัครเสร็จเราได้ UserAccount เต็มๆ มา ให้จับ Login อัตโนมัติทันที
+            const completeData = data as any;
+            login({
+                id: completeData.id || 0,
+                email: completeData.email || formData.email,
+                firstName: completeData.firstName || formData.firstName,
+                lastName: completeData.lastName || formData.lastName,
+                alpacaAccountId: completeData.alpacaAccountId,
+                name: completeData.firstName || formData.firstName, // backup
+            });
 
+            // พาเข้าตรงไปที่ Onboarding เลย แทนที่จะไปนั่งรอตรง Dashboard
             router.push('/onboarding');
         } catch (err: any) {
             console.error('Registration failed:', err);
@@ -168,6 +176,13 @@ export default function RegisterPage() {
                                 ) : 'Create Account'}
                                 {!isLoading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
                             </button>
+
+                            {/* แสดงข้อความเพิ่มเติมระหว่างที่ปุ่ม Loading เพื่อให้ผู้ใช้ทราบว่าอาจใช้เวลานาน */}
+                            {isLoading && (
+                                <p className="mt-3 text-center text-sm text-gold animate-pulse">
+                                    ระบบกำลังสร้างบัญชีและจัดสรรเงินทุน (อาจใช้เวลาสูงสุดถึง 30 วินาที)
+                                </p>
+                            )}
                         </div>
                     </form>
 

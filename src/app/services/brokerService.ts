@@ -180,7 +180,10 @@ export const brokerService = {
 
   // 3/9. สมัครสมาชิก (Create Account) (มีอยู่แล้ว ปรับให้ชัดเจนว่าคือข้อ 3)
   registerUser: async (payload: RegisterRequest) => {
-    const response = await apiClient.post<UserAccount>('/broker/create-account', payload);
+    // กำหนด Timeout ครอบไว้ 30 วินาทีตามกรณีที่อาจจะใช้เวลานานเพื่อ Retry ใน Backend
+    const response = await apiClient.post<UserAccount>('/broker/register', payload, {
+      timeout: 30000
+    });
     return response.data;
   },
 

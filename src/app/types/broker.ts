@@ -35,28 +35,28 @@ export interface BuyStockRequest {
 
 export interface Order {
   id: string;
-  clientOrderId: string;
-  createdAt: string;
-  updatedAt: string;
+  clientOrderId?: string;
+  createdAt?: string;
+  updatedAt?: string;
   submittedAt: string;
   filledAt: string | null;
-  assetId: string;
+  assetId?: string;
   symbol: string;
-  assetClass: string;
+  assetClass?: string;
   notional: number | null;
   qty: number | null;
-  filledQty: number;
-  filledAvgPrice: number | null;
-  orderClass: string | null;
+  filledQty: number | string;
+  filledAvgPrice: number | string | null;
+  orderClass?: string | null;
   orderType: string; // MARKET, LIMIT
-  type: string;
+  type?: string;
   side: string; // BUY, SELL
-  timeInForce: string;
-  limitPrice: number | null;
-  stopPrice: number | null;
+  timeInForce?: string;
+  limitPrice: number | string | null;
+  stopPrice?: number | string | null;
   status: string; // FILLED, CANCELED, etc.
-  extendedHours: boolean;
-  commission: number;
+  extendedHours?: boolean;
+  commission?: number | string;
 }
 
 export interface AccountInfo {
@@ -145,20 +145,6 @@ export interface CreateAccountRequest {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
-  streetAddress?: string[];
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  dateOfBirth?: string; // YYYY-MM-DD
-  taxId?: string;
-  taxIdType?: string;
-  countryOfCitizenship?: string;
-  countryOfBirth?: string;
-  countryOfTaxResidence?: string;
-  isControlPerson?: boolean;
-  isAffiliatedExchangeOrFinra?: boolean;
-  isPoliticallyExposed?: boolean;
-  immediateFamilyExposed?: boolean;
 }
 
 export interface RegisterRequest {

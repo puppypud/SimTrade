@@ -12,13 +12,15 @@ interface OrderDetailsModalProps {
     onClose: () => void;
 }
 
-const formatCurrency = (amount: number | null | undefined) => {
+const formatCurrency = (amount: number | string | null | undefined) => {
     if (amount === null || amount === undefined) return "-";
+    const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+    if (isNaN(num)) return "-";
     return new Intl.NumberFormat("en-US", {
         style: "currency",
         currency: "USD",
         minimumFractionDigits: 2,
-    }).format(amount);
+    }).format(num);
 };
 
 const formatDate = (dateString: string | null | undefined) => {
@@ -70,7 +72,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                 <div className="flex items-center justify-between px-6 py-4 border-b border-theme-border bg-background/50">
                     <div className="flex items-center gap-2">
                         <Search className="w-5 h-5 text-gold" />
-                        <h2 className="text-xl font-bold text-foreground">Order Details</h2>
+                        <h2 className="text-xl font-bold text-foreground">รายละเอียดคำสั่งซื้อ</h2>
                     </div>
                     <button
                         onClick={onClose}
@@ -104,8 +106,8 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                             <div className="flex items-center justify-between p-4 bg-background rounded-xl border border-theme-border">
                                 <div className="flex items-center gap-4">
                                     <div className={`p-3 rounded-full ${order.status === 'FILLED' ? 'bg-green-100 text-green-600' :
-                                            ['CANCELED', 'REJECTED', 'EXPIRED'].includes(order.status) ? 'bg-red-100 text-red-600' :
-                                                'bg-blue-100 text-blue-600'
+                                        ['CANCELED', 'REJECTED', 'EXPIRED'].includes(order.status) ? 'bg-red-100 text-red-600' :
+                                            'bg-blue-100 text-blue-600'
                                         }`}>
                                         {order.status === 'FILLED' ? <CheckCircle2 className="w-6 h-6" /> :
                                             ['CANCELED', 'REJECTED'].includes(order.status) ? <XCircle className="w-6 h-6" /> :
@@ -113,13 +115,13 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                                     </div>
                                     <div>
                                         <h3 className="text-2xl font-black text-foreground">{order.symbol}</h3>
-                                        <p className="text-sm text-muted font-medium">{order.assetClass.toUpperCase()} • {order.side}</p>
+                                        <p className="text-sm text-muted font-medium">{order.assetClass?.toUpperCase()} • {order.side}</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
                                     <span className={`px-3 py-1 text-sm font-bold rounded-full border ${order.status === 'FILLED' ? 'bg-green-50 text-green-700 border-green-200' :
-                                            ['CANCELED', 'REJECTED'].includes(order.status) ? 'bg-red-50 text-red-700 border-red-200' :
-                                                'bg-blue-50 text-blue-700 border-blue-200'
+                                        ['CANCELED', 'REJECTED'].includes(order.status) ? 'bg-red-50 text-red-700 border-red-200' :
+                                            'bg-blue-50 text-blue-700 border-blue-200'
                                         }`}>
                                         {order.status}
                                     </span>
@@ -127,44 +129,51 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                             </div>
 
                             {/* Data Grid */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                <InfoItem label="Order ID" value={order.id.split('-')[0] + '...'} title={order.id} />
-                                <InfoItem label="Client Order ID" value={order.clientOrderId.split('-')[0] + '...'} title={order.clientOrderId} />
-                                <InfoItem label="Order Type" value={order.orderType} />
-                                <InfoItem label="Time In Force" value={order.timeInForce} />
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                                <InfoItem label="เลขที่คำสั่งซื้อ (ID)" value={order.id.split('-')[0] + '...'} title={order.id} />
+                                {order.clientOrderId && <InfoItem label="Client Order ID" value={order.clientOrderId.split('-')[0] + '...'} title={order.clientOrderId} />}
+                                <InfoItem label="ประเภทคำสั่ง" value={order.orderType} />
+                                {order.timeInForce && <InfoItem label="ระยะเวลาคำสั่ง" value={order.timeInForce} />}
 
                                 <InfoItem
-                                    label="Target Quantity"
-                                    value={order.qty !== null ? order.qty.toString() : (order.notional ? 'Notional' : '-')}
+                                    label="จำนวนที่ตั้งไว้"
+                                    value={order.qty !== null ? order.qty.toString() : (order.notional ? 'ยอดเงิน (Notional)' : '-')}
                                 />
-                                <InfoItem label="Filled Quantity" value={order.filledQty.toString()} />
+                                <InfoItem label="จำนวนที่ได้" value={order.filledQty?.toString() || '0'} />
 
-                                <InfoItem label="Limit Price" value={formatCurrency(order.limitPrice)} />
-                                <InfoItem label="Stop Price" value={formatCurrency(order.stopPrice)} />
-                                <InfoItem label="Filled Avg Price" value={formatCurrency(order.filledAvgPrice)} />
+                                {formatCurrency(order.limitPrice) !== "-" && <InfoItem label="ราคา Limit" value={formatCurrency(order.limitPrice)} />}
+                                {formatCurrency(order.stopPrice) !== "-" && <InfoItem label="ราคา Stop" value={formatCurrency(order.stopPrice)} />}
+                                <InfoItem label="ราคาเฉลี่ย" value={formatCurrency(order.filledAvgPrice)} />
 
-                                <InfoItem label="Commission" value={formatCurrency(order.commission)} />
-                                <InfoItem label="Extended Hours" value={order.extendedHours ? "Yes" : "No"} />
-                                <InfoItem label="Asset ID" value={order.assetId.split('-')[0] + '...'} title={order.assetId} />
+                                <div className="flex flex-col">
+                                    <span className="text-xs text-muted font-medium mb-1">ค่าธรรมเนียม</span>
+                                    <span className="text-sm font-semibold text-red-500 truncate">
+                                        {formatCurrency(order.commission)}
+                                    </span>
+                                </div>
+                                {order.extendedHours !== undefined && <InfoItem label="นอกเวลาทำการ" value={order.extendedHours ? "ใช่" : "ไม่"} />}
+                                {order.assetId && <InfoItem label="Asset ID" value={order.assetId.split('-')[0] + '...'} title={order.assetId} />}
                             </div>
 
                             {/* Timestamps */}
-                            <div className="bg-background rounded-xl border border-theme-border p-4 mt-6">
-                                <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-3 flex items-center gap-1">
-                                    <Clock className="w-3 h-3" /> Timeline
+                            <div className="bg-background rounded-xl border border-theme-border p-5 mt-8">
+                                <h4 className="text-xs font-bold text-muted uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5" /> ไทม์ไลน์
                                 </h4>
-                                <div className="flex flex-col sm:flex-row sm:justify-between gap-3 text-sm">
+                                <div className="flex flex-wrap gap-8 text-sm">
+                                    {(order.createdAt && order.createdAt !== order.submittedAt) && (
+                                        <div>
+                                            <span className="text-muted block text-xs mb-1">สร้างเมื่อ</span>
+                                            <span className="font-medium text-foreground">{formatDate(order.createdAt)}</span>
+                                        </div>
+                                    )}
                                     <div>
-                                        <span className="text-muted block">Created</span>
-                                        <span className="font-medium text-foreground">{formatDate(order.createdAt)}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted block">Submitted</span>
+                                        <span className="text-muted block text-xs mb-1">ส่งคำสั่งเมื่อ</span>
                                         <span className="font-medium text-foreground">{formatDate(order.submittedAt)}</span>
                                     </div>
                                     {order.filledAt && (
                                         <div>
-                                            <span className="text-muted block">Filled</span>
+                                            <span className="text-muted block text-xs mb-1">สำเร็จเมื่อ</span>
                                             <span className="font-medium text-foreground">{formatDate(order.filledAt)}</span>
                                         </div>
                                     )}
@@ -181,7 +190,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                         onClick={onClose}
                         className="px-6 py-2 bg-theme-border hover:bg-gray-300 text-foreground font-medium rounded-lg transition-colors"
                     >
-                        Close
+                        ปิดหน้าต่าง
                     </button>
                 </div>
             </div>
