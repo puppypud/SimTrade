@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO } from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO, UserAnalyticsResult } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
 
@@ -238,6 +238,12 @@ export const brokerService = {
     const response = await apiClient.get('/broker/assets/info', {
       params: { symbol }
     });
+    return response.data;
+  },
+
+  // 10. ดึงข้อมูล Analytics ของผู้ใช้
+  getUserAnalytics: async (userId: number): Promise<UserAnalyticsResult> => {
+    const response = await apiClient.get(`/api/analytics/user/${userId}`);
     return response.data;
   }
 };

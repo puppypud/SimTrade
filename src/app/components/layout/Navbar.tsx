@@ -205,6 +205,9 @@ const Navbar = () => {
           <Link href="/tradecrypto" className="text-sm font-medium text-muted hover:text-foreground hover:bg-background px-3 py-2 rounded-md transition-all">
             Crypto
           </Link>
+          <Link href="/analytics" className="text-sm font-medium text-muted hover:text-foreground hover:bg-background px-3 py-2 rounded-md transition-all">
+            Analytics
+          </Link>
           <Link href="/admin" className="text-sm font-medium text-muted hover:text-foreground hover:bg-background px-3 py-2 rounded-md transition-all">
             Admin
           </Link>

@@ -215,3 +215,17 @@ export interface AdminActionResponse {
   success: boolean;
   message: string;
 }
+
+export interface UserAnalyticsResult {
+  traderType: string;         // ประเภทนักเทรด เช่น Scalper, Day Trader
+  totalClosedTrades: number;  // จำนวนไม้ที่เทรดจบแล้ว
+  primaryFeedback: string;    // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
+  recommendation: string;     // คำแนะนำแบบยาว
+  winRate: number;            // อัตราการชนะ (%)
+  totalRealizedPnL: number;   // กำไร/ขาดทุนสุทธิรวม (%)
+  averageWinPct: number;      // กำไรเฉลี่ยต่อไม้ที่ชนะ (%)
+  averageLossPct: number;     // ขาดทุนเฉลี่ยต่อไม้ที่แพ้ (%)
+  riskRewardRatio: number;    // สัดส่วน Risk:Reward
+  styleMatched: boolean;      // True = เล่นหุ้นถูกประเภทสายเทรด
+  profitable: boolean;        // True = ภาพรวมมีกำไร
+}
