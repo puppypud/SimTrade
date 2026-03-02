@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Order } from '@/src/app/types/broker';
 import CancelOrderButton from '@/src/app/components/features/cancelOrder';
 import OrderDetailsModal from '@/src/app/components/features/OrderDetailsModal';
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Eye } from 'lucide-react';
 
 const formatDate = (dateString: string) => {
@@ -116,7 +117,7 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded text-xs tracking-wide">
-                                                    {order.symbol}
+                                                    {formatSymbolDisplay(order.symbol)}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">

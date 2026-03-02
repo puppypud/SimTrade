@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { StockQuote } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Trash2, Plus, TrendingUp, TrendingDown, Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface WatchlistPanelProps {
     onSelectSymbol: (symbol: string) => void;
@@ -11,7 +13,7 @@ interface WatchlistPanelProps {
 }
 
 const SEVEN_ANGELS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
-const LOCAL_STORAGE_KEY = "simtrade_my_favorites";
+const GET_FAVORITES_KEY = (email?: string) => `simtrade_favorites_${email || 'guest'}`;
 
 // Mock Full Names for the layout
 const COMPANY_NAMES: Record<string, string> = {
@@ -25,27 +27,34 @@ const COMPANY_NAMES: Record<string, string> = {
 };
 
 export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: WatchlistPanelProps) {
+    const { user } = useAuth();
     const [favorites, setFavorites] = useState<string[]>([]);
     const [newFavorite, setNewFavorite] = useState("");
     const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
     const [loading, setLoading] = useState(true);
 
-    // Load favorites from local storage on mount
+    // Load favorites from local storage on mount or when user changes
     useEffect(() => {
+        if (!user) return;
         try {
-            const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+            const key = GET_FAVORITES_KEY(user.email);
+            const stored = localStorage.getItem(key);
             if (stored) {
                 setFavorites(JSON.parse(stored));
+            } else {
+                setFavorites([]); // Clear for new user if no stored data
             }
         } catch (e) {
             console.error("Failed to load favorites", e);
         }
-    }, []);
+    }, [user]);
 
     // Save favorites whenever it changes
     useEffect(() => {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(favorites));
-    }, [favorites]);
+        if (!user) return;
+        const key = GET_FAVORITES_KEY(user.email);
+        localStorage.setItem(key, JSON.stringify(favorites));
+    }, [favorites, user]);
 
     const fetchQuotes = useCallback(async () => {
         const allSymbols = [...new Set([...SEVEN_ANGELS, ...favorites])];
@@ -122,17 +131,10 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
 
         let percentChange = 0;
         if (quote) {
-            if (quote.openPrice) {
-                percentChange = ((quote.price - quote.openPrice) / quote.openPrice) * 100;
-            } else {
-                // Deterministic mock based on symbol and last price
-                const symVal = symbol.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-                const priceVal = Math.floor(quote.price) || 0;
-                const seed = symVal + priceVal;
-
-                // Generates a mock percentage between -5% and +5%
-                const mockRange = (seed % 1000) / 100;
-                percentChange = seed % 2 === 0 ? mockRange : -mockRange;
+            // Use prevClose for more accurate "Today's Change" relative to market open
+            const basePrice = quote.prevClose || quote.openPrice;
+            if (basePrice) {
+                percentChange = ((quote.price - basePrice) / basePrice) * 100;
             }
         }
 
@@ -191,7 +193,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
 
                 {/* 2. Logo Container (Mock) */}
                 <div className="w-6 h-6 rounded-full bg-background text-gold flex items-center justify-center text-[10px] font-bold mr-3 shrink-0">
-                    {symbol.charAt(0)}
+                    {formatSymbolDisplay(symbol).charAt(0)}
                 </div>
 
                 {/* 3. Name & Symbol Stack */}
@@ -200,7 +202,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         {fullName}
                     </span>
                     <span className="text-[11px] font-medium text-muted mt-0.5">
-                        {symbol}
+                        {formatSymbolDisplay(symbol)}
                     </span>
                 </div>
 

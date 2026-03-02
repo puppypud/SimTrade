@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation"; // Import router
 import { brokerService } from "@/src/app/services/brokerService";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Position } from "@/src/app/types/broker";
 import Image from "next/image";
 
@@ -109,10 +110,9 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
           <div
             key={pos.assetId}
             className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md 
-              ${
-                isExpanded
-                  ? "border-blue-400 ring-1 ring-blue-100 shadow-blue-100"
-                  : "border-gray-200"
+              ${isExpanded
+                ? "border-blue-400 ring-1 ring-blue-100 shadow-blue-100"
+                : "border-gray-200"
               }`}
           >
             {/* 1. Header Row */}
@@ -140,7 +140,7 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
                 </div>
                 <div>
                   <div className="font-bold text-gray-900 text-lg">
-                    {pos.symbol}
+                    {formatSymbolDisplay(pos.symbol)}
                   </div>
                   <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
                     {/* แก้ไขตรงนี้: เปลี่ยน exchange เป็น % Weight + Icon */}
@@ -195,9 +195,8 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
 
             {/* 2. Expanded Details */}
             <div
-              className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${
-                isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-              }`}
+              className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                }`}
             >
               <div className="p-6">
                 <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">

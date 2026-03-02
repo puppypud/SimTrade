@@ -203,12 +203,11 @@ export interface RegisterRequest {
 }
 
 export interface MarketStatus {
-  isOpen: boolean;
-  marketType: string;
+  status: string; // 'OPEN' | 'CLOSED' | 'MAINTENANCE'
+  isOpenForTrade: boolean;
+  message: string;
   nextOpen: string;
   nextClose: string;
-  isMaintenanceMode: boolean;
-  maintenanceMessage?: string;
 }
 
 export interface AdminActionResponse {

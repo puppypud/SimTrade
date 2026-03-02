@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { brokerService } from '@/src/app/services/brokerService';
 import { StockSearchDto } from '@/src/app/types/broker';
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 
 const SearchBar = () => {
     const router = useRouter();
@@ -107,7 +108,7 @@ const SearchBar = () => {
                                 className="px-4 py-2 hover:bg-background cursor-pointer flex justify-between items-center transition-colors"
                             >
                                 <div className="flex flex-col">
-                                    <span className="font-bold text-foreground">{result.symbol}</span>
+                                    <span className="font-bold text-foreground">{formatSymbolDisplay(result.symbol)}</span>
                                     <span className="text-xs text-muted truncate max-w-[200px]">{result.name}</span>
                                 </div>
                                 <span className="text-xs font-medium text-gold bg-gold/10 px-2 py-0.5 rounded">

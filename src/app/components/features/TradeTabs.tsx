@@ -8,6 +8,8 @@ import {
   AccountInfo,
   StockQuote,
 } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
+import MarketStatusBadge from "@/src/app/components/features/MarketStatusBadge";
 import { Star } from "lucide-react";
 import { useAuth } from "@/src/context/AuthContext";
 
@@ -230,7 +232,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       <div className="px-6 py-4 border-b border-theme-border bg-surface/50 flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-xl font-bold text-foreground tracking-tight">{symbol}</h2>
+            <h2 className="text-xl font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
             <button
               onClick={toggleFavorite}
               className="p-1 hover:bg-background rounded-full transition-colors"
@@ -240,6 +242,9 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
                 className={`w-5 h-5 ${isFavorite ? "text-gold fill-gold" : "text-muted"}`}
               />
             </button>
+            <div className="ml-2">
+              <MarketStatusBadge />
+            </div>
           </div>
 
           <div className="flex flex-col">
@@ -498,7 +503,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
               "Processing..."
             ) : (
               <>
-                {orderSide} {symbol}
+                {orderSide} {formatSymbolDisplay(symbol)}
                 <span className="opacity-80 font-normal ml-1">
                   (
                   {inputMode === "SHARES"

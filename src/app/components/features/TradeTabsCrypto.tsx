@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { AccountInfo } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Star } from "lucide-react";
 import { useAuth } from "@/src/context/AuthContext";
 
@@ -183,7 +184,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
         <div className="flex justify-between items-start mb-2">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-xl font-bold text-foreground tracking-tight">{symbol}</h2>
+              <h2 className="text-xl font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
               <button
                 onClick={toggleFavorite}
                 className="p-1 hover:bg-background rounded-full transition-colors"
@@ -286,7 +287,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
         {/* Amount Input */}
         <div>
           <label className="block text-xs font-semibold text-muted mb-1.5">
-            {inputMode === "COIN" ? `Quantity (${symbol.split('/')[0]})` : "Amount ($)"}
+            {inputMode === "COIN" ? `Quantity (${formatSymbolDisplay(symbol).split('/')[0]})` : "Amount ($)"}
           </label>
           <input
             type="number" min="0" step="any"
@@ -347,7 +348,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
               ${loading ? "bg-gray-400 cursor-not-allowed" : isBuy ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200" : "bg-red-600 hover:bg-red-500 shadow-red-200"}
             `}
           >
-            {loading ? "Processing..." : `${orderSide} ${symbol}`}
+            {loading ? "Processing..." : `${orderSide} ${formatSymbolDisplay(symbol)}`}
           </button>
         </div>
       </div>

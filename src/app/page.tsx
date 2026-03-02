@@ -6,6 +6,7 @@ import WatchlistPanel from '@/src/app/components/features/WatchlistPanel';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
 import ImageBannerCarousel from '@/src/app/components/features/ImageBannerCarousel';
 import { useAuth } from '@/src/context/AuthContext';
+import { brokerService } from '@/src/app/services/brokerService';
 import { useState, useEffect } from 'react';
 
 export default function DashboardPage() {
@@ -25,12 +26,11 @@ function DashboardContent() {
 
     useEffect(() => {
         if (user && user.alpacaAccountId) {
-            fetch(`http://localhost:8080/broker/account/${user.alpacaAccountId}`)
-                .then(res => res.json())
+            brokerService.getAccountInfo(user.alpacaAccountId)
                 .then(data => {
-                    // Update state using the data returned from Alpaca
-                    setPortfolioValue(data.equity || 0);
-                    setBuyingPower(data.buying_power || 0);
+                    // Update state using the data returned from Alpaca via BrokerService
+                    setPortfolioValue(Number(data.equity) || 0);
+                    setBuyingPower(Number(data.buyingPower) || 0);
                 })
                 .catch(err => {
                     console.error("Failed to fetch account info:", err);
@@ -52,10 +52,6 @@ function DashboardContent() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between px-2 mb-6 gap-4">
                     <div className="flex items-center gap-4">
                         <h1 className="text-3xl font-bold text-foreground tracking-tight">Market Overview</h1>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                            Market Open
-                        </span>
                     </div>
 
                     {/* Mock Portfolio Summary Widget */}
