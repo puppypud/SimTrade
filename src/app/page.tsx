@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import WatchlistPanel from '@/src/app/components/features/WatchlistPanel';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
 import ImageBannerCarousel from '@/src/app/components/features/ImageBannerCarousel';
+import RecommendedStocksPanel from '@/src/app/components/features/RecommendedStocksPanel';
 import { useAuth } from '@/src/context/AuthContext';
 import { brokerService } from '@/src/app/services/brokerService';
 import { useState, useEffect } from 'react';
@@ -82,7 +83,9 @@ function DashboardContent() {
                     </div>
 
                     {/* Dashboard Content Area */}
-                    <div className="w-full mt-2">
+                    <div className="w-full mt-2 flex flex-col gap-6">
+                        <RecommendedStocksPanel />
+
                         <WatchlistPanel
                             onSelectSymbol={(sym) => router.push(`/trade?symbol=${sym}`)}
                         />

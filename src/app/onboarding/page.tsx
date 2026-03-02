@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Target, AlertTriangle, Briefcase, MessagesSquare, CheckCircle2, ChevronRight, ChevronLeft, Flag } from 'lucide-react';
 import Link from 'next/link';
 import { brokerService } from '../services/brokerService';
+import RecommendedStocksPanel from '../components/features/RecommendedStocksPanel';
 
 interface Question {
     id: string;
@@ -377,6 +378,7 @@ export default function OnboardingPage() {
     const [identity, setIdentity] = useState('');
     const [detectedBehaviors, setDetectedBehaviors] = useState<RiskBehaviorDef[]>([]);
     const [stockPicking, setStockPicking] = useState('');
+    const [recommendedStocks, setRecommendedStocks] = useState<string[]>([]);
     const [advice, setAdvice] = useState('');
 
     const handleSelectOption = (questionId: string, value: string) => {
@@ -427,18 +429,23 @@ export default function OnboardingPage() {
 
         let traderIdentity = '';
         let traderStock = '';
+        let recommended: string[] = [];
         if (p1Result === 'A') {
             traderIdentity = 'Scalper';
-            traderStock = 'หุ้นที่มีสภาพคล่องสูงมาก มีความผันผวนสูงในกรอบสั้นๆ';
+            traderStock = 'หุ้นกลุ่มเก็งกำไร (Speculative) ที่มีการแกว่งตัวของราคาสูง';
+            recommended = ['MSTR', 'COIN', 'MARA'];
         } else if (p1Result === 'B') {
             traderIdentity = 'Day Trader';
-            traderStock = 'หุ้นที่มีวอลุ่มเข้าในวันนั้นๆ และจับจังหวะสวิงในวันดักข่าวสาร';
+            traderStock = 'หุ้นที่มีวอลุ่มและจับจังหวะสวิงในกลุ่มกระแส (Trending)';
+            recommended = ['NVDA', 'TSLA', 'NFLX'];
         } else if (p1Result === 'C') {
             traderIdentity = 'Swing Trader';
-            traderStock = 'หุ้นวัฏจักร (Cyclical Stocks) หรือหุ้นที่ติดแนวรับแนวต้านชัดเจน เช่น PTT, TOP, IVL';
+            traderStock = 'หุ้นวัฏจักร (Cyclical) หรือกลุ่มเล่นรอบ (Swing) ที่ติดแนวรับแนวต้านชัดเจน';
+            recommended = ['JPM', 'DIS', 'NKE'];
         } else {
             traderIdentity = 'Position Trader / Investor';
-            traderStock = 'หุ้น Blue Chip หรือหุ้นพื้นฐานดีที่มีปันผลสม่ำเสมอ เช่น กลุ่มธนาคาร พลังงาน โครงสร้างพื้นฐาน';
+            traderStock = 'หุ้น Blue Chip หรือกลุ่มมั่นคง (Stable) ที่มีพื้นฐานดีทนทานต่อตลาด';
+            recommended = ['KO', 'WMT', 'LLY'];
         }
 
         // ===== Part 2: Risk Behavior Detection =====
@@ -459,6 +466,7 @@ export default function OnboardingPage() {
 
         setIdentity(traderIdentity);
         setStockPicking(traderStock);
+        setRecommendedStocks(recommended);
         setDetectedBehaviors(detected);
         setAdvice(adviceText);
 
@@ -488,6 +496,7 @@ export default function OnboardingPage() {
 
         // Save flag to local storage denoting onboarding is complete
         localStorage.setItem('simtrade_onboarded', 'true');
+        localStorage.setItem('simtrade_identity', identity);
         // Redirect to Home page so they can actually use the system
         router.push('/');
     };
@@ -502,69 +511,56 @@ export default function OnboardingPage() {
                         <p className="mt-2 text-lg text-muted">ผลลัพธ์ต่อไปนี้ถูกประมวลผลจากคำตอบของคุณเพื่อปรับแต่งกลยุทธ์ที่เหมาะสม</p>
                     </div>
 
-                    {/* Row 1: Identity + Stock Picking */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-10">
-                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-blue-500/10 rounded-xl">
-                                    <Target className="w-6 h-6 text-blue-500" />
+                    {/* Row 1: Stock Picking Strategy (Core Feature) */}
+                    <RecommendedStocksPanel identityProps={identity} />
+
+                    {/* Row 2: Grid for Risk & Advice */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+
+                        {/* Risk Behaviors Section */}
+                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm flex flex-col">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-red-500/10 rounded-xl">
+                                    <AlertTriangle className="w-6 h-6 text-red-500" />
                                 </div>
-                                <h3 className="text-lg font-bold text-foreground">Identity Profile</h3>
-                            </div>
-                            <p className="text-foreground text-2xl font-extrabold">{identity}</p>
-                        </div>
-
-                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="p-3 bg-emerald-500/10 rounded-xl">
-                                    <Briefcase className="w-6 h-6 text-emerald-500" />
+                                <div>
+                                    <h3 className="text-lg font-bold text-foreground">Risk Behavior Analysis</h3>
+                                    <p className="text-xs text-muted">พฤติกรรมเสี่ยงที่ตรวจพบ</p>
                                 </div>
-                                <h3 className="text-lg font-bold text-foreground">Stock Picking Strategy</h3>
                             </div>
-                            <p className="text-foreground text-lg leading-relaxed"><span className="font-semibold">กลุ่มหุ้นที่เหมาะกับคุณ: </span>{stockPicking}</p>
-                        </div>
-                    </div>
 
-                    {/* Risk Behaviors Section */}
-                    <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm">
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-red-500/10 rounded-xl">
-                                <AlertTriangle className="w-6 h-6 text-red-500" />
-                            </div>
-                            <div>
-                                <h3 className="text-lg font-bold text-foreground">Risk Behavior Analysis</h3>
-                                <p className="text-sm text-muted">พฤติกรรมเสี่ยงที่ตรวจพบจากคำตอบของคุณ</p>
-                            </div>
-                        </div>
-
-                        {detectedBehaviors.length === 0 ? (
-                            <div className="text-center py-8">
-                                <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-3" />
-                                <p className="text-lg font-semibold text-emerald-500">ไม่พบพฤติกรรมเสี่ยง!</p>
-                                <p className="text-muted mt-1">คุณมีวินัยในการเทรดที่ดีมาก</p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {detectedBehaviors.map((behavior, idx) => (
-                                    <div key={behavior.key} className="border border-red-500/30 bg-red-500/5 rounded-xl p-5 animate-in fade-in slide-in-from-bottom-2" style={{ animationDelay: `${idx * 100}ms` }}>
-                                        <h4 className="font-bold text-red-400 text-base mb-1">{behavior.englishName}</h4>
-                                        <p className="text-sm font-semibold text-foreground mb-2">{behavior.thaiName}</p>
-                                        <p className="text-sm text-muted leading-relaxed">{behavior.description}</p>
+                            <div className="flex-1">
+                                {detectedBehaviors.length === 0 ? (
+                                    <div className="text-center py-8 h-full flex flex-col items-center justify-center">
+                                        <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-500 mb-3" />
+                                        <p className="text-lg font-semibold text-emerald-500">ไม่พบพฤติกรรมเสี่ยง!</p>
+                                        <p className="text-muted mt-1 text-sm">คุณมีวินัยในการเทรดที่ดีมาก</p>
                                     </div>
-                                ))}
+                                ) : (
+                                    <div className="space-y-3">
+                                        {detectedBehaviors.map((behavior, idx) => (
+                                            <div key={behavior.key} className="border-l-4 border-red-500 bg-background rounded-r-xl p-4 shadow-sm" style={{ animationDelay: `${idx * 100}ms` }}>
+                                                <h4 className="font-bold text-foreground text-sm mb-1">{behavior.thaiName}</h4>
+                                                <p className="text-xs text-muted leading-relaxed">{behavior.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-
-                    {/* Advice */}
-                    <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="p-3 bg-gold/10 rounded-xl">
-                                <MessagesSquare className="w-6 h-6 text-gold" />
-                            </div>
-                            <h3 className="text-lg font-bold text-foreground">Personalized Advice</h3>
                         </div>
-                        <p className="text-foreground text-lg leading-relaxed font-medium">คำแนะนำ: {advice}</p>
+
+                        {/* Advice Section */}
+                        <div className="bg-surface border border-theme-border rounded-2xl p-6 shadow-sm flex flex-col">
+                            <div className="flex items-center gap-3 mb-6">
+                                <div className="p-3 bg-blue-500/10 rounded-xl">
+                                    <MessagesSquare className="w-6 h-6 text-blue-500" />
+                                </div>
+                                <h3 className="text-lg font-bold text-foreground">Personalized Advice</h3>
+                            </div>
+                            <div className="flex-1 flex items-center justify-center bg-background rounded-xl p-6 border border-theme-border/50 text-center">
+                                <p className="text-foreground text-base leading-relaxed font-medium">"{advice}"</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="flex justify-center mt-12">
