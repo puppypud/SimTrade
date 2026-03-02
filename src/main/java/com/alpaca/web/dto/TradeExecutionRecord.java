@@ -10,4 +10,12 @@ public class TradeExecutionRecord {
     private Duration holdingPeriod; // ระยะเวลาที่ถือครอง (หักลบระหว่างเวลาซื้อ-เวลาขาย)
     private boolean isOvernight; // ถือข้ามคืนหรือไม่
     private BigDecimal realizedProfitPercentage; // กำไร/ขาดทุนของไม้นี้เป็น %
+
+    // ข้อมูลจาก Order ขา Buy เพื่อใช้คำนวณ FOMO
+    private BigDecimal rsiAtBuy;
+    private BigDecimal priceChangeBeforeBuy;
+
+    // ข้อมูลจาก Order ขา Sell เพื่อใช้คำนวณ Panic Sell
+    private BigDecimal rsiAtSell;
+    private BigDecimal priceChangeBeforeSell;
 }

@@ -63,7 +63,12 @@ public class UserAnalyticsService {
         String traderType = classifyTraderType(closedTrades);
 
         // 3. วิเคราะห์เชิงลึกและส่งผลลัพธ์กลับ
-        return performDeepAnalytics(traderType, closedTrades);
+        UserAnalyticsResult result = performDeepAnalytics(traderType, closedTrades);
+
+        // 4. วิเคราะห์พฤติกรรมเสี่ยง (แทรกเพิ่มตรงนี้)
+        analyzeRiskBehaviors(result, closedTrades, orders);
+
+        return result;
     }
 
     // ==========================================
@@ -358,5 +363,135 @@ public class UserAnalyticsService {
                             "คำแนะนำ: หยุดเทรดชั่วคราว ทบทวนตัวเอง และเมื่อพร้อมให้กลับมาเริ่มใหม่กับหุ้นกลุ่ม %s เท่านั้น",
                     type, category, suggestedCat));
         }
+    }
+    //วิเคราะห์พฤติกรมมเสี่ยง
+    private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades, List<OrderHistory> allOrders) {
+        if (trades.isEmpty() && allOrders.isEmpty()) return;
+        // 1. กำหนด Rolling Window (วิเคราะห์แค่ 50 รายการล่าสุด)
+        final int RECENT_WINDOW = 50;
+        // --- จุดแก้ไขที่ 1: จำกัดข้อมูลแค่ 50 ไม้ล่าสุด และกลับด้านให้อ่านจากเก่าไปใหม่ ---
+        List<TradeExecutionRecord> recentTrades = trades.stream()
+                .limit(RECENT_WINDOW)
+                .collect(Collectors.toList());
+        Collections.reverse(recentTrades);
+
+        List<OrderHistory> recentOrders = allOrders.stream()
+                .limit(RECENT_WINDOW * 2) // ออเดอร์มีทั้ง Buy/Sell เลยดึงเผื่อไว้
+                .collect(Collectors.toList());
+        Collections.reverse(recentOrders);
+
+        // --- จุดแก้ไขที่ 2: เปลี่ยนจากการนับจำนวน (Count) เป็นคะแนน (Score) เริ่มที่ 0 ---
+        double fomoScore = 0.0;
+        double panicScore = 0.0;
+        double earlySellScore = 0.0;
+        double holdLoserScore = 0.0;
+
+        // 2. วิเคราะห์จากประวัติไม้ที่ปิดไปแล้ว (Closed Trades)
+        for (TradeExecutionRecord t : recentTrades) {
+            double pnl = t.getRealizedProfitPercentage().doubleValue();
+            long holdingHours = t.getHoldingPeriod().toHours();
+            long holdingDays = t.getHoldingPeriod().toDays();
+
+            // อาการขายหุ้นที่ได้กำไรเร็วเกินไป (Selling Winners Too Early)
+            if (!"Scalper".equalsIgnoreCase(result.getTraderType())) {
+                if (pnl > 0 && pnl < 2.0 && holdingHours < 24) {
+                    earlySellScore += 15.0;  // อาการกำเริบ: เพิ่มคะแนนความเสี่ยง
+                } else if (pnl > 5.0 && holdingHours > 48) {
+                    earlySellScore -= 10.0;  // ทำได้ดี: ทนรวยได้ ลบคะแนนความเสี่ยง
+                }
+            }
+
+            // อาการถือหุ้นที่ขาดทุนนานเกินไป (Holding Losers Too Long)
+            if (pnl <= -10.0 && holdingDays > 14) {
+                holdLoserScore += 20.0; // อาการกำเริบ: ทนดอยจนพัง เพิ่มคะแนนรุนแรง
+            } else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3) {
+                holdLoserScore -= 10.0; // ทำได้ดี: ยอม Cut Loss ไว ลบคะแนนให้
+            }
+
+            // --- จุดแก้ไขที่ 3: คุมคะแนนให้อยู่ในกรอบ 0 - 100 เสมอ ---
+            earlySellScore = Math.max(0, Math.min(100, earlySellScore));
+            holdLoserScore = Math.max(0, Math.min(100, holdLoserScore));
+        }
+
+        // 3. วิเคราะห์จากจังหวะการเข้าออกออเดอร์ (Order Level)
+        for (OrderHistory order : recentOrders) {
+            // *** จำเป็นต้องดึงข้อมูลตลาด ณ เวลานั้นมาประกอบ ***
+            double rsi = getMarketRsiAtTime(order.getSymbol(), order.getFilledAt());
+            double priceChangePct = getPriceChangeBeforeTrade(order.getSymbol(), order.getFilledAt());
+
+            if ("buy".equalsIgnoreCase(order.getSide())) {
+                // อาการกลัวพลาดโอกาส (FOMO)
+                if (priceChangePct > 5.0 && rsi > 70.0) {
+                    fomoScore += 15.0; // ไล่ซื้อยอดดอย เพิ่มคะแนน
+                } else if (rsi < 45.0) {
+                    fomoScore -= 10.0; // ซื้อตอนราคาย่อตัว ถือว่าทำได้ดี ลบคะแนน
+                }
+                fomoScore = Math.max(0, Math.min(100, fomoScore));
+
+            } else if ("sell".equalsIgnoreCase(order.getSide())) {
+                // อาการขายแบบตื่นตระหนก (Panic Sell)
+                if (priceChangePct < -5.0 && rsi < 30.0) {
+                    panicScore += 15.0; // ตกใจขายทิ้งก้นเหว เพิ่มคะแนน
+                } else if (rsi > 55.0) {
+                    panicScore -= 10.0; // ขายทำกำไรปกติ ลบคะแนน
+                }
+                panicScore = Math.max(0, Math.min(100, panicScore));
+            }
+        }
+
+        // --- จุดแก้ไขที่ 4: บันทึกผลลง Result เลย (ไม่ต้องเอาไปหาร Total แล้ว เพราะเป็น Score 0-100 โดยตรง) ---
+        result.setFomoScore(fomoScore);
+        result.setFomoStatus(evaluateRiskLevel(fomoScore));
+
+        result.setPanicSellScore(panicScore);
+        result.setPanicSellStatus(evaluateRiskLevel(panicScore));
+
+        result.setSellingWinnersTooEarlyScore(earlySellScore);
+        result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(earlySellScore));
+
+        result.setHoldingLosersTooLongScore(holdLoserScore);
+        result.setHoldingLosersTooLongStatus(evaluateRiskLevel(holdLoserScore));
+
+        generateBehavioralFeedback(result);
+    }
+
+    private String evaluateRiskLevel(double score) {
+        if (score >= 80.0) return "พฤติกรรมเสี่ยง";
+        if (score >= 60.0) return "มีแนวโน้ม";
+        return "ปกติ";
+    }
+
+    private void generateBehavioralFeedback(UserAnalyticsResult result) {
+        List<String> feedbacks = new ArrayList<>();
+        if ("พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
+            feedbacks.add("คุณมีภาวะ FOMO สูง มักเข้าซื้อตอนที่ราคาพุ่งไปแล้ว เสี่ยงต่อการติดดอย");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getPanicSellStatus())) {
+            feedbacks.add("คุณมีภาวะ Panic Sell มักเทขายหุ้นในจังหวะที่ตลาดตกใจสุดขีด ซึ่งมักจะเป็นจุดต่ำสุดของรอบ");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
+            feedbacks.add("คุณขายหมูบ่อยเกินไป (Selling Winners Too Early) รีบขายทั้งที่เทรนด์ยังไปต่อได้ ทำให้ Risk/Reward ไม่คุ้มค่า");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
+            feedbacks.add("คุณทนถือหุ้นขาดทุนนานเกินไป (Holding Losers Too Long) ควรตั้งจุด Stop Loss อย่างเคร่งครัด");
+        }
+
+        if (!feedbacks.isEmpty()) {
+            result.setBehavioralFeedback(String.join(" | ", feedbacks));
+        } else {
+            result.setBehavioralFeedback("การควบคุมอารมณ์ในการเทรดอยู่ในเกณฑ์ดี ไม่มีพฤติกรรมเสี่ยงที่ชัดเจน");
+        }
+    }
+
+    private double getMarketRsiAtTime(String symbol, java.time.Instant time) {
+        // TODO: ในงานจริง ต้องไปดึงข้อมูล K-Line จาก AlpacaMarketDataAPI ก่อนหน้า 'time' 14 วัน/ชั่วโมง มาคำนวณ RSI
+        // คืนค่าจำลองไปก่อน เพื่อให้ระบบทำงานได้
+        return 50.0;
+    }
+
+    private double getPriceChangeBeforeTrade(String symbol, java.time.Instant time) {
+        // TODO: ในงานจริง ต้องคำนวณ % เปลี่ยนแปลงของราคา (เช่น ใน 24 ชั่วโมงที่ผ่านมา)
+        // คืนค่าจำลองไปก่อน
+        return 0.0;
     }
 }

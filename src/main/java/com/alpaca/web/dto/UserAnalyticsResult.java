@@ -5,6 +5,7 @@ import java.time.Duration;
 
 @Data
 public class UserAnalyticsResult {
+
     private String traderType;         // ประเภทนักเทรด เช่น Scalper, Day Trader
     private int totalClosedTrades;     // จำนวนไม้ที่เทรดจบแล้ว (ซื้อและขายครบ)
     private String primaryFeedback;    // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
@@ -20,4 +21,20 @@ public class UserAnalyticsResult {
     // ข้อมูลสำหรับ Rule Engine (True/False)
     private boolean styleMatched;      // True = เล่นหุ้นถูกประเภทสายเทรด (Lombok จะสร้างเมธอด setStyleMatched() ให้)
     private boolean profitable;        // True = ภาพรวมมีกำไร (Lombok จะสร้างเมธอด setProfitable() ให้)
+
+    // --- ข้อมูล Behavioral Risk Analysis ---
+    private double fomoScore;
+    private String fomoStatus; // "ปกติ", "มีแนวโน้ม", "พฤติกรรมเสี่ยง"
+
+    private double sellingWinnersTooEarlyScore;
+    private String sellingWinnersTooEarlyStatus;
+
+    private double holdingLosersTooLongScore;
+    private String holdingLosersTooLongStatus;
+
+    private double panicSellScore;
+    private String panicSellStatus;
+
+    // คำแนะนำเพิ่มเติมสำหรับพฤติกรรมเสี่ยง
+    private String behavioralFeedback;
 }
