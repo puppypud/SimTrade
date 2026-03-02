@@ -245,5 +245,13 @@ export const brokerService = {
   getUserAnalytics: async (userId: number): Promise<UserAnalyticsResult> => {
     const response = await apiClient.get(`/api/analytics/user/${userId}`);
     return response.data;
+  },
+
+  // 11. อัปเดตประเภทนักเทรดของผู้ใช้ (เปลี่ยนสาย)
+  updateTraderType: async (email: string, traderType: string): Promise<any> => {
+    const response = await apiClient.put('/broker/user/trader-type', null, {
+      params: { email, traderType }
+    });
+    return response.data;
   }
 };

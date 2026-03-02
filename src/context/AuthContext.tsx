@@ -9,6 +9,7 @@ export interface User {
     firstName?: string;
     lastName?: string;
     alpacaAccountId?: string;
+    traderType?: string;  // ประเภทนักเทรดที่ผู้ใช้เลือกตอน Onboarding (Pre-Test)
     name?: string; // keeping name for backwards compatibility
 }
 
@@ -17,6 +18,7 @@ interface AuthContextType {
     user: User | null;
     login: (userData: User) => void;
     logout: () => void;
+    updateUser: (updates: Partial<User>) => void;  // อัปเดตข้อมูล User บางส่วน (เช่น traderType)
     isLoading: boolean;
 }
 
@@ -50,8 +52,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.removeItem('simtrade_user');
     };
 
+    const updateUser = (updates: Partial<User>) => {
+        setUser(prev => {
+            if (!prev) return prev;
+            const updated = { ...prev, ...updates };
+            localStorage.setItem('simtrade_user', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, login, logout, updateUser, isLoading }}>
             {children}
         </AuthContext.Provider>
     );
