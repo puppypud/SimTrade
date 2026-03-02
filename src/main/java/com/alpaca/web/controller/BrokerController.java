@@ -4,6 +4,7 @@ import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.Service.StockAnalysisService;
+import com.alpaca.web.Service.UserAnalyticsService;
 import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
@@ -33,6 +34,7 @@ public class BrokerController {
     private final AccountRepository accountRepository;
     private final StockAnalysisService stockAnalysisService;
     private final OrderHistoryRepository orderHistoryRepository;
+
     //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository, StockAnalysisService stockAnalysisService, StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository) {
         this.brokerService = brokerService;
@@ -40,6 +42,7 @@ public class BrokerController {
         this.accountRepository = accountReapository;
         this.stockAnalysisService = stockAnalysisService1;
         this.orderHistoryRepository = orderHistoryRepository;
+
     }
 
 
@@ -529,4 +532,5 @@ public class BrokerController {
         // 3. ตอบกลับหน้าบ้านทันที ให้ Frontend พา User เด้งไปหน้า Quiz ได้เลย
         return ResponseEntity.ok(newUser);
     }
+
 }
