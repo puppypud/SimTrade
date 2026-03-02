@@ -61,10 +61,6 @@ public class UserAnalyticsService {
         List<TradeExecutionRecord> closedTrades = matchTradesFIFO(orders);
 
         String traderType = classifyTraderType(closedTrades);
-        UserAccount user = accountRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        user.setTraderType(traderType); // อัปเดต Label ล่าสุด
-        accountRepository.save(user); // บันทึกลงตาราง user_account
 
         // 3. วิเคราะห์เชิงลึกและส่งผลลัพธ์กลับ
         return performDeepAnalytics(traderType, closedTrades);
