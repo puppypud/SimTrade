@@ -108,22 +108,22 @@ public class MarketDataService {
 
             case "5D":
                 timeframe = "15Min";
-                startTime = targetOpen.minusDays(5);
+                startTime = targetOpen.minusDays(8); // ถอยไป 8 วันเผื่อเสาร์อาทิตย์ เพื่อให้ได้ 5 วันทำการเต็มๆ
                 break;
 
             case "1M":
                 timeframe = "1Day";
-                startTime = targetOpen.minusMonths(1);
+                startTime = targetOpen.minusMonths(1).minusDays(3); // เผื่อ buffer 3 วัน
                 break;
 
             case "6M":
                 timeframe = "1Day";
-                startTime = targetOpen.minusMonths(6);
+                startTime = targetOpen.minusMonths(6).minusDays(5);
                 break;
 
             case "1Y":
                 timeframe = "1Day";
-                startTime = targetOpen.minusYears(1);
+                startTime = targetOpen.minusYears(1).minusDays(7);
                 break;
 
             case "5Y":
