@@ -1,9 +1,11 @@
 package com.alpaca.web.controller;
 
+import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.Service.BrokerService;
 import com.alpaca.web.Service.MarketDataService;
 import com.alpaca.web.Service.StockAnalysisService;
 import com.alpaca.web.dto.*;
+import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
@@ -30,12 +32,14 @@ public class BrokerController {
     private final MarketDataService marketDataService; // เพิ่มตัวแปร Service
     private final AccountRepository accountRepository;
     private final StockAnalysisService stockAnalysisService;
+    private final OrderHistoryRepository orderHistoryRepository;
     //เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
-    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository, StockAnalysisService stockAnalysisService, StockAnalysisService stockAnalysisService1) {
+    public BrokerController(BrokerService brokerService, MarketDataService marketDataService, AccountRepository accountReapository, StockAnalysisService stockAnalysisService, StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
         this.stockAnalysisService = stockAnalysisService1;
+        this.orderHistoryRepository = orderHistoryRepository;
     }
 
 
@@ -142,20 +146,30 @@ public class BrokerController {
     public ResponseEntity<?> getSingleOrder(
             @RequestParam("accountId") UUID accountId,
             @PathVariable("orderId") String orderId) {
+
         try {
-            Order order = brokerService.getSingleOrder(accountId, orderId);
+            // ดึงข้อมูลจาก Database โดยตรง
+            Optional<OrderHistory> orderOpt = orderHistoryRepository.findById(orderId);
 
-            // ✅ คำนวณรวบยอด Fee เข้าไปให้ด้วย
-            if (order.getFilledAvgPrice() != null && order.getFilledQty() != null) {
-                BigDecimal totalCost = order.getFilledAvgPrice().multiply(order.getFilledQty());
-                BigDecimal fee = totalCost.multiply(BigDecimal.valueOf(0.025)).setScale(2, RoundingMode.HALF_UP);
-                order.setCommission(fee);
+            if (orderOpt.isPresent()) {
+                OrderHistory order = orderOpt.get();
+
+                // เช็คความปลอดภัย: ตรวจสอบว่าออร์เดอร์นี้เป็นของ Account ID ที่ส่งมาจริงๆ หรือไม่
+                if (!order.getUserAccount().getAlpacaAccountId().equals(accountId.toString())) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("❌ ไม่ได้รับอนุญาตให้ดูออร์เดอร์นี้");
+                }
+
+                return ResponseEntity.ok(order);
+            } else {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("❌ Order ID: " + orderId + " ไม่พบในฐานข้อมูลระบบ");
             }
-
-            return ResponseEntity.ok(order);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("❌ Order ID: " + orderId + " not found.");
+            log.error("Error retrieving order {}", orderId, e);
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
         }
+
     }
 
     @GetMapping("/order/get/all-order")
@@ -168,28 +182,13 @@ public class BrokerController {
     ) {
 
         try {
-            List<Order> orders = brokerService.getAllOrders(accountId, status, limit, symbols);
-            for (Order order : orders) {
-                // เช็คว่า Order นี้มีการซื้อขายจริงไหม (มีราคาและจำนวนที่ Fill แล้ว)
-                if (order.getFilledAvgPrice() != null && order.getFilledQty() != null) {
-
-                    // คำนวณยอดรวม: ราคาเฉลี่ย x จำนวนที่ได้
-                    BigDecimal totalCost = order.getFilledAvgPrice().multiply(order.getFilledQty());
-
-                    // คำนวณ Fee 2.5%
-                    BigDecimal fee = totalCost.multiply(BigDecimal.valueOf(0.025));
-
-                    // ปัดเศษให้เหลือ 2 ตำแหน่ง (กันทศนิยมยาวเกิน)
-                    fee = fee.setScale(2, RoundingMode.HALF_UP);
-
-                    // ✅ ยัดไส้ค่า Fee ลงไปในช่อง 'commission' ของ Object เลย
-                    order.setCommission(fee);
-                }
-            }
+            List<OrderHistory> orders = orderHistoryRepository
+                    .findByUserAccount_AlpacaAccountIdOrderByCreatedAtDesc(accountId.toString());
             return ResponseEntity.ok(orders);
         } catch (Exception e) {
-            log.error("Failed to get all orders for account {}", accountId, e);
-            return ResponseEntity.internalServerError().body("❌ Failed to retrieve orders. Error: " + e.getMessage());
+            log.error("Failed to get all orders from database for account {}", accountId, e);
+            return ResponseEntity.internalServerError()
+                    .body("❌ Failed to retrieve orders from database. Error: " + e.getMessage());
         }
 
     }

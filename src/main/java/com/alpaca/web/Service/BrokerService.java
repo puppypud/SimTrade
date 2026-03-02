@@ -170,9 +170,10 @@ public class BrokerService {
                             historyToSave.setSide(order.getSide() != null ? order.getSide().name() : null);
                             historyToSave.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
 
-                            historyToSave
-                                    .setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
+                            historyToSave.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
                             historyToSave.setQty(order.getQty());
+                            historyToSave.setNotional(order.getNotional());
+                            historyToSave.setLimitPrice(order.getLimitPrice());
                             if (order.getCreatedAt() != null) {
                                 historyToSave.setCreatedAt(order.getCreatedAt().toInstant());
                             }
@@ -602,14 +603,14 @@ public class BrokerService {
         trade.setOrderId(order.getId() != null ? order.getId().toString() : null);
         trade.setUserAccount(currentUser);
         trade.setSymbol(order.getSymbol());
-
         trade.setAssetClass(order.getAssetClass() != null ? order.getAssetClass().name() : null);
         trade.setSide(order.getSide() != null ? order.getSide().name() : null);
         trade.setType(order.getOrderType() != null ? order.getOrderType().name() : null);
         trade.setStatus(order.getStatus() != null ? order.getStatus().name() : null);
-
-        // สมมติว่าใน OrderHistory ของคุณ Qty ยังเป็น String อยู่ (แม้จะไม่แนะนำก็ตาม)
         trade.setQty(order.getQty());
+        trade.setNotional(order.getNotional());
+        trade.setLimitPrice(order.getLimitPrice());
+        // สมมติว่าใน OrderHistory ของคุณ Qty ยังเป็น String อยู่ (แม้จะไม่แนะนำก็ตาม)
         trade.setFilledQty(order.getFilledQty());
         trade.setFilledAvgPrice(order.getFilledAvgPrice());
         trade.setCommission(order.getCommission());
@@ -621,7 +622,6 @@ public class BrokerService {
         if (order.getFilledAt() != null) {
             trade.setFilledAt(order.getFilledAt().toInstant());
         }
-
         // บันทึกลง Database
         orderHistoryRepository.save(trade);
     }
