@@ -1,9 +1,9 @@
 package com.alpaca.web.controller;
+
 import com.alpaca.web.Service.UserAnalyticsService;
 import com.alpaca.web.dto.UserAnalyticsResult;
 import com.alpaca.web.dto.TradeExecutionRecord;
 import org.springframework.http.ResponseEntity;
-import com.alpaca.web.Service.UserAnalyticsService;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
