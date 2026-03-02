@@ -38,6 +38,7 @@ const Navbar = () => {
     { name: 'History', href: '/History' },
     { name: 'Portfolio', href: '/PortfolioTrader' },
     { name: 'Crypto', href: '/tradecrypto' },
+    { name: 'Analytics', href: '/analytics' },
     { name: 'Admin', href: '/admin' },
   ];
 
