@@ -9,11 +9,11 @@ public class TradeExecutionRecord {
     private String symbol;
     private String category; // STABLE, SWING, TRENDING, SPECULATIVE
 
-    // --- 1. เพิ่ม Field สำหรับจัดเก็บเวลา (แก้ไขจุดที่ Error) ---
-    private LocalDateTime entryTime; // เวลาที่ซื้อ (จาก matchedBuy.getFilledAt())
-    private LocalDateTime exitTime;  // เวลาที่ขาย
+    // --- 1. เพิ่ม Field สำหรับจัดเก็บเวลา
+    private LocalDateTime entryTime;
+    private LocalDateTime exitTime;
 
-    // --- 2. เพิ่ม Field สำหรับการคำนวณเงิน (แก้ไขจุดที่ Error) ---
+    // --- 2. เพิ่ม Field สำหรับการคำนวณเงิน
     private BigDecimal positionSize;        // ทุน (ราคาซื้อ x จำนวน)
     private BigDecimal realizedProfitAmount; // กำไร/ขาดทุน (ตัวเงิน $)
     private BigDecimal realizedProfitPercentage; // กำไร/ขาดทุน (%)
@@ -22,11 +22,6 @@ public class TradeExecutionRecord {
     private Duration holdingPeriod;
     private boolean isOvernight;
 
-    // ข้อมูลจาก Order ขา Buy เพื่อใช้คำนวณ FOMO
-    private BigDecimal rsiAtBuy;
-    private BigDecimal priceChangeBeforeBuy;
-
-    // ข้อมูลจาก Order ขา Sell เพื่อใช้คำนวณ Panic Sell
-    private BigDecimal rsiAtSell;
-    private BigDecimal priceChangeBeforeSell;
+    private BigDecimal rsiAtEntry; // เปลี่ยนชื่อเป็น Entry ให้เป็นกลาง (รองรับทั้ง Buy/Sell)
+    private BigDecimal priceChangeBeforeEntry;
 }

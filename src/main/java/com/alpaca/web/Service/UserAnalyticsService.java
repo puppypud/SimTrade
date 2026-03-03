@@ -46,11 +46,11 @@ public class UserAnalyticsService {
         this.stockAnalysisService = stockAnalysisService;
     }
 
-    private static class RemainingBuyOrder {
+    private static class RemainingOrder {
         OrderHistory order;
         BigDecimal remainingQty;
 
-        public RemainingBuyOrder(OrderHistory order) {
+        public RemainingOrder(OrderHistory order) {
             this.order = order;
             this.remainingQty = order.getFilledQty();
         }
@@ -101,35 +101,57 @@ public class UserAnalyticsService {
 
         for (Map.Entry<String, List<OrderHistory>> entry : ordersBySymbol.entrySet()) {
             String symbol = entry.getKey();
-            // ใช้ LinkedList เก็บ RemainingBuyOrder แทน OrderHistory เพียวๆ
-            LinkedList<RemainingBuyOrder> buyQueue = new LinkedList<>();
+            LinkedList<RemainingOrder> longQueue = new LinkedList<>();  // เก็บไม้ Buy ที่รอขาย
+            LinkedList<RemainingOrder> shortQueue = new LinkedList<>(); // เก็บไม้ Sell (Short) ที่รอซื้อคืน
             String stockCategory = fetchStockCategorySafely(symbol);
 
-            for (OrderHistory order : entry.getValue()) {
-                if ("buy".equalsIgnoreCase(order.getSide())) {
-                    // เพิ่มเข้าคิวรอขาย
-                    buyQueue.add(new RemainingBuyOrder(order));
-                } else if ("sell".equalsIgnoreCase(order.getSide())) {
-                    BigDecimal qtyToSell = order.getFilledQty();
+            for (OrderHistory currentOrder : entry.getValue()) {
+                BigDecimal qtyToMatch = currentOrder.getFilledQty();
 
-                    // วนลูปตัดสต็อกจนกว่าจะครบจำนวนที่ขาย หรือของหมดคิว
-                    while (qtyToSell.compareTo(BigDecimal.ZERO) > 0 && !buyQueue.isEmpty()) {
-                        RemainingBuyOrder matchedBuy = buyQueue.peek(); // ดูตัวแรก (ยังไม่เอาออก)
+                if ("buy".equalsIgnoreCase(currentOrder.getSide())) {
+                    // --- กรณีเจอไม้ BUY ---
+                    // 1. เช็คก่อนว่ามีไม้ Short ค้างอยู่ให้ปิดไหม? (Cover Short)
+                    while (qtyToMatch.compareTo(BigDecimal.ZERO) > 0 && !shortQueue.isEmpty()) {
+                        RemainingOrder openShort = shortQueue.peek();
+                        BigDecimal matchedQty = qtyToMatch.min(openShort.remainingQty);
 
-                        // หาจำนวนที่จะ Match กันได้ (Min ระหว่าง ยอดขายที่เหลือ กับ ยอดซื้อที่เหลือในไม้นั้น)
-                        BigDecimal matchedQty = qtyToSell.min(matchedBuy.remainingQty);
+                        // บันทึก Trade: Sell (Open) -> Buy (Close)
+                        closedTrades.add(createTradeRecord(openShort.order, currentOrder, matchedQty, stockCategory));
 
-                        TradeExecutionRecord record = createTradeRecord(matchedBuy.order, order, matchedQty, stockCategory);
-                        closedTrades.add(record);
+                        qtyToMatch = qtyToMatch.subtract(matchedQty);
+                        openShort.remainingQty = openShort.remainingQty.subtract(matchedQty);
 
-                        // Update ยอดคงเหลือ
-                        qtyToSell = qtyToSell.subtract(matchedQty);
-                        matchedBuy.remainingQty = matchedBuy.remainingQty.subtract(matchedQty);
-
-                        // ถ้าไม้ซื้อนี้หมดแล้ว ให้เอาออกจากคิว
-                        if (matchedBuy.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
-                            buyQueue.poll();
+                        if (openShort.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
+                            shortQueue.poll();
                         }
+                    }
+                    // 2. ถ้าเหลือ (หรือไม่มี Short) ให้เก็บเข้า Long Queue
+                    if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
+                        currentOrder.setFilledQty(qtyToMatch); // Update ยอดที่เหลือจริง
+                        longQueue.add(new RemainingOrder(currentOrder));
+                    }
+
+                } else if ("sell".equalsIgnoreCase(currentOrder.getSide())) {
+                    // --- กรณีเจอไม้ SELL ---
+                    // 1. เช็คก่อนว่ามีของในมือให้ขายไหม? (Close Long)
+                    while (qtyToMatch.compareTo(BigDecimal.ZERO) > 0 && !longQueue.isEmpty()) {
+                        RemainingOrder openLong = longQueue.peek();
+                        BigDecimal matchedQty = qtyToMatch.min(openLong.remainingQty);
+
+                        // บันทึก Trade: Buy (Open) -> Sell (Close)
+                        closedTrades.add(createTradeRecord(openLong.order, currentOrder, matchedQty, stockCategory));
+
+                        qtyToMatch = qtyToMatch.subtract(matchedQty);
+                        openLong.remainingQty = openLong.remainingQty.subtract(matchedQty);
+
+                        if (openLong.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
+                            longQueue.poll();
+                        }
+                    }
+                    // 2. ถ้าเหลือ (ขายเกินจำนวนที่มี) ให้ถือเป็น Short Sell
+                    if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
+                        currentOrder.setFilledQty(qtyToMatch); // Update ยอดที่เหลือจริง
+                        shortQueue.add(new RemainingOrder(currentOrder));
                     }
                 }
             }
@@ -712,36 +734,56 @@ public class UserAnalyticsService {
                 });
     }
 
-    private TradeExecutionRecord createTradeRecord(OrderHistory buyOrder, OrderHistory sellOrder, BigDecimal qty, String category) {
+    private TradeExecutionRecord createTradeRecord(OrderHistory openOrder, OrderHistory closeOrder, BigDecimal qty, String category) {
         TradeExecutionRecord record = new TradeExecutionRecord();
-        record.setSymbol(buyOrder.getSymbol());
+        record.setSymbol(openOrder.getSymbol());
         record.setCategory(category);
-        record.setHoldingPeriod(Duration.between(buyOrder.getFilledAt(), sellOrder.getFilledAt()));
 
-        LocalDate buyDate = buyOrder.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
-        LocalDate sellDate = sellOrder.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
-        record.setOvernight(!buyDate.isEqual(sellDate));
+        // จัดการเรื่องเวลา (Timezone: America/New_York)
+        ZoneId marketZone = ZoneId.of("America/New_York");
 
-        BigDecimal buyPrice = buyOrder.getFilledAvgPrice();
-        BigDecimal sellPrice = sellOrder.getFilledAvgPrice();
+        LocalDateTime entryDateTime = LocalDateTime.ofInstant(openOrder.getFilledAt(), marketZone);
+        LocalDateTime exitDateTime = LocalDateTime.ofInstant(closeOrder.getFilledAt(), marketZone);
 
-        // คำนวณ % PnL
-        if (buyPrice.compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal pnlPct = sellPrice.subtract(buyPrice)
-                    .divide(buyPrice, 4, RoundingMode.HALF_UP)
+        record.setEntryTime(entryDateTime);
+        record.setExitTime(exitDateTime); // เพิ่มการบันทึกเวลาออก
+        record.setHoldingPeriod(Duration.between(openOrder.getFilledAt(), closeOrder.getFilledAt()));
+
+        // Check Overnight (เช็คจากวันที่ของ Market Time)
+        record.setOvernight(!entryDateTime.toLocalDate().isEqual(exitDateTime.toLocalDate()));
+
+        BigDecimal openPrice = openOrder.getFilledAvgPrice();
+        BigDecimal closePrice = closeOrder.getFilledAvgPrice();
+        BigDecimal pnlAmount;
+
+        // คำนวณกำไรแยกกรณี Long vs Short (Logic ถูกต้องแล้วครับ)
+        if ("buy".equalsIgnoreCase(openOrder.getSide())) {
+            // Case Long (ซื้อถูก -> ขายแพง): (Close - Open) * Qty
+            pnlAmount = closePrice.subtract(openPrice).multiply(qty);
+        } else {
+            // Case Short (ขายแพง -> ซื้อถูก): (Open - Close) * Qty
+            pnlAmount = openPrice.subtract(closePrice).multiply(qty);
+        }
+
+        record.setRealizedProfitAmount(pnlAmount);
+        record.setPositionSize(openPrice.multiply(qty));
+
+        // คำนวณ % Profit
+        if (openPrice.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal diff;
+            if ("buy".equalsIgnoreCase(openOrder.getSide())) {
+                diff = closePrice.subtract(openPrice);
+            } else {
+                diff = openPrice.subtract(closePrice);
+            }
+
+            // สูตร: (Diff / Open) * 100
+            BigDecimal pnlPct = diff.divide(openPrice, 4, RoundingMode.HALF_UP)
                     .multiply(new BigDecimal("100"));
             record.setRealizedProfitPercentage(pnlPct);
         } else {
             record.setRealizedProfitPercentage(BigDecimal.ZERO);
         }
-
-        record.setEntryTime(LocalDateTime.from(buyOrder.getFilledAt()));
-
-        // Position Size = BuyPrice * Matched Qty (ไม่ใช่ Qty ทั้งหมดของ Order)
-        record.setPositionSize(buyPrice.multiply(qty));
-
-        // Profit Amount = (Sell - Buy) * Matched Qty
-        record.setRealizedProfitAmount((sellPrice.subtract(buyPrice)).multiply(qty));
 
         return record;
     }
