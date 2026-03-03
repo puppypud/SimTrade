@@ -88,8 +88,8 @@ public class UserAnalyticsService {
         // คำนวณ Advanced Metrics (Profit Factor, Streaks, etc.) ที่ขาดหายไป
         calculateAdvancedMetrics(result, closedTrades);
 
-        // วิเคราะห์ความเสี่ยง
-        analyzeRiskBehaviors(result, closedTrades, orders);
+        // วิเคราะห์ความเสี่ยง (ส่งค่า riskBehavior จาก DB ไปด้วย)
+        analyzeRiskBehaviors(result, closedTrades, orders, user.getRiskBehavior());
 
         return result;
     }
@@ -503,9 +503,39 @@ public class UserAnalyticsService {
      */
     // วิเคราะห์พฤติกรมมเสี่ยง
     private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades,
-            List<OrderHistory> allOrders) {
-        if (trades.isEmpty())
+            List<OrderHistory> allOrders, String dbRiskBehavior) {
+
+        double fomoScore = 0.0;
+        double panicScore = 0.0;
+        double earlySellScore = 0.0;
+        double holdLoserScore = 0.0;
+
+        // --- 0. Initialize scores based on Quiz results from Database ---
+        if (dbRiskBehavior != null) {
+            String behavior = dbRiskBehavior.toUpperCase();
+            if (behavior.contains("FOMO"))
+                fomoScore = 40.0;
+            if (behavior.contains("WINNERS") || behavior.contains("EARLY"))
+                earlySellScore = 40.0;
+            if (behavior.contains("LOSERS") || behavior.contains("LONG"))
+                holdLoserScore = 40.0;
+            if (behavior.contains("PANIC"))
+                panicScore = 40.0;
+        }
+
+        if (trades.isEmpty()) {
+            // ถ้าไม่มีเทรดเลย ให้โชว์ค่าจาก Quiz เป็นฐานไว้ก่อน
+            result.setFomoScore(fomoScore);
+            result.setPanicSellScore(panicScore);
+            result.setSellingWinnersTooEarlyScore(earlySellScore);
+            result.setHoldingLosersTooLongScore(holdLoserScore);
+            result.setFomoStatus(evaluateRiskLevel(fomoScore));
+            result.setPanicSellStatus(evaluateRiskLevel(panicScore));
+            result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(earlySellScore));
+            result.setHoldingLosersTooLongStatus(evaluateRiskLevel(holdLoserScore));
+            generateBehavioralFeedback(result);
             return;
+        }
 
         final int RECENT_WINDOW = 50;
         // ดึง 50 ไม้ล่าสุด
@@ -513,12 +543,7 @@ public class UserAnalyticsService {
                 .limit(RECENT_WINDOW)
                 .collect(Collectors.toList());
 
-        double fomoScore = 0.0;
-        double panicScore = 0.0;
-        double earlySellScore = 0.0;
-        double holdLoserScore = 0.0;
-
-        // 1. วิเคราะห์จาก Closed Trades
+        // 1. วิเคราะห์จาก Closed Trades (บวกเพิ่มจากค่าตั้งต้น)
         for (TradeExecutionRecord t : recentTrades) {
             double pnl = t.getRealizedProfitPercentage().doubleValue();
             long holdingHours = t.getHoldingPeriod().toHours();
@@ -540,7 +565,6 @@ public class UserAnalyticsService {
         }
 
         // 2. วิเคราะห์จาก Orders
-        // 2. วิเคราะห์จาก Orders (ปรับปรุงการดึงข้อมูล)
         Map<String, List<OrderHistory>> ordersBySymbol = allOrders.stream()
                 .sorted(Comparator.comparing(OrderHistory::getFilledAt).reversed())
                 .limit(RECENT_WINDOW * 2)
@@ -560,8 +584,7 @@ public class UserAnalyticsService {
             Instant maxTime = symbolOrders.stream().map(OrderHistory::getFilledAt).max(Instant::compareTo)
                     .orElse(Instant.now());
 
-            // 🟢 UPDATED: ดึงข้อมูลเผื่อเยอะๆ และใช้ limit=10000 เพื่อให้ครอบคลุม
-            ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(100); // เผื่อเยอะขึ้น
+            ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(100);
             ZonedDateTime fetchEnd = maxTime.atZone(marketZone).plusHours(2);
 
             List<StockBar> cachedBars = new ArrayList<>();
@@ -611,7 +634,6 @@ public class UserAnalyticsService {
         result.setHoldingLosersTooLongStatus(evaluateRiskLevel(result.getHoldingLosersTooLongScore()));
 
         generateBehavioralFeedback(result);
-
     }
 
     // ช่วยควบคุมให้ค่าคะแนน (Score) อยู่ในช่วงที่กำหนดเสมอ เช่น 0 ถึง 100
