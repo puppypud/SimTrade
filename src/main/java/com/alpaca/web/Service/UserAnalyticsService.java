@@ -483,7 +483,7 @@ public class UserAnalyticsService {
         generateBehavioralFeedback(result);
     }
 
-
+    //ช่วยควบคุมให้ค่าคะแนน (Score) อยู่ในช่วงที่กำหนดเสมอ เช่น 0 ถึง 100
     private double clamp(double value) {
         return Math.max(0, Math.min(100, value));
     }
