@@ -415,14 +415,17 @@ public class MarketDataService {
             boolean isAlpacaOpen = clock.getIsOpen();
             if (isMaintenanceActive) {
                 statusData.put("status", "MAINTENANCE");
+                statusData.put("isMaintenanceMode", true);
                 statusData.put("isOpenForTrade", false);
                 statusData.put("message", mintenanceMessage);
             } else if (isAlpacaOpen) {
                 statusData.put("status", "OPEN");
+                statusData.put("isMaintenanceMode", false);
                 statusData.put("isOpenForTrade", true);
                 statusData.put("message", "ตลาดเปิดทำการปกติ");
             } else {
                 statusData.put("status", "CLOSED");
+                statusData.put("isMaintenanceMode", false);
                 statusData.put("isOpenForTrade", false);
                 statusData.put("message", "ตลาดปิดทำการ");
             }
@@ -484,7 +487,8 @@ public class MarketDataService {
      * 🟢 ฟังก์ชันใหม่: ดึงข้อมูลกราฟย้อนหลังเพื่อการวิเคราะห์ (Analytics)
      * ต่างจาก getStockBars ปกติตรงที่ระบุ start/end ได้อิสระ
      */
-    public List<StockBar> getHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe, Integer limit) {
+    public List<StockBar> getHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe,
+            Integer limit) {
         String cleanSymbol = symbol.trim().toUpperCase();
 
         if (cleanSymbol.contains("/")) {
@@ -505,7 +509,8 @@ public class MarketDataService {
         return fetchBarsFromApi(urlString);
     }
 
-    private List<StockBar> getCryptoHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe, Integer limit) {
+    private List<StockBar> getCryptoHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end,
+            String timeframe, Integer limit) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
         String startStr = start.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
 
@@ -515,7 +520,8 @@ public class MarketDataService {
                 "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=%d&start=%s",
                 symbol, timeframe, actualLimit, startStr);
 
-        // Note: Crypto API อาจจะไม่รองรับ parameter 'end' ในบาง endpoint ต้องเช็ค doc แต่ start ใช้ได้แน่นอน
+        // Note: Crypto API อาจจะไม่รองรับ parameter 'end' ในบาง endpoint ต้องเช็ค doc
+        // แต่ start ใช้ได้แน่นอน
 
         return fetchBarsFromApi(urlString);
     }
@@ -535,7 +541,8 @@ public class MarketDataService {
 
                 if (barsObj instanceof Map) { // Crypto return เป็น Map<Symbol, List>
                     Map<String, Object> barsMap = (Map<String, Object>) barsObj;
-                    if(barsMap.isEmpty()) return Collections.emptyList();
+                    if (barsMap.isEmpty())
+                        return Collections.emptyList();
                     // เอา key แรก (symbol)
                     String key = barsMap.keySet().iterator().next();
                     barsData = (List<Map<String, Object>>) barsMap.get(key);
