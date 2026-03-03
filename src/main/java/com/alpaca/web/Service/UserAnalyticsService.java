@@ -38,7 +38,8 @@ public class UserAnalyticsService {
     Dotenv dotenv = Dotenv.load();
 
     public UserAnalyticsService(OrderHistoryRepository orderRepository, StockAssetRepository stockAssetRepository,
-                                AccountRepository accountRepository, MarketDataService marketDataService, StockAnalysisService stockAnalysisService) {
+            AccountRepository accountRepository, MarketDataService marketDataService,
+            StockAnalysisService stockAnalysisService) {
         this.orderRepository = orderRepository;
         this.stockAssetRepository = stockAssetRepository;
         this.accountRepository = accountRepository;
@@ -55,6 +56,7 @@ public class UserAnalyticsService {
             this.remainingQty = remainingQty;
         }
     }
+
     public UserAnalyticsResult analyzeUserBehavior(Long userId) {
 
         // 1. ดึงข้อมูล User Account เพื่อเอา Trader Type เดิม (Stated Type)
@@ -104,10 +106,9 @@ public class UserAnalyticsService {
 
         for (Map.Entry<String, List<OrderHistory>> entry : ordersBySymbol.entrySet()) {
             String symbol = entry.getKey();
-            LinkedList<RemainingOrder> longQueue = new LinkedList<>();  // เก็บไม้ Buy ที่รอขาย
+            LinkedList<RemainingOrder> longQueue = new LinkedList<>(); // เก็บไม้ Buy ที่รอขาย
             LinkedList<RemainingOrder> shortQueue = new LinkedList<>(); // เก็บไม้ Sell (Short) ที่รอซื้อคืน
             String stockCategory = fetchStockCategorySafely(symbol);
-
 
             for (OrderHistory currentOrder : entry.getValue()) {
                 BigDecimal qtyToMatch = currentOrder.getFilledQty();
@@ -121,7 +122,8 @@ public class UserAnalyticsService {
                         qtyToMatch = qtyToMatch.subtract(matchedQty);
                         openShort.remainingQty = openShort.remainingQty.subtract(matchedQty);
 
-                        if (openShort.remainingQty.compareTo(BigDecimal.ZERO) == 0) shortQueue.poll();
+                        if (openShort.remainingQty.compareTo(BigDecimal.ZERO) == 0)
+                            shortQueue.poll();
                     }
                     // ถ้าเหลือ ให้เข้าคิว Long
                     if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
@@ -139,12 +141,14 @@ public class UserAnalyticsService {
                         qtyToMatch = qtyToMatch.subtract(matchedQty);
                         openLong.remainingQty = openLong.remainingQty.subtract(matchedQty);
 
-                        if (openLong.remainingQty.compareTo(BigDecimal.ZERO) == 0) longQueue.poll();
+                        if (openLong.remainingQty.compareTo(BigDecimal.ZERO) == 0)
+                            longQueue.poll();
                     }
                     // ถ้าเหลือ ให้เข้าคิว Short
                     if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
                         // ห้าม setFilledQty!! และต้องแก้เป็น shortQueue
-                        shortQueue.add(new RemainingOrder(currentOrder, qtyToMatch)); // แก้จาก longQueue เป็น shortQueue
+                        shortQueue.add(new RemainingOrder(currentOrder, qtyToMatch)); // แก้จาก longQueue เป็น
+                                                                                      // shortQueue
                     }
                 }
             }
@@ -164,7 +168,8 @@ public class UserAnalyticsService {
 
         for (TradeExecutionRecord t : trades) {
             totalSeconds += t.getHoldingPeriod().getSeconds();
-            if (t.isOvernight()) overnightCount++;
+            if (t.isOvernight())
+                overnightCount++;
         }
         double avgHoldingSeconds = (double) totalSeconds / trades.size();
         double overnightRatio = (double) overnightCount / trades.size();
@@ -245,11 +250,18 @@ public class UserAnalyticsService {
 
     // ตรวจสอบว่า สไตล์การเทรด เข้ากับ หุ้นที่เทรดไหม
     private boolean checkStyleMatch(String traderType, String category) {
+        if (category == null)
+            return false;
+        String cat = category.toUpperCase();
         return switch (traderType) {
-            case "Scalper" -> category.equalsIgnoreCase("SPECULATIVE") || category.equalsIgnoreCase("HIGH_VOLATILITY");
-            case "Day Trader" -> category.equalsIgnoreCase("TRENDING") || category.equalsIgnoreCase("SPECULATIVE");
-            case "Swing Trader" -> category.equalsIgnoreCase("SWING") || category.equalsIgnoreCase("TRENDING");
-            case "Position Trader" -> category.equalsIgnoreCase("STABLE") || category.equalsIgnoreCase("BLUECHIP") || category.equalsIgnoreCase("DIVIDEND");
+            case "Scalper" ->
+                cat.contains("SPECULATIVE") || cat.contains("เก็งกำไร") || cat.contains("HIGH_VOLATILITY");
+            case "Day Trader" -> cat.contains("TRENDING") || cat.contains("กระแส") || cat.contains("SPECULATIVE")
+                    || cat.contains("เก็งกำไร");
+            case "Swing Trader" ->
+                cat.contains("SWING") || cat.contains("เล่นรอบ") || cat.contains("TRENDING") || cat.contains("กระแส");
+            case "Position Trader" -> cat.contains("STABLE") || cat.contains("มั่นคง") || cat.contains("BLUECHIP")
+                    || cat.contains("DIVIDEND");
             default -> false;
         };
     }
@@ -264,12 +276,14 @@ public class UserAnalyticsService {
         };
     }
 
-    private UserAnalyticsResult performDeepAnalytics(String statedType, String actualBehaviorType, List<TradeExecutionRecord> trades) {
+    private UserAnalyticsResult performDeepAnalytics(String statedType, String actualBehaviorType,
+            List<TradeExecutionRecord> trades) {
         UserAnalyticsResult result = new UserAnalyticsResult();
         result.setTraderType(statedType); // ยึดตามที่ User เลือกไว้ก่อน
         result.setTotalClosedTrades(trades.size());
 
-        if (trades.isEmpty()) return result;
+        if (trades.isEmpty())
+            return result;
 
         // --- 1. คำนวณ Performance Metrics ---
         int winCount = 0;
@@ -320,27 +334,31 @@ public class UserAnalyticsService {
         result.setStyleMatched(isStockMatched && isBehaviorMatched);
         result.setProfitable(isProfitable);
 
-        generateDetailedRecommendation(result, statedType, actualBehaviorType, predominantCategory, isStockMatched, isBehaviorMatched, isProfitable);
+        generateDetailedRecommendation(result, statedType, actualBehaviorType, predominantCategory, isStockMatched,
+                isBehaviorMatched, isProfitable);
 
         return result;
     }
 
-    private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType, String stockCat, boolean stockMatch, boolean behaviorMatch, boolean profitable) {
+    private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType,
+            String stockCat, boolean stockMatch, boolean behaviorMatch, boolean profitable) {
 
         // CASE 1: ตรงเป๊ะทุกอย่าง (Ideal State)
         if (stockMatch && behaviorMatch) {
             if (profitable) {
                 result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
-                result.setRecommendation(String.format("คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้", statedType, stockCat));
+                result.setRecommendation(String.format(
+                        "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้", statedType,
+                        stockCat));
             } else {
                 // --- ปรับปรุงตรงนี้ตามที่คุณต้องการ ---
                 result.setPrimaryFeedback("มาถูกทางแล้ว แต่ผลลัพธ์ยังติดลบ (Right Style, Wrong Result)");
                 result.setRecommendation(String.format(
                         "คุณมีวินัยดีมาก (เลือกหุ้นถูก+ถือครองถูก) แต่ยังขาดทุน คุณมี 2 ทางเลือก: " +
-                                "1. ไปต่อ (Persist): ปัญหาอาจอยู่ที่จุดเข้า-ออก (Entry/Exit) ให้ฝึก Technical เพิ่มเติม " +
+                                "1. ไปต่อ (Persist): ปัญหาอาจอยู่ที่จุดเข้า-ออก (Entry/Exit) ให้ฝึก Technical เพิ่มเติม "
+                                +
                                 "หรือ 2. เปลี่ยนสาย (Pivot): หากสไตล์ %s ทำให้คุณเครียดเกินไป ลองพิจารณาสไตล์อื่นที่ผ่อนคลายกว่านี้",
-                        statedType
-                ));
+                        statedType));
             }
             return;
         }
@@ -348,7 +366,9 @@ public class UserAnalyticsService {
         // CASE 2: พฤติกรรมเปลี่ยนแล้วได้ดี (Evolution)
         if (!behaviorMatch && profitable) {
             result.setPrimaryFeedback("ค้นพบแนวทางใหม่! (New Strength Discovered)");
-            result.setRecommendation(String.format("คุณตั้งเป้าเป็น %s แต่กำไรจริงมาจากการเทรดสไตล์ %s แนะนำให้อัปเดต Profile ของคุณให้ตรงกับความเป็นจริง", statedType, actualType));
+            result.setRecommendation(String.format(
+                    "คุณตั้งเป้าเป็น %s แต่กำไรจริงมาจากการเทรดสไตล์ %s แนะนำให้อัปเดต Profile ของคุณให้ตรงกับความเป็นจริง",
+                    statedType, actualType));
             result.setSuggestedTraderType(actualType);
             return;
         }
@@ -358,10 +378,14 @@ public class UserAnalyticsService {
             String suggested = getTraderTypeFromCategory(stockCat); // ต้องมี Method นี้ใน Class
             if (profitable) {
                 result.setPrimaryFeedback("กำไรบนความเสี่ยง (Wrong Asset but Profitable)");
-                result.setRecommendation(String.format("คุณกำไรจากหุ้น %s ซึ่งปกติเหมาะกับสาย %s มากกว่า ระวังความผันผวนที่ไม่คุ้นเคยในระยะยาว", stockCat, suggested));
+                result.setRecommendation(String.format(
+                        "คุณกำไรจากหุ้น %s ซึ่งปกติเหมาะกับสาย %s มากกว่า ระวังความผันผวนที่ไม่คุ้นเคยในระยะยาว",
+                        stockCat, suggested));
             } else {
                 result.setPrimaryFeedback("เลือกสนามผิด (Wrong Battlefield)");
-                result.setRecommendation(String.format("คุณเป็น %s แต่ไปเล่นหุ้น %s ซึ่งธรรมชาติไม่เอื้อต่อสไตล์ของคุณ ทำให้ทำกำไรยาก", statedType, stockCat));
+                result.setRecommendation(
+                        String.format("คุณเป็น %s แต่ไปเล่นหุ้น %s ซึ่งธรรมชาติไม่เอื้อต่อสไตล์ของคุณ ทำให้ทำกำไรยาก",
+                                statedType, stockCat));
             }
             result.setSuggestedTraderType(suggested);
             return;
@@ -370,86 +394,113 @@ public class UserAnalyticsService {
         // CASE 4: หุ้นถูกตัว แต่ถือผิดเวลาแล้วขาดทุน (Right Stock, Wrong Timing)
         if (stockMatch && !behaviorMatch && !profitable) {
             result.setPrimaryFeedback("ผิดจังหวะการถือครอง (Holding Mismatch)");
-            result.setRecommendation(String.format("คุณเลือกหุ้นถูกกลุ่มแล้ว แต่พฤติกรรมจริงของคุณคือ %s (ไม่ใช่ %s) ซึ่งทำให้เสียโอกาสทำกำไรจากหุ้นกลุ่มนี้", actualType, statedType));
+            result.setRecommendation(String.format(
+                    "คุณเลือกหุ้นถูกกลุ่มแล้ว แต่พฤติกรรมจริงของคุณคือ %s (ไม่ใช่ %s) ซึ่งทำให้เสียโอกาสทำกำไรจากหุ้นกลุ่มนี้",
+                    actualType, statedType));
             return;
         }
 
         // CASE 5: เละเทะ (Total Confusion)
         result.setPrimaryFeedback("สับสนทิศทาง (No Clear Strategy)");
-        result.setRecommendation("พฤติกรรมไม่ชัดเจน เล่นหุ้นสะเปะสะปะและขาดทุน ควรหยุดเทรดและทบทวนความรู้พื้นฐาน หรือเลือกสไตล์ที่ถนัดที่สุดเพียงอย่างเดียว");
+        result.setRecommendation(
+                "พฤติกรรมไม่ชัดเจน เล่นหุ้นสะเปะสะปะและขาดทุน ควรหยุดเทรดและทบทวนความรู้พื้นฐาน หรือเลือกสไตล์ที่ถนัดที่สุดเพียงอย่างเดียว");
     }
 
     private String getTraderTypeFromCategory(String category) {
-        if (category == null) return "Unknown";
-        // ปรับ Logic ให้ตรงกับ Database ของคุณ
-        if (category.equalsIgnoreCase("SPECULATIVE") || category.equalsIgnoreCase("HIGH_VOLATILITY")) return "Scalper";
-        if (category.equalsIgnoreCase("TRENDING")) return "Day Trader";
-        if (category.equalsIgnoreCase("SWING")) return "Swing Trader";
-        if (category.equalsIgnoreCase("STABLE") || category.equalsIgnoreCase("BLUECHIP") || category.equalsIgnoreCase("DIVIDEND")) return "Position Trader";
+        if (category == null)
+            return "Unknown";
+        String cat = category.toUpperCase();
+        // ปรับ Logic ให้รองรับทั้งคำไทยและอังกฤษที่ส่งมาจาก StockAnalysisService
+        if (cat.contains("SPECULATIVE") || cat.contains("เก็งกำไร") || cat.contains("HIGH_VOLATILITY"))
+            return "Scalper";
+        if (cat.contains("TRENDING") || cat.contains("กระแส"))
+            return "Day Trader";
+        if (cat.contains("SWING") || cat.contains("เล่นรอบ"))
+            return "Swing Trader";
+        if (cat.contains("STABLE") || cat.contains("มั่นคง") || cat.contains("BLUECHIP") || cat.contains("DIVIDEND"))
+            return "Position Trader";
         return "Unknown";
     }
-/*
-    private void applyRecommendationMatrix(UserAnalyticsResult result, boolean isStyleMatched, boolean isProfitable,
-            String category) {
-        String type = result.getTraderType();
-        double rrRatio = result.getRiskRewardRatio();
 
-        // Matrix Case 1: เล่นหุ้นถูกสาย + กำไร (True, True) -> ไปต่อ
-        if (isStyleMatched && isProfitable) {
-            result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
-            result.setRecommendation(String.format(
-                    "พฤติกรรมของคุณคือ %s และคุณเลือกหุ้นกลุ่ม %s ซึ่ง 'ถูกต้องและเหมาะสม' ผลลัพธ์ของคุณคือกำไร " +
-                            "คำแนะนำ: ให้คุณรักษาวินัยนี้ไว้ (Keep going) " +
-                            "และอาจพิจารณาเพิ่มขนาดการลงทุน (Position Sizing) ในจังหวะที่มั่นใจ",
-                    type, category));
-        }
-
-        // Matrix Case 2: เล่นหุ้นถูกสาย + ขาดทุน (True, False) ->
-        // ไปต่อสายนี้แต่ฝึกฝีมือ
-        else if (isStyleMatched && !isProfitable) {
-            result.setPrimaryFeedback("มาถูกทาง แต่ขาดจังหวะเข้าทำ (Right Style, Poor Execution)");
-
-            // วิเคราะห์ย่อยเพื่อเจาะจงปัญหา
-            String deeperAdvice = "";
-            if (rrRatio < 1.0) {
-                deeperAdvice = "ปัญหาหลักของคุณคือเวลาได้กำไรได้น้อย แต่เวลาเสียเสียหนัก แนะนำให้ฝึกตั้ง Stop-Loss ให้เข้มงวดขึ้น";
-            } else {
-                deeperAdvice = "คุณอาจจะเข้าซื้อถูกตัว แต่เข้าผิดจังหวะ (ไล่ราคา) ลองศึกษาแนวรับ-แนวต้านเพิ่มเติม";
-            }
-
-            result.setRecommendation(String.format(
-                    "คุณเลือกหุ้น %s ซึ่งเหมาะกับความเป็น %s ของคุณแล้ว ไม่ต้องเปลี่ยนกลุ่มหุ้น! " +
-                            "แต่ที่ขาดทุนเกิดจากทักษะการเทรด คำแนะนำ: %s",
-                    category, type, deeperAdvice));
-        }
-
-        // Matrix Case 3: เล่นหุ้นผิดสาย + กำไร (False, True) -> อันตรายในระยะยาว
-        else if (!isStyleMatched && isProfitable) {
-            result.setPrimaryFeedback("ดวงดี หรือ พฤติกรรมเริ่มเบี่ยงเบน (Style Drift Warning)");
-
-            String suggestedCat = getSuggestedCategory(type);
-            result.setRecommendation(String.format(
-                    "คุณมีพฤติกรรมเป็น %s แต่ระยะหลังคุณไปทำกำไรในหุ้นกลุ่ม %s ซึ่งถือว่ามีความเสี่ยง (Mismatch) " +
-                            "แม้ตอนนี้จะได้กำไร แต่มันอาจเป็นเพียงรอบสั้นๆ ของตลาด คำแนะนำ: ลองพิจารณากลับมาเทรดหุ้นกลุ่ม %s "
-                            +
-                            "เพื่อความสม่ำเสมอในระยะยาว",
-                    type, category, suggestedCat));
-        }
-
-        // Matrix Case 4: เล่นหุ้นผิดสาย + ขาดทุน (False, False) -> ต้องปรับปรุงด่วน
-        else {
-            result.setPrimaryFeedback("วิกฤต! เล่นผิดประเภทและขาดทุน (Total Mismatch)");
-
-            String suggestedCat = getSuggestedCategory(type);
-            result.setRecommendation(String.format(
-                    "ผลขาดทุนของคุณเกิดจากการฝืนธรรมชาติ คุณเป็นคนสไตล์ %s ซึ่งไม่ควรไปเล่นหุ้นกลุ่ม %s " +
-                            "คำแนะนำ: หยุดเทรดชั่วคราว ทบทวนตัวเอง และเมื่อพร้อมให้กลับมาเริ่มใหม่กับหุ้นกลุ่ม %s เท่านั้น",
-                    type, category, suggestedCat));
-        }
-    }*/
-    //วิเคราะห์พฤติกรมมเสี่ยง
-    private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades, List<OrderHistory> allOrders) {
-        if (trades.isEmpty()) return;
+    /*
+     * private void applyRecommendationMatrix(UserAnalyticsResult result, boolean
+     * isStyleMatched, boolean isProfitable,
+     * String category) {
+     * String type = result.getTraderType();
+     * double rrRatio = result.getRiskRewardRatio();
+     * 
+     * // Matrix Case 1: เล่นหุ้นถูกสาย + กำไร (True, True) -> ไปต่อ
+     * if (isStyleMatched && isProfitable) {
+     * result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
+     * result.setRecommendation(String.format(
+     * "พฤติกรรมของคุณคือ %s และคุณเลือกหุ้นกลุ่ม %s ซึ่ง 'ถูกต้องและเหมาะสม' ผลลัพธ์ของคุณคือกำไร "
+     * +
+     * "คำแนะนำ: ให้คุณรักษาวินัยนี้ไว้ (Keep going) " +
+     * "และอาจพิจารณาเพิ่มขนาดการลงทุน (Position Sizing) ในจังหวะที่มั่นใจ",
+     * type, category));
+     * }
+     * 
+     * // Matrix Case 2: เล่นหุ้นถูกสาย + ขาดทุน (True, False) ->
+     * // ไปต่อสายนี้แต่ฝึกฝีมือ
+     * else if (isStyleMatched && !isProfitable) {
+     * result.
+     * setPrimaryFeedback("มาถูกทาง แต่ขาดจังหวะเข้าทำ (Right Style, Poor Execution)"
+     * );
+     * 
+     * // วิเคราะห์ย่อยเพื่อเจาะจงปัญหา
+     * String deeperAdvice = "";
+     * if (rrRatio < 1.0) {
+     * deeperAdvice =
+     * "ปัญหาหลักของคุณคือเวลาได้กำไรได้น้อย แต่เวลาเสียเสียหนัก แนะนำให้ฝึกตั้ง Stop-Loss ให้เข้มงวดขึ้น"
+     * ;
+     * } else {
+     * deeperAdvice =
+     * "คุณอาจจะเข้าซื้อถูกตัว แต่เข้าผิดจังหวะ (ไล่ราคา) ลองศึกษาแนวรับ-แนวต้านเพิ่มเติม"
+     * ;
+     * }
+     * 
+     * result.setRecommendation(String.format(
+     * "คุณเลือกหุ้น %s ซึ่งเหมาะกับความเป็น %s ของคุณแล้ว ไม่ต้องเปลี่ยนกลุ่มหุ้น! "
+     * +
+     * "แต่ที่ขาดทุนเกิดจากทักษะการเทรด คำแนะนำ: %s",
+     * category, type, deeperAdvice));
+     * }
+     * 
+     * // Matrix Case 3: เล่นหุ้นผิดสาย + กำไร (False, True) -> อันตรายในระยะยาว
+     * else if (!isStyleMatched && isProfitable) {
+     * result.
+     * setPrimaryFeedback("ดวงดี หรือ พฤติกรรมเริ่มเบี่ยงเบน (Style Drift Warning)"
+     * );
+     * 
+     * String suggestedCat = getSuggestedCategory(type);
+     * result.setRecommendation(String.format(
+     * "คุณมีพฤติกรรมเป็น %s แต่ระยะหลังคุณไปทำกำไรในหุ้นกลุ่ม %s ซึ่งถือว่ามีความเสี่ยง (Mismatch) "
+     * +
+     * "แม้ตอนนี้จะได้กำไร แต่มันอาจเป็นเพียงรอบสั้นๆ ของตลาด คำแนะนำ: ลองพิจารณากลับมาเทรดหุ้นกลุ่ม %s "
+     * +
+     * "เพื่อความสม่ำเสมอในระยะยาว",
+     * type, category, suggestedCat));
+     * }
+     * 
+     * // Matrix Case 4: เล่นหุ้นผิดสาย + ขาดทุน (False, False) -> ต้องปรับปรุงด่วน
+     * else {
+     * result.setPrimaryFeedback("วิกฤต! เล่นผิดประเภทและขาดทุน (Total Mismatch)");
+     * 
+     * String suggestedCat = getSuggestedCategory(type);
+     * result.setRecommendation(String.format(
+     * "ผลขาดทุนของคุณเกิดจากการฝืนธรรมชาติ คุณเป็นคนสไตล์ %s ซึ่งไม่ควรไปเล่นหุ้นกลุ่ม %s "
+     * +
+     * "คำแนะนำ: หยุดเทรดชั่วคราว ทบทวนตัวเอง และเมื่อพร้อมให้กลับมาเริ่มใหม่กับหุ้นกลุ่ม %s เท่านั้น"
+     * ,
+     * type, category, suggestedCat));
+     * }
+     * }
+     */
+    // วิเคราะห์พฤติกรมมเสี่ยง
+    private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades,
+            List<OrderHistory> allOrders) {
+        if (trades.isEmpty())
+            return;
 
         final int RECENT_WINDOW = 50;
         // ดึง 50 ไม้ล่าสุด
@@ -470,13 +521,17 @@ public class UserAnalyticsService {
 
             // Selling Winners Too Early
             if (!"Scalper".equalsIgnoreCase(result.getTraderType())) {
-                if (pnl > 0 && pnl < 2.0 && holdingHours < 24) earlySellScore += 15.0;
-                else if (pnl > 5.0 && holdingHours > 48) earlySellScore -= 10.0;
+                if (pnl > 0 && pnl < 2.0 && holdingHours < 24)
+                    earlySellScore += 15.0;
+                else if (pnl > 5.0 && holdingHours > 48)
+                    earlySellScore -= 10.0;
             }
 
             // Holding Losers Too Long
-            if (pnl <= -10.0 && holdingDays > 14) holdLoserScore += 20.0;
-            else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3) holdLoserScore -= 10.0;
+            if (pnl <= -10.0 && holdingDays > 14)
+                holdLoserScore += 20.0;
+            else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3)
+                holdLoserScore -= 10.0;
         }
 
         // 2. วิเคราะห์จาก Orders
@@ -492,10 +547,13 @@ public class UserAnalyticsService {
             String symbol = entry.getKey();
             List<OrderHistory> symbolOrders = entry.getValue();
 
-            if (symbolOrders.isEmpty()) continue;
+            if (symbolOrders.isEmpty())
+                continue;
 
-            Instant minTime = symbolOrders.stream().map(OrderHistory::getFilledAt).min(Instant::compareTo).orElse(Instant.now());
-            Instant maxTime = symbolOrders.stream().map(OrderHistory::getFilledAt).max(Instant::compareTo).orElse(Instant.now());
+            Instant minTime = symbolOrders.stream().map(OrderHistory::getFilledAt).min(Instant::compareTo)
+                    .orElse(Instant.now());
+            Instant maxTime = symbolOrders.stream().map(OrderHistory::getFilledAt).max(Instant::compareTo)
+                    .orElse(Instant.now());
 
             // 🟢 UPDATED: ดึงข้อมูลเผื่อเยอะๆ และใช้ limit=10000 เพื่อให้ครอบคลุม
             ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(100); // เผื่อเยอะขึ้น
@@ -518,11 +576,15 @@ public class UserAnalyticsService {
                     // Logic เดิม แต่ตรวจสอบว่า RSI ต้องไม่ใช่ 50.0 (ค่ากลาง)
                     if (rsi != 50.0) {
                         if ("buy".equalsIgnoreCase(order.getSide())) {
-                            if (priceChangePct > 5.0 && rsi > 70.0) fomoScore += 15.0;
-                            else if (rsi < 45.0) fomoScore -= 10.0;
+                            if (priceChangePct > 5.0 && rsi > 70.0)
+                                fomoScore += 15.0;
+                            else if (rsi < 45.0)
+                                fomoScore -= 10.0;
                         } else if ("sell".equalsIgnoreCase(order.getSide())) {
-                            if (priceChangePct < -5.0 && rsi < 30.0) panicScore += 15.0;
-                            else if (rsi > 55.0) panicScore -= 10.0;
+                            if (priceChangePct < -5.0 && rsi < 30.0)
+                                panicScore += 15.0;
+                            else if (rsi > 55.0)
+                                panicScore -= 10.0;
                         }
                     }
                 } catch (Exception e) {
@@ -547,14 +609,16 @@ public class UserAnalyticsService {
 
     }
 
-    //ช่วยควบคุมให้ค่าคะแนน (Score) อยู่ในช่วงที่กำหนดเสมอ เช่น 0 ถึง 100
+    // ช่วยควบคุมให้ค่าคะแนน (Score) อยู่ในช่วงที่กำหนดเสมอ เช่น 0 ถึง 100
     private double clamp(double value) {
         return Math.max(0, Math.min(100, value));
     }
 
     private String evaluateRiskLevel(double score) {
-        if (score >= 80.0) return "พฤติกรรมเสี่ยง";
-        if (score >= 60.0) return "มีแนวโน้ม";
+        if (score >= 80.0)
+            return "พฤติกรรมเสี่ยง";
+        if (score >= 60.0)
+            return "มีแนวโน้ม";
         return "ปกติ";
     }
 
@@ -567,7 +631,8 @@ public class UserAnalyticsService {
             feedbacks.add("คุณมีภาวะ Panic Sell มักเทขายหุ้นในจังหวะที่ตลาดตกใจสุดขีด ซึ่งมักจะเป็นจุดต่ำสุดของรอบ");
         }
         if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
-            feedbacks.add("คุณขายหมูบ่อยเกินไป (Selling Winners Too Early) รีบขายทั้งที่เทรนด์ยังไปต่อได้ ทำให้ Risk/Reward ไม่คุ้มค่า");
+            feedbacks.add(
+                    "คุณขายหมูบ่อยเกินไป (Selling Winners Too Early) รีบขายทั้งที่เทรนด์ยังไปต่อได้ ทำให้ Risk/Reward ไม่คุ้มค่า");
         }
         if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
             feedbacks.add("คุณทนถือหุ้นขาดทุนนานเกินไป (Holding Losers Too Long) ควรตั้งจุด Stop Loss อย่างเคร่งครัด");
@@ -587,9 +652,10 @@ public class UserAnalyticsService {
             ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
             ZonedDateTime startTime = tradeTime.minusHours(40); // ดึงเผื่อ
 
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour",10000);
+            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour", 10000);
 
-            if (bars.size() < 15) return 50.0; // ข้อมูลไม่พอคำนวณ RSI
+            if (bars.size() < 15)
+                return 50.0; // ข้อมูลไม่พอคำนวณ RSI
 
             // คำนวณ RSI (Standard 14 Periods)
             return calculateRSI(bars, 14);
@@ -606,9 +672,10 @@ public class UserAnalyticsService {
             ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
             ZonedDateTime startTime = tradeTime.minusHours(25);
 
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour" ,10000);
+            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour", 10000);
 
-            if (bars.isEmpty()) return 0.0;
+            if (bars.isEmpty())
+                return 0.0;
 
             double currentPrice = bars.get(bars.size() - 1).getC(); // ราคาปิดแท่งล่าสุด (ตอนเทรด)
             double prevPrice = bars.get(0).getC(); // ราคาปิดเมื่อ 24 ชม. ที่แล้ว (ประมาณแท่งแรกๆ)
@@ -623,7 +690,8 @@ public class UserAnalyticsService {
                 }
             }
 
-            if (prevPrice == 0) return 0.0;
+            if (prevPrice == 0)
+                return 0.0;
 
             // สูตร: ((ราคาปัจจุบัน - ราคาเก่า) / ราคาเก่า) * 100
             return ((currentPrice - prevPrice) / prevPrice) * 100.0;
@@ -636,7 +704,8 @@ public class UserAnalyticsService {
 
     // สูตรคำนวณ RSI มาตรฐาน
     private double calculateRSI(List<StockBar> bars, int period) {
-        if (bars.size() <= period) return 50.0;
+        if (bars.size() <= period)
+            return 50.0;
 
         double avgGain = 0.0;
         double avgLoss = 0.0;
@@ -644,8 +713,10 @@ public class UserAnalyticsService {
         // คำนวณ RSI รอบแรก
         for (int i = 1; i <= period; i++) {
             double change = bars.get(i).getC() - bars.get(i - 1).getC();
-            if (change > 0) avgGain += change;
-            else avgLoss += Math.abs(change);
+            if (change > 0)
+                avgGain += change;
+            else
+                avgLoss += Math.abs(change);
         }
 
         avgGain /= period;
@@ -661,7 +732,8 @@ public class UserAnalyticsService {
             avgLoss = ((avgLoss * (period - 1)) + loss) / period;
         }
 
-        if (avgLoss == 0) return 100.0; // กำไรล้วน
+        if (avgLoss == 0)
+            return 100.0; // กำไรล้วน
         double rs = avgGain / avgLoss;
         return 100.0 - (100.0 / (1.0 + rs));
     }
@@ -702,7 +774,8 @@ public class UserAnalyticsService {
     }
 
     private void calculateHighlights(UserAnalyticsResult result, List<TradeExecutionRecord> trades) {
-        if (trades.isEmpty()) return;
+        if (trades.isEmpty())
+            return;
 
         // 1. หา "หุ้นลูกรัก" (เทรดบ่อยสุด)
         Map<String, Long> tradeCounts = trades.stream()
@@ -719,8 +792,7 @@ public class UserAnalyticsService {
         Map<String, Double> pnlBySymbol = trades.stream()
                 .collect(Collectors.groupingBy(
                         TradeExecutionRecord::getSymbol,
-                        Collectors.summingDouble(t -> t.getRealizedProfitPercentage().doubleValue())
-                ));
+                        Collectors.summingDouble(t -> t.getRealizedProfitPercentage().doubleValue())));
 
         // หุ้นทำเงิน (Max PnL)
         pnlBySymbol.entrySet().stream()
@@ -757,15 +829,19 @@ public class UserAnalyticsService {
                     long minutes = t.getHoldingPeriod().toMinutes() % 60;
 
                     String durationText;
-                    if (days > 0) durationText = String.format("%d วัน %d ชม.", days, hours);
-                    else if (hours > 0) durationText = String.format("%d ชม. %d นาที", hours, minutes);
-                    else durationText = String.format("%d นาที", minutes);
+                    if (days > 0)
+                        durationText = String.format("%d วัน %d ชม.", days, hours);
+                    else if (hours > 0)
+                        durationText = String.format("%d ชม. %d นาที", hours, minutes);
+                    else
+                        durationText = String.format("%d นาที", minutes);
 
                     result.setLongestHeldDuration(durationText);
                 });
     }
 
-    private TradeExecutionRecord createTradeRecord(OrderHistory openOrder, OrderHistory closeOrder, BigDecimal qty, String category) {
+    private TradeExecutionRecord createTradeRecord(OrderHistory openOrder, OrderHistory closeOrder, BigDecimal qty,
+            String category) {
         TradeExecutionRecord record = new TradeExecutionRecord();
         record.setSymbol(openOrder.getSymbol());
         record.setCategory(category);
@@ -820,7 +896,8 @@ public class UserAnalyticsService {
     }
 
     private void calculateAdvancedMetrics(UserAnalyticsResult result, List<TradeExecutionRecord> trades) {
-        if (trades.isEmpty()) return;
+        if (trades.isEmpty())
+            return;
 
         // 1. Profit Factor (Gross Profit / Gross Loss)
         BigDecimal grossProfit = BigDecimal.ZERO;
@@ -859,10 +936,14 @@ public class UserAnalyticsService {
         } else {
             double pf = grossProfit.divide(grossLoss, 2, RoundingMode.HALF_UP).doubleValue();
             result.setProfitFactor(pf);
-            if (pf >= 2.0) result.setProfitFactorFeedback("ยอดเยี่ยม (Excellent System)");
-            else if (pf >= 1.5) result.setProfitFactorFeedback("ดี (Good System)");
-            else if (pf >= 1.0) result.setProfitFactorFeedback("พอใช้ (Breakeven/Marginal)");
-            else result.setProfitFactorFeedback("ขาดทุน (Losing System)");
+            if (pf >= 2.0)
+                result.setProfitFactorFeedback("ยอดเยี่ยม (Excellent System)");
+            else if (pf >= 1.5)
+                result.setProfitFactorFeedback("ดี (Good System)");
+            else if (pf >= 1.0)
+                result.setProfitFactorFeedback("พอใช้ (Breakeven/Marginal)");
+            else
+                result.setProfitFactorFeedback("ขาดทุน (Losing System)");
         }
 
         // Set Streaks
@@ -898,7 +979,8 @@ public class UserAnalyticsService {
             }
 
             if (maxPct > 50.0) {
-                result.setDiversificationFeedback(String.format("กระจุกตัวสูง! คุณทุ่มเงินกับ %s ไปถึง %.1f%% ของพอร์ต", mostExposedSymbol, maxPct));
+                result.setDiversificationFeedback(String.format("กระจุกตัวสูง! คุณทุ่มเงินกับ %s ไปถึง %.1f%% ของพอร์ต",
+                        mostExposedSymbol, maxPct));
             } else {
                 result.setDiversificationFeedback("กระจายความเสี่ยงได้ดี (Well Diversified)");
             }
@@ -906,7 +988,8 @@ public class UserAnalyticsService {
     }
 
     private double calculateRsiFromCache(List<StockBar> bars, Instant tradeTimeInstant) {
-        if (bars == null || bars.isEmpty()) return 50.0;
+        if (bars == null || bars.isEmpty())
+            return 50.0;
 
         ZonedDateTime tradeTime = tradeTimeInstant.atZone(ZoneId.of("America/New_York"));
 
@@ -916,14 +999,16 @@ public class UserAnalyticsService {
                 .sorted(Comparator.comparing(StockBar::getT)) // เรียงเก่า -> ใหม่
                 .collect(Collectors.toList());
 
-        if (relevantBars.size() < 15) return 50.0;
+        if (relevantBars.size() < 15)
+            return 50.0;
 
         // ตัดเอาแค่ส่วนท้ายๆ มาคำนวณ RSI (ใช้ฟังก์ชันเดิมได้เลย)
         return calculateRSI(relevantBars, 14);
     }
 
     private double calculatePriceChangeFromCache(List<StockBar> bars, Instant tradeTimeInstant) {
-        if (bars == null || bars.isEmpty()) return 0.0;
+        if (bars == null || bars.isEmpty())
+            return 0.0;
 
         ZonedDateTime tradeTime = tradeTimeInstant.atZone(ZoneId.of("America/New_York"));
 
@@ -935,7 +1020,8 @@ public class UserAnalyticsService {
                 break;
             }
         }
-        if (currentBar == null) return 0.0;
+        if (currentBar == null)
+            return 0.0;
 
         // หา Bar เมื่อ 24 ชม. ที่แล้ว (Previous Price)
         StockBar prevBar = bars.get(0);
@@ -950,7 +1036,8 @@ public class UserAnalyticsService {
         double currentPrice = currentBar.getC();
         double prevPrice = prevBar.getC();
 
-        if (prevPrice == 0) return 0.0;
+        if (prevPrice == 0)
+            return 0.0;
         return ((currentPrice - prevPrice) / prevPrice) * 100.0;
     }
 }
