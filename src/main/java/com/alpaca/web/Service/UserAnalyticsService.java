@@ -77,13 +77,15 @@ public class UserAnalyticsService {
 
         List<TradeExecutionRecord> closedTrades = matchTradesFIFO(orders);
 
-        // 3. คำนวณพฤติกรรมจริง (Actual Behavior) จากระยะเวลาถือครอง
         String actualBehaviorType = classifyTraderType(closedTrades);
 
-        // 4. ส่งค่าทั้ง 3 อย่างไปวิเคราะห์ (Stated vs Actual vs Stock Category)
+        // คำนวณ Analytics หลัก
         UserAnalyticsResult result = performDeepAnalytics(statedType, actualBehaviorType, closedTrades);
 
-        // 5. วิเคราะห์พฤติกรรมเสี่ยง
+        // คำนวณ Advanced Metrics (Profit Factor, Streaks, etc.) ที่ขาดหายไป
+        calculateAdvancedMetrics(result, closedTrades);
+
+        // วิเคราะห์ความเสี่ยง
         analyzeRiskBehaviors(result, closedTrades, orders);
 
         return result;
@@ -109,48 +111,29 @@ public class UserAnalyticsService {
                 BigDecimal qtyToMatch = currentOrder.getFilledQty();
 
                 if ("buy".equalsIgnoreCase(currentOrder.getSide())) {
-                    // --- กรณีเจอไม้ BUY ---
-                    // 1. เช็คก่อนว่ามีไม้ Short ค้างอยู่ให้ปิดไหม? (Cover Short)
                     while (qtyToMatch.compareTo(BigDecimal.ZERO) > 0 && !shortQueue.isEmpty()) {
                         RemainingOrder openShort = shortQueue.peek();
                         BigDecimal matchedQty = qtyToMatch.min(openShort.remainingQty);
-
-                        // บันทึก Trade: Sell (Open) -> Buy (Close)
                         closedTrades.add(createTradeRecord(openShort.order, currentOrder, matchedQty, stockCategory));
-
                         qtyToMatch = qtyToMatch.subtract(matchedQty);
                         openShort.remainingQty = openShort.remainingQty.subtract(matchedQty);
-
-                        if (openShort.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
-                            shortQueue.poll();
-                        }
+                        if (openShort.remainingQty.compareTo(BigDecimal.ZERO) == 0) shortQueue.poll();
                     }
-                    // 2. ถ้าเหลือ (หรือไม่มี Short) ให้เก็บเข้า Long Queue
                     if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
-                        currentOrder.setFilledQty(qtyToMatch); // Update ยอดที่เหลือจริง
+                        currentOrder.setFilledQty(qtyToMatch);
                         longQueue.add(new RemainingOrder(currentOrder));
                     }
-
                 } else if ("sell".equalsIgnoreCase(currentOrder.getSide())) {
-                    // --- กรณีเจอไม้ SELL ---
-                    // 1. เช็คก่อนว่ามีของในมือให้ขายไหม? (Close Long)
                     while (qtyToMatch.compareTo(BigDecimal.ZERO) > 0 && !longQueue.isEmpty()) {
                         RemainingOrder openLong = longQueue.peek();
                         BigDecimal matchedQty = qtyToMatch.min(openLong.remainingQty);
-
-                        // บันทึก Trade: Buy (Open) -> Sell (Close)
                         closedTrades.add(createTradeRecord(openLong.order, currentOrder, matchedQty, stockCategory));
-
                         qtyToMatch = qtyToMatch.subtract(matchedQty);
                         openLong.remainingQty = openLong.remainingQty.subtract(matchedQty);
-
-                        if (openLong.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
-                            longQueue.poll();
-                        }
+                        if (openLong.remainingQty.compareTo(BigDecimal.ZERO) == 0) longQueue.poll();
                     }
-                    // 2. ถ้าเหลือ (ขายเกินจำนวนที่มี) ให้ถือเป็น Short Sell
                     if (qtyToMatch.compareTo(BigDecimal.ZERO) > 0) {
-                        currentOrder.setFilledQty(qtyToMatch); // Update ยอดที่เหลือจริง
+                        currentOrder.setFilledQty(qtyToMatch);
                         shortQueue.add(new RemainingOrder(currentOrder));
                     }
                 }
@@ -171,10 +154,8 @@ public class UserAnalyticsService {
 
         for (TradeExecutionRecord t : trades) {
             totalSeconds += t.getHoldingPeriod().getSeconds();
-            if (t.isOvernight())
-                overnightCount++;
+            if (t.isOvernight()) overnightCount++;
         }
-
         double avgHoldingSeconds = (double) totalSeconds / trades.size();
         double overnightRatio = (double) overnightCount / trades.size();
 
@@ -285,17 +266,19 @@ public class UserAnalyticsService {
         int lossCount = 0;
         double sumWinPct = 0.0;
         double sumLossPct = 0.0;
-        double totalPnL = 0.0;
-
+        BigDecimal totalPnLAmount = BigDecimal.ZERO;
         for (TradeExecutionRecord t : trades) {
-            double pnl = t.getRealizedProfitPercentage().doubleValue();
-            totalPnL += pnl;
-            if (pnl > 0) {
+            BigDecimal pnlAmt = t.getRealizedProfitAmount();
+            double pnlPct = t.getRealizedProfitPercentage().doubleValue();
+
+            totalPnLAmount = totalPnLAmount.add(pnlAmt); // รวมยอดเงินจริง
+
+            if (pnlAmt.compareTo(BigDecimal.ZERO) > 0) {
                 winCount++;
-                sumWinPct += pnl;
-            } else if (pnl < 0) {
+                sumWinPct += pnlPct;
+            } else if (pnlAmt.compareTo(BigDecimal.ZERO) < 0) {
                 lossCount++;
-                sumLossPct += Math.abs(pnl);
+                sumLossPct += Math.abs(pnlPct);
             }
         }
 
@@ -304,30 +287,25 @@ public class UserAnalyticsService {
         double avgLoss = lossCount > 0 ? sumLossPct / lossCount : 0.0;
         double riskReward = avgLoss > 0 ? avgWin / avgLoss : avgWin;
 
+        // คำนวณ Highlights (หุ้นตัวโปรด, หุ้นทำเงิน)
         calculateHighlights(result, trades);
 
-        //บันทึกลง database
         result.setWinRate(winRate);
-        result.setTotalRealizedPnL(totalPnL);
+        result.setTotalRealizedPnL(totalPnLAmount.doubleValue()); // Set ค่าจริงที่เป็นตัวเงิน
         result.setAverageWinPct(avgWin);
         result.setAverageLossPct(avgLoss);
         result.setRiskRewardRatio(riskReward);
 
-        // --- 2. หา "หุ้นกลุ่มหลัก" ที่เล่น (Predominant Category) ---
+        // Logic check match
         Map<String, Long> categoryCount = trades.stream()
                 .collect(Collectors.groupingBy(TradeExecutionRecord::getCategory, Collectors.counting()));
         String predominantCategory = categoryCount.entrySet().stream()
                 .max(Map.Entry.comparingByValue())
                 .map(Map.Entry::getKey).orElse("UNKNOWN");
 
-        // --- 3. ตรวจสอบความสอดคล้อง (Consistency Check) ---
-
-        // Check 1: หุ้นที่เล่น ตรงกับ Type ที่ระบุไว้ไหม?
         boolean isStockMatched = checkStyleMatch(statedType, predominantCategory);
-
-        // Check 2: พฤติกรรมการถือยาว/สั้น (Actual) ตรงกับ Type ที่ระบุไว้ (Stated) ไหม?
         boolean isBehaviorMatched = statedType.equalsIgnoreCase(actualBehaviorType);
-        boolean isProfitable = (totalPnL > 0) || (winRate > 50.0);
+        boolean isProfitable = (totalPnLAmount.compareTo(BigDecimal.ZERO) > 0) || (winRate > 50.0);
 
         result.setStyleMatched(isStockMatched && isBehaviorMatched);
         result.setProfitable(isProfitable);
@@ -432,93 +410,82 @@ public class UserAnalyticsService {
     }
     //วิเคราะห์พฤติกรมมเสี่ยง
     private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades, List<OrderHistory> allOrders) {
-        if (trades.isEmpty() && allOrders.isEmpty()) return;
-        // 1. กำหนด Rolling Window (วิเคราะห์แค่ 50 รายการล่าสุด)
+        if (trades.isEmpty()) return;
+
         final int RECENT_WINDOW = 50;
-        // --- จุดแก้ไขที่ 1: จำกัดข้อมูลแค่ 50 ไม้ล่าสุด และกลับด้านให้อ่านจากเก่าไปใหม่ ---
+        // ดึง 50 ไม้ล่าสุด
         List<TradeExecutionRecord> recentTrades = trades.stream()
                 .limit(RECENT_WINDOW)
                 .collect(Collectors.toList());
-        Collections.reverse(recentTrades);
 
-        List<OrderHistory> recentOrders = allOrders.stream()
-                .limit(RECENT_WINDOW * 2) // ออเดอร์มีทั้ง Buy/Sell เลยดึงเผื่อไว้
-                .collect(Collectors.toList());
-        Collections.reverse(recentOrders);
-
-        // --- จุดแก้ไขที่ 2: เปลี่ยนจากการนับจำนวน (Count) เป็นคะแนน (Score) เริ่มที่ 0 ---
         double fomoScore = 0.0;
         double panicScore = 0.0;
         double earlySellScore = 0.0;
         double holdLoserScore = 0.0;
 
-        // 2. วิเคราะห์จากประวัติไม้ที่ปิดไปแล้ว (Closed Trades)
+        // 1. วิเคราะห์จาก Closed Trades
         for (TradeExecutionRecord t : recentTrades) {
             double pnl = t.getRealizedProfitPercentage().doubleValue();
             long holdingHours = t.getHoldingPeriod().toHours();
             long holdingDays = t.getHoldingPeriod().toDays();
 
-            // อาการขายหุ้นที่ได้กำไรเร็วเกินไป (Selling Winners Too Early)
+            // Selling Winners Too Early
             if (!"Scalper".equalsIgnoreCase(result.getTraderType())) {
-                if (pnl > 0 && pnl < 2.0 && holdingHours < 24) {
-                    earlySellScore += 15.0;  // อาการกำเริบ: เพิ่มคะแนนความเสี่ยง
-                } else if (pnl > 5.0 && holdingHours > 48) {
-                    earlySellScore -= 10.0;  // ทำได้ดี: ทนรวยได้ ลบคะแนนความเสี่ยง
-                }
+                if (pnl > 0 && pnl < 2.0 && holdingHours < 24) earlySellScore += 15.0;
+                else if (pnl > 5.0 && holdingHours > 48) earlySellScore -= 10.0;
             }
 
-            // อาการถือหุ้นที่ขาดทุนนานเกินไป (Holding Losers Too Long)
-            if (pnl <= -10.0 && holdingDays > 14) {
-                holdLoserScore += 20.0; // อาการกำเริบ: ทนดอยจนพัง เพิ่มคะแนนรุนแรง
-            } else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3) {
-                holdLoserScore -= 10.0; // ทำได้ดี: ยอม Cut Loss ไว ลบคะแนนให้
-            }
-
-            // --- จุดแก้ไขที่ 3: คุมคะแนนให้อยู่ในกรอบ 0 - 100 เสมอ ---
-            earlySellScore = Math.max(0, Math.min(100, earlySellScore));
-            holdLoserScore = Math.max(0, Math.min(100, holdLoserScore));
+            // Holding Losers Too Long
+            if (pnl <= -10.0 && holdingDays > 14) holdLoserScore += 20.0;
+            else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3) holdLoserScore -= 10.0;
         }
 
-        // 3. วิเคราะห์จากจังหวะการเข้าออกออเดอร์ (Order Level)
-        for (OrderHistory order : recentOrders) {
-            // *** จำเป็นต้องดึงข้อมูลตลาด ณ เวลานั้นมาประกอบ ***
-            double rsi = getMarketRsiAtTime(order.getSymbol(), order.getFilledAt());
-            double priceChangePct = getPriceChangeBeforeTrade(order.getSymbol(), order.getFilledAt());
+        // 2. วิเคราะห์จาก Orders (ปรับปรุง Performance โดยการใช้ Map เก็บ Market Data)
+        // จัดกลุ่มตาม Symbol เพื่อดึงข้อมูลตลาดแบบลดจำนวนครั้ง
+        Map<String, List<OrderHistory>> ordersBySymbol = allOrders.stream()
+                .limit(RECENT_WINDOW * 2)
+                .collect(Collectors.groupingBy(OrderHistory::getSymbol));
 
-            if ("buy".equalsIgnoreCase(order.getSide())) {
-                // อาการกลัวพลาดโอกาส (FOMO)
-                if (priceChangePct > 5.0 && rsi > 70.0) {
-                    fomoScore += 15.0; // ไล่ซื้อยอดดอย เพิ่มคะแนน
-                } else if (rsi < 45.0) {
-                    fomoScore -= 10.0; // ซื้อตอนราคาย่อตัว ถือว่าทำได้ดี ลบคะแนน
-                }
-                fomoScore = Math.max(0, Math.min(100, fomoScore));
+        for (Map.Entry<String, List<OrderHistory>> entry : ordersBySymbol.entrySet()) {
+            String symbol = entry.getKey();
+            for (OrderHistory order : entry.getValue()) {
+                // ใส่ Try-Catch เพื่อไม่ให้ Error ของออเดอร์เดียวทำให้ระบบพังทั้งหมด
+                try {
+                    double rsi = getMarketRsiAtTime(symbol, order.getFilledAt());
+                    double priceChangePct = getPriceChangeBeforeTrade(symbol, order.getFilledAt());
 
-            } else if ("sell".equalsIgnoreCase(order.getSide())) {
-                // อาการขายแบบตื่นตระหนก (Panic Sell)
-                if (priceChangePct < -5.0 && rsi < 30.0) {
-                    panicScore += 15.0; // ตกใจขายทิ้งก้นเหว เพิ่มคะแนน
-                } else if (rsi > 55.0) {
-                    panicScore -= 10.0; // ขายทำกำไรปกติ ลบคะแนน
+                    if ("buy".equalsIgnoreCase(order.getSide())) {
+                        if (priceChangePct > 5.0 && rsi > 70.0) fomoScore += 15.0;
+                        else if (rsi < 45.0) fomoScore -= 10.0;
+                    } else if ("sell".equalsIgnoreCase(order.getSide())) {
+                        if (priceChangePct < -5.0 && rsi < 30.0) panicScore += 15.0;
+                        else if (rsi > 55.0) panicScore -= 10.0;
+                    }
+                } catch (Exception e) {
+                    // Log error และทำรายการถัดไป
+                    continue;
                 }
-                panicScore = Math.max(0, Math.min(100, panicScore));
             }
         }
 
-        // --- จุดแก้ไขที่ 4: บันทึกผลลง Result เลย (ไม่ต้องเอาไปหาร Total แล้ว เพราะเป็น Score 0-100 โดยตรง) ---
-        result.setFomoScore(fomoScore);
-        result.setFomoStatus(evaluateRiskLevel(fomoScore));
+        // คุมกรอบคะแนน 0-100 และบันทึกผล
+        result.setFomoScore(clamp(fomoScore));
+        result.setPanicSellScore(clamp(panicScore));
+        result.setSellingWinnersTooEarlyScore(clamp(earlySellScore));
+        result.setHoldingLosersTooLongScore(clamp(holdLoserScore));
 
-        result.setPanicSellScore(panicScore);
-        result.setPanicSellStatus(evaluateRiskLevel(panicScore));
-
-        result.setSellingWinnersTooEarlyScore(earlySellScore);
-        result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(earlySellScore));
-
-        result.setHoldingLosersTooLongScore(holdLoserScore);
-        result.setHoldingLosersTooLongStatus(evaluateRiskLevel(holdLoserScore));
+        // ตั้งค่า Status
+        result.setFomoStatus(evaluateRiskLevel(result.getFomoScore()));
+        result.setPanicSellStatus(evaluateRiskLevel(result.getPanicSellScore()));
+        result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(result.getSellingWinnersTooEarlyScore()));
+        result.setHoldingLosersTooLongStatus(evaluateRiskLevel(result.getHoldingLosersTooLongScore()));
 
         generateBehavioralFeedback(result);
+    }
+
+
+    private double clamp(double value) {
+        return Math.max(0, Math.min(100, value));
     }
 
     private String evaluateRiskLevel(double score) {
@@ -786,5 +753,91 @@ public class UserAnalyticsService {
         }
 
         return record;
+    }
+
+    private void calculateAdvancedMetrics(UserAnalyticsResult result, List<TradeExecutionRecord> trades) {
+        if (trades.isEmpty()) return;
+
+        // 1. Profit Factor (Gross Profit / Gross Loss)
+        BigDecimal grossProfit = BigDecimal.ZERO;
+        BigDecimal grossLoss = BigDecimal.ZERO;
+
+        int currentWinStreak = 0;
+        int maxWinStreak = 0;
+        int currentLossStreak = 0;
+        int maxLossStreak = 0;
+
+        for (TradeExecutionRecord t : trades) {
+            BigDecimal pnl = t.getRealizedProfitAmount();
+
+            // Profit Factor Logic
+            if (pnl.compareTo(BigDecimal.ZERO) > 0) {
+                grossProfit = grossProfit.add(pnl);
+
+                // Streak Logic
+                currentWinStreak++;
+                currentLossStreak = 0;
+                maxWinStreak = Math.max(maxWinStreak, currentWinStreak);
+            } else if (pnl.compareTo(BigDecimal.ZERO) < 0) {
+                grossLoss = grossLoss.add(pnl.abs());
+
+                // Streak Logic
+                currentLossStreak++;
+                currentWinStreak = 0;
+                maxLossStreak = Math.max(maxLossStreak, currentLossStreak);
+            }
+        }
+
+        // Set Profit Factor
+        if (grossLoss.compareTo(BigDecimal.ZERO) == 0) {
+            result.setProfitFactor(grossProfit.doubleValue() > 0 ? 999.0 : 0.0); // 999 แทน Infinity
+            result.setProfitFactorFeedback("ไร้พ่าย! (No Loss)");
+        } else {
+            double pf = grossProfit.divide(grossLoss, 2, RoundingMode.HALF_UP).doubleValue();
+            result.setProfitFactor(pf);
+            if (pf >= 2.0) result.setProfitFactorFeedback("ยอดเยี่ยม (Excellent System)");
+            else if (pf >= 1.5) result.setProfitFactorFeedback("ดี (Good System)");
+            else if (pf >= 1.0) result.setProfitFactorFeedback("พอใช้ (Breakeven/Marginal)");
+            else result.setProfitFactorFeedback("ขาดทุน (Losing System)");
+        }
+
+        // Set Streaks
+        result.setMaxConsecutiveWins(maxWinStreak);
+        result.setMaxConsecutiveLosses(maxLossStreak);
+        if (maxLossStreak >= 3) {
+            result.setStreakFeedback("ระวัง! คุณเริ่มแพ้ติดกันบ่อย พักปรับอารมณ์บ้าง (Cool-down needed)");
+        } else {
+            result.setStreakFeedback("การควบคุมอารมณ์ยังดีอยู่");
+        }
+
+        // 2. Diversification & Sizing Logic
+        // เช็คว่าลงเงินกับตัวไหนเยอะผิดปกติไหม
+        Map<String, BigDecimal> exposureBySymbol = new HashMap<>();
+        BigDecimal totalExposure = BigDecimal.ZERO;
+
+        for (TradeExecutionRecord t : trades) {
+            BigDecimal size = t.getPositionSize();
+            exposureBySymbol.merge(t.getSymbol(), size, BigDecimal::add);
+            totalExposure = totalExposure.add(size);
+        }
+
+        if (totalExposure.compareTo(BigDecimal.ZERO) > 0) {
+            String mostExposedSymbol = "";
+            double maxPct = 0.0;
+
+            for (Map.Entry<String, BigDecimal> entry : exposureBySymbol.entrySet()) {
+                double pct = entry.getValue().divide(totalExposure, 4, RoundingMode.HALF_UP).doubleValue() * 100;
+                if (pct > maxPct) {
+                    maxPct = pct;
+                    mostExposedSymbol = entry.getKey();
+                }
+            }
+
+            if (maxPct > 50.0) {
+                result.setDiversificationFeedback(String.format("กระจุกตัวสูง! คุณทุ่มเงินกับ %s ไปถึง %.1f%% ของพอร์ต", mostExposedSymbol, maxPct));
+            } else {
+                result.setDiversificationFeedback("กระจายความเสี่ยงได้ดี (Well Diversified)");
+            }
+        }
     }
 }
