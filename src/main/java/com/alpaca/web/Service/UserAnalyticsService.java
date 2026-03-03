@@ -75,6 +75,8 @@ public class UserAnalyticsService {
             UserAnalyticsResult emptyResult = new UserAnalyticsResult();
             emptyResult.setTraderType(statedType);
             emptyResult.setPrimaryFeedback("ยังไม่มีข้อมูลการเทรดที่สมบูรณ์เพียงพอ");
+            // ยังคงต้องเรียก analyzeRiskBehaviors เพื่อดึงค่า Quiz จาก DB มาโชว์
+            analyzeRiskBehaviors(emptyResult, new ArrayList<>(), new ArrayList<>(), user.getRiskBehavior());
             return emptyResult;
         }
 
@@ -366,6 +368,7 @@ public class UserAnalyticsService {
         }
 
     }
+
     // 1. ถูกสาย - กำไร
     private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat) {
         result.setPrimaryFeedback("ยอดเยี่ยม! คุณคือนักเทรดที่มีวินัย (Perfect Alignment)");
@@ -380,20 +383,23 @@ public class UserAnalyticsService {
         result.setRecommendation(String.format(
                 "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย' \n" +
                         "คุณมี 2 ทางเลือกในการไปต่อ:\n" +
-                        "1. [ไปต่อ (Persist)]: หากคุณมั่นใจในสไตล์นี้ ปัญหาอาจอยู่ที่จุดเข้า-ออก (Timing) ให้ Backtest ระบบเทรดของคุณใหม่ ปรับปรุง Technical Analysis\n" +
+                        "1. [ไปต่อ (Persist)]: หากคุณมั่นใจในสไตล์นี้ ปัญหาอาจอยู่ที่จุดเข้า-ออก (Timing) ให้ Backtest ระบบเทรดของคุณใหม่ ปรับปรุง Technical Analysis\n"
+                        +
                         "2. [เปลี่ยนสาย (Pivot)]: หากสไตล์ %s สร้างความเครียดหรือ Drawdown สูงเกินรับไหว ให้ลองเปลี่ยนไปใช้สไตล์ที่ถือครองสั้นลงหรือยาวขึ้นดู",
                 statedType, statedType));
     }
 
     // 3. ผิดสาย - กำไร
-    private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat, boolean stockMatch) {
+    private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType,
+            String stockCat, boolean stockMatch) {
         result.setPrimaryFeedback("ค้นพบพรสวรรค์ใหม่? (New Strength Discovered)");
 
         // แยกแยะสาเหตุนิดหน่อยเพื่อให้คำแนะนำฉลาดขึ้น
         if (!stockMatch) {
+            String suitableType = getTraderTypeFromCategory(stockCat);
             result.setRecommendation(String.format(
-                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งไม่ใช่เป้าหมายหลัก ระวังกับดักกำไรระยะสั้นจากหุ้นที่ไม่ถนัด",
-                    statedType, stockCat));
+                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งปกติเหมาะกับสาย %s มากกว่า ระวังกับดักกำไรระยะสั้นจากหุ้นที่ไม่ถนัด",
+                    statedType, stockCat, suitableType));
         } else {
             result.setRecommendation(String.format(
                     "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า",
@@ -403,7 +409,8 @@ public class UserAnalyticsService {
     }
 
     // 4. ผิดสาย - ขาดทุน
-    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat) {
+    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType,
+            String stockCat) {
         result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
         result.setRecommendation(String.format(
                 "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน \n" +
