@@ -7,6 +7,7 @@ import java.time.Duration;
 public class UserAnalyticsResult {
 
     private String traderType;         // ประเภทนักเทรด เช่น Scalper, Day Trader
+    private String suggestedTraderType;  // สายที่ระบบแนะนำให้เปลี่ยน
     private int totalClosedTrades;     // จำนวนไม้ที่เทรดจบแล้ว (ซื้อและขายครบ)
     private String primaryFeedback;    // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
     private String recommendation;     // คำแนะนำแบบยาว
@@ -37,4 +38,27 @@ public class UserAnalyticsResult {
 
     // คำแนะนำเพิ่มเติมสำหรับพฤติกรรมเสี่ยง
     private String behavioralFeedback;
+
+    private String mostTradedStock;         // หุ้นที่เทรดบ่อยสุด
+    private long mostTradedStockCount;      // จำนวนครั้งที่เทรด
+
+    private String bestPerformingStock;     // หุ้นที่ทำกำไร(รวม)สูงสุด
+    private double bestPerformingStockPnL;  // กำไร(%) รวมของตัวนี้
+
+    private String worstPerformingStock;    // หุ้นที่ขาดทุน(รวม)หนักสุด
+    private double worstPerformingStockPnL; // ขาดทุน(%) รวมของตัวนี้
+
+    private String longestHeldStock;        // หุ้นที่ถือครองนานสุด (ไม้เดียว)
+    private String longestHeldDuration;     // ข้อความระบุเวลา เช่น "5 วัน 2 ชม."
+
+    private String sizingFeedback;        // เช่น "อันตราย! คุณมักจะลงเงินหนักในไม้ที่ขาดทุน (Over-betting on losers)"
+    private double profitFactor;          // Gross Profit / Gross Loss (ค่ามาตรฐานโลก: > 1.5 คือดี)
+    private String profitFactorFeedback;  // คำอธิบาย Profit Factor
+
+    // 2. Diversification (การกระจายหุ้น)
+    private String diversificationFeedback; // เช่น "คุณกระจุกตัวอยู่กับหุ้น TSLA เกิน 60% ของพอร์ต (Obsession Risk)"
+    private int maxConsecutiveWins;       // ชนะติดกันสูงสุด
+    private int maxConsecutiveLosses;     // แพ้ติดกันสูงสุด
+    private String streakFeedback;        // เช่น "ระวัง! คุณแพ้ติดกัน 5 ไม้แล้ว หยุดพักก่อนไหม (Cool-down required)"
+
 }

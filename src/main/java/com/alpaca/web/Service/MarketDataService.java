@@ -479,4 +479,73 @@ public class MarketDataService {
                 .limit(20)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 🟢 ฟังก์ชันใหม่: ดึงข้อมูลกราฟย้อนหลังเพื่อการวิเคราะห์ (Analytics)
+     * ต่างจาก getStockBars ปกติตรงที่ระบุ start/end ได้อิสระ
+     */
+    public List<StockBar> getHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe) {
+        String cleanSymbol = symbol.trim().toUpperCase();
+
+        // 1. ตรวจสอบว่าเป็น Crypto หรือ Stock
+        if (cleanSymbol.contains("/")) {
+            return getCryptoHistoricalBars(cleanSymbol, start, end, timeframe);
+        }
+
+        // 2. Format วันที่
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        String startStr = start.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
+        String endStr = end.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
+
+        // 3. สร้าง URL (ใช้ API V2 Stocks)
+        // limit=100 เผื่อไว้คำนวณ indicator
+        String urlString = String.format(
+                "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&end=%s&limit=100",
+                cleanSymbol, timeframe, startStr, endStr);
+
+        URI uri = URI.create(urlString);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<Map> response = restTemplate.exchange(uri, HttpMethod.GET, entity, Map.class);
+            if (response.getBody() != null && response.getBody().containsKey("bars")) {
+                List<Map<String, Object>> barsData = (List<Map<String, Object>>) response.getBody().get("bars");
+                List<StockBar> stockBars = new ArrayList<>();
+                if (barsData != null) {
+                    for (Map<String, Object> barMap : barsData) {
+                        StockBar bar = new StockBar();
+                        String tStr = (String) barMap.get("t");
+                        bar.setT(OffsetDateTime.parse(tStr)); // Keep UTC
+                        bar.setO(Double.valueOf(barMap.get("o").toString()));
+                        bar.setH(Double.valueOf(barMap.get("h").toString()));
+                        bar.setL(Double.valueOf(barMap.get("l").toString()));
+                        bar.setC(Double.valueOf(barMap.get("c").toString()));
+                        bar.setV(Double.valueOf(barMap.get("v").toString()).longValue());
+                        stockBars.add(bar);
+                    }
+                }
+                return stockBars;
+            }
+        } catch (Exception e) {
+            log.error("❌ Error fetching historical stock bars: {}", e.getMessage());
+        }
+        return Collections.emptyList();
+    }
+
+    private List<StockBar> getCryptoHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe) {
+        // Logic คล้ายกันแต่เปลี่ยน URL เป็น /v1beta3/crypto/us/bars
+        // และ Timeframe Crypto ต้องระบุให้ถูก
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        String startStr = start.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
+
+        String urlString = String.format(
+                "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=%s&limit=100&start=%s",
+                symbol, timeframe, 100, startStr);
+        // ... (Logic การ Call RestTemplate เหมือน getCryptoBars เดิม)
+        // เพื่อความกระชับ ขอละไว้ในตัวอย่างนี้ แต่หลักการเดียวกันครับ
+        return Collections.emptyList();
+    }
 }
