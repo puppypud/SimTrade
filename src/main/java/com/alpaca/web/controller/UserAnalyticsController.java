@@ -1,8 +1,10 @@
 package com.alpaca.web.controller;
 
+import com.alpaca.web.Repository.AccountRepository;
 import com.alpaca.web.Service.UserAnalyticsService;
 import com.alpaca.web.dto.UserAnalyticsResult;
 import com.alpaca.web.dto.TradeExecutionRecord;
+import com.alpaca.web.entity.UserAccount;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,10 +16,30 @@ import java.util.Map;
 @CrossOrigin(origins = {"http://localhost:3000", "http://localhost"})
 public class UserAnalyticsController {
     private final UserAnalyticsService userAnalyticsService;
+    private final AccountRepository accountRepository;
 
-    public UserAnalyticsController(UserAnalyticsService userAnalyticsService) {
+    public UserAnalyticsController(UserAnalyticsService userAnalyticsService, AccountRepository accountRepository) {
         this.userAnalyticsService = userAnalyticsService;
+        this.accountRepository = accountRepository;
     }
+
+    // ดึง traderType ล่าสุดจากฐานข้อมูล (ผลจากการทำ Quiz/Onboarding)
+    @GetMapping("/user/{userId}/profile")
+    public ResponseEntity<?> getUserProfile(@PathVariable Long userId) {
+        try {
+            UserAccount user = accountRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            return ResponseEntity.ok(Map.of(
+                    "id", user.getId(),
+                    "traderType", user.getTraderType() != null ? user.getTraderType() : "Unknown",
+                    "riskBehavior", user.getRiskBehavior() != null ? user.getRiskBehavior() : "Unknown"));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "User not found", "details", e.getMessage()));
+        }
+    }
+
     @GetMapping("/user/{userId}")
     public ResponseEntity<?> getUserAnalytics(@PathVariable Long userId) {
         try {
@@ -45,8 +67,7 @@ public class UserAnalyticsController {
             return ResponseEntity.ok(Map.of(
                     "message", "Update Trader Type success",
                     "userId", userId,
-                    "newType", newType
-            ));
+                    "newType", newType));
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         } catch (Exception e) {
