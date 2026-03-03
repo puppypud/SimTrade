@@ -343,67 +343,72 @@ public class UserAnalyticsService {
     private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType,
             String stockCat, boolean stockMatch, boolean behaviorMatch, boolean profitable) {
 
-        // CASE 1: ตรงเป๊ะทุกอย่าง (Ideal State)
-        if (stockMatch && behaviorMatch) {
+        // นิยามคำว่า "ถูกสาย" (Alignment) : ต้องถูกทั้งตัวหุ้น และ พฤติกรรมการถือ
+        boolean isRightStyle = stockMatch && behaviorMatch;
+        if (isRightStyle) {
+            // GROUP A: ถูกสาย (Aligned)
             if (profitable) {
-                result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
-                result.setRecommendation(String.format(
-                        "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้", statedType,
-                        stockCat));
+                // 1. ถูกสาย - กำไร (Ideal State)
+                handleRightStyleProfitable(result, statedType, stockCat);
             } else {
-                // --- ปรับปรุงตรงนี้ตามที่คุณต้องการ ---
-                result.setPrimaryFeedback("มาถูกทางแล้ว แต่ผลลัพธ์ยังติดลบ (Right Style, Wrong Result)");
-                result.setRecommendation(String.format(
-                        "คุณมีวินัยดีมาก (เลือกหุ้นถูก+ถือครองถูก) แต่ยังขาดทุน คุณมี 2 ทางเลือก: " +
-                                "1. ไปต่อ (Persist): ปัญหาอาจอยู่ที่จุดเข้า-ออก (Entry/Exit) ให้ฝึก Technical เพิ่มเติม "
-                                +
-                                "หรือ 2. เปลี่ยนสาย (Pivot): หากสไตล์ %s ทำให้คุณเครียดเกินไป ลองพิจารณาสไตล์อื่นที่ผ่อนคลายกว่านี้",
-                        statedType));
+                // 3. ถูกสาย - ขาดทุน (Discipline Trap) -> *มี 2 ทางเลือก*
+                handleRightStyleUnprofitable(result, statedType);
             }
-            return;
+        } else {
+            // GROUP B: ผิดสาย (Misaligned) -> คือ stockMatch=false หรือ behaviorMatch=false
+            if (profitable) {
+                // 2. ผิดสาย - กำไร (Accidental Success/Discovery)
+                handleWrongStyleProfitable(result, statedType, actualType, stockCat, stockMatch);
+            } else {
+                // 4. ผิดสาย - ขาดทุน (Total Chaos)
+                handleWrongStyleUnprofitable(result, statedType, actualType, stockCat);
+            }
         }
 
-        // CASE 2: พฤติกรรมเปลี่ยนแล้วได้ดี (Evolution)
-        if (!behaviorMatch && profitable) {
-            result.setPrimaryFeedback("ค้นพบแนวทางใหม่! (New Strength Discovered)");
-            result.setRecommendation(String.format(
-                    "คุณตั้งเป้าเป็น %s แต่กำไรจริงมาจากการเทรดสไตล์ %s แนะนำให้อัปเดต Profile ของคุณให้ตรงกับความเป็นจริง",
-                    statedType, actualType));
-            result.setSuggestedTraderType(actualType);
-            return;
-        }
+    }
+    // 1. ถูกสาย - กำไร
+    private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat) {
+        result.setPrimaryFeedback("ยอดเยี่ยม! คุณคือนักเทรดที่มีวินัย (Perfect Alignment)");
+        result.setRecommendation(String.format(
+                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้ และพยายาม Scale Up พอร์ตการลงทุน",
+                statedType, stockCat));
+    }
 
-        // CASE 3: เล่นหุ้นผิดประเภท (Wrong Asset Class)
+    // 2. ถูกสาย - ขาดทุน (ไฮไลท์ที่คุณต้องการ: 2 ทางเลือก)
+    private void handleRightStyleUnprofitable(UserAnalyticsResult result, String statedType) {
+        result.setPrimaryFeedback("วินัยดีเยี่ยม แต่ผลลัพธ์ยังไม่ตอบโจทย์ (Discipline with Loss)");
+        result.setRecommendation(String.format(
+                "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย' \n" +
+                        "คุณมี 2 ทางเลือกในการไปต่อ:\n" +
+                        "1. [ไปต่อ (Persist)]: หากคุณมั่นใจในสไตล์นี้ ปัญหาอาจอยู่ที่จุดเข้า-ออก (Timing) ให้ Backtest ระบบเทรดของคุณใหม่ ปรับปรุง Technical Analysis\n" +
+                        "2. [เปลี่ยนสาย (Pivot)]: หากสไตล์ %s สร้างความเครียดหรือ Drawdown สูงเกินรับไหว ให้ลองเปลี่ยนไปใช้สไตล์ที่ถือครองสั้นลงหรือยาวขึ้นดู",
+                statedType, statedType));
+    }
+
+    // 3. ผิดสาย - กำไร
+    private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat, boolean stockMatch) {
+        result.setPrimaryFeedback("ค้นพบพรสวรรค์ใหม่? (New Strength Discovered)");
+
+        // แยกแยะสาเหตุนิดหน่อยเพื่อให้คำแนะนำฉลาดขึ้น
         if (!stockMatch) {
-            String suggested = getTraderTypeFromCategory(stockCat); // ต้องมี Method นี้ใน Class
-            if (profitable) {
-                result.setPrimaryFeedback("กำไรบนความเสี่ยง (Wrong Asset but Profitable)");
-                result.setRecommendation(String.format(
-                        "คุณกำไรจากหุ้น %s ซึ่งปกติเหมาะกับสาย %s มากกว่า ระวังความผันผวนที่ไม่คุ้นเคยในระยะยาว",
-                        stockCat, suggested));
-            } else {
-                result.setPrimaryFeedback("เลือกสนามผิด (Wrong Battlefield)");
-                result.setRecommendation(
-                        String.format("คุณเป็น %s แต่ไปเล่นหุ้น %s ซึ่งธรรมชาติไม่เอื้อต่อสไตล์ของคุณ ทำให้ทำกำไรยาก",
-                                statedType, stockCat));
-            }
-            result.setSuggestedTraderType(suggested);
-            return;
-        }
-
-        // CASE 4: หุ้นถูกตัว แต่ถือผิดเวลาแล้วขาดทุน (Right Stock, Wrong Timing)
-        if (stockMatch && !behaviorMatch && !profitable) {
-            result.setPrimaryFeedback("ผิดจังหวะการถือครอง (Holding Mismatch)");
             result.setRecommendation(String.format(
-                    "คุณเลือกหุ้นถูกกลุ่มแล้ว แต่พฤติกรรมจริงของคุณคือ %s (ไม่ใช่ %s) ซึ่งทำให้เสียโอกาสทำกำไรจากหุ้นกลุ่มนี้",
+                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งไม่ใช่เป้าหมายหลัก ระวังกับดักกำไรระยะสั้นจากหุ้นที่ไม่ถนัด",
+                    statedType, stockCat));
+        } else {
+            result.setRecommendation(String.format(
+                    "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า",
                     actualType, statedType));
-            return;
         }
+        result.setSuggestedTraderType(actualType); // แนะนำให้เปลี่ยน Type
+    }
 
-        // CASE 5: เละเทะ (Total Confusion)
-        result.setPrimaryFeedback("สับสนทิศทาง (No Clear Strategy)");
-        result.setRecommendation(
-                "พฤติกรรมไม่ชัดเจน เล่นหุ้นสะเปะสะปะและขาดทุน ควรหยุดเทรดและทบทวนความรู้พื้นฐาน หรือเลือกสไตล์ที่ถนัดที่สุดเพียงอย่างเดียว");
+    // 4. ผิดสาย - ขาดทุน
+    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat) {
+        result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
+        result.setRecommendation(String.format(
+                "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน \n" +
+                        "คำแนะนำ: หยุดเทรดชั่วคราว (Stop Trading) กลับมาทบทวนว่าคุณถนัดอะไรกันแน่ ก่อนเงินต้นจะหมด",
+                statedType, stockCat, actualType));
     }
 
     private String getTraderTypeFromCategory(String category) {
