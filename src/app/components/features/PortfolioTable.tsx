@@ -122,7 +122,16 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
             >
               {/* Left: Symbol Info & Logo */}
               <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+                <div
+                  className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm hover:border-blue-300 transition-all active:scale-90"
+                  title="คลิกไปหน้าเทรด"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const isCrypto = pos.symbol.includes("/") || pos.assetClass === 'crypto';
+                    const targetPath = isCrypto ? '/tradecrypto' : '/trade';
+                    router.push(`${targetPath}?symbol=${pos.symbol}`);
+                  }}
+                >
                   <img
                     src={`https://logo.clearbit.com/${pos.symbol}.com`}
                     onError={(e) => {
@@ -138,7 +147,15 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
                     {pos.symbol.substring(0, 2)}
                   </span>
                 </div>
-                <div>
+                <div
+                  className="hover:opacity-70 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const isCrypto = pos.symbol.includes("/") || pos.assetClass === 'crypto';
+                    const targetPath = isCrypto ? '/tradecrypto' : '/trade';
+                    router.push(`${targetPath}?symbol=${pos.symbol}`);
+                  }}
+                >
                   <div className="font-bold text-gray-900 text-lg">
                     {formatSymbolDisplay(pos.symbol)}
                   </div>
@@ -245,14 +262,14 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
 
                 {/* Action Button Section */}
                 <div className="mt-8 pt-4 border-t border-gray-200 flex justify-end gap-3">
-                  {/* ปุ่มดูกราฟ ถูกลบออกแล้ว */}
-
                   <button
                     className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2"
                     onClick={(e) => {
                       e.stopPropagation();
-                      // ใช้ router.push ไปหน้า Home พร้อมแนบ symbol
-                      router.push(`/?symbol=${pos.symbol}`);
+                      // เช็คว่าเป็น Crypto หรือไม่ (จาก symbol หรือ assetClass)
+                      const isCrypto = pos.symbol.includes("/") || pos.assetClass === 'crypto';
+                      const targetPath = isCrypto ? '/tradecrypto' : '/trade';
+                      router.push(`${targetPath}?symbol=${pos.symbol}`);
                     }}
                   >
                     <span>ซื้อ / ขาย</span>

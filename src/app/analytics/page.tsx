@@ -44,6 +44,13 @@ const TRADER_INFO: Record<string, { label: string; desc: string; emoji: string }
     'Unknown': { label: 'ยังไม่ได้ทำแบบทดสอบ', desc: 'กรุณาทำ Quiz ก่อน', emoji: '❓' },
 };
 
+const RISK_INFO: Record<string, { label: string; desc: string; emoji: string; color: string }> = {
+    'Conservative': { label: 'Conservative', desc: 'รับความเสี่ยงได้น้อย เน้นผลปลอดภัย', emoji: '🛡️', color: 'text-emerald-500' },
+    'Moderate': { label: 'Moderate', desc: 'ยอมรับความเสี่ยงได้ระดับปานกลาง', emoji: '⚖️', color: 'text-amber-500' },
+    'Aggressive': { label: 'Aggressive', desc: 'รับความเสี่ยงได้สูง เน้นผลตอบแทน', emoji: '🔥', color: 'text-red-500' },
+    'Unknown': { label: 'Unknown', desc: 'ยังไม่ได้ประเมินความเสี่ยง', emoji: '❓', color: 'text-muted' },
+};
+
 export default function AnalyticsPage() {
     const { user, updateUser } = useAuth();
     const [analytics, setAnalytics] = useState<UserAnalyticsResult | null>(null);
@@ -52,6 +59,7 @@ export default function AnalyticsPage() {
     const [error, setError] = useState<string | null>(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [dbTraderType, setDbTraderType] = useState<string>('Unknown');
+    const [dbRiskBehavior, setDbRiskBehavior] = useState<string>('Unknown');
 
     // 1. ดึง traderType และข้อมูล Cache จาก LocalStorage ตอนเปิดหน้า
     useEffect(() => {
@@ -72,6 +80,7 @@ export default function AnalyticsPage() {
 
                 const profile = await brokerService.getUserProfile(user.id);
                 setDbTraderType(profile.traderType || 'Unknown');
+                setDbRiskBehavior(profile.riskBehavior || 'Unknown');
                 // อัพเดท AuthContext ด้วย เผื่อค่าเก่ากว่า
                 if (profile.traderType && profile.traderType !== user.traderType) {
                     updateUser({ traderType: profile.traderType });
@@ -158,6 +167,9 @@ export default function AnalyticsPage() {
                                     </div>
                                     <h2 className="text-3xl font-black text-foreground mb-2 tracking-tight">{preTestInfo.label}</h2>
                                     <p className="text-sm text-muted mb-6">{preTestInfo.desc}</p>
+
+                                   
+
                                     <div className="h-px w-16 bg-theme-border mx-auto mb-4" />
                                     <p className="text-xs text-muted">ข้อมูลจากฐานข้อมูล (Onboarding Quiz)</p>
                                 </>
@@ -274,19 +286,21 @@ export default function AnalyticsPage() {
                                     </div>
 
                                     {/* Suggested type if different */}
-                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType && (
-                                        <div className="mb-6 p-3 rounded-xl bg-white/5 border border-white/10 w-full">
-                                            <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-1">AI แนะนำให้เปลี่ยนเป็น</p>
-                                            <p className="text-sm font-black text-gold">{suggestedInfo?.emoji} {suggestedInfo?.label}</p>
-                                        </div>
-                                    )}
+                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType && analytics.suggestedTraderType !== 'Unknown' && (
+                                        <>
+                                            <div className="mb-6 p-3 rounded-xl bg-white/5 border border-white/10 w-full">
+                                                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-1">AI แนะนำให้เปลี่ยนเป็น</p>
+                                                <p className="text-sm font-black text-gold">{suggestedInfo?.emoji} {suggestedInfo?.label}</p>
+                                            </div>
 
-                                    <button
-                                        onClick={() => setShowConfirmModal(true)}
-                                        className="w-full py-3.5 bg-gold hover:bg-gold-hover text-[#1A1A1A] font-black rounded-xl transition-all shadow-lg active:scale-95 text-sm hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.5)]"
-                                    >
-                                        อัปเดตสายเทรด (Change Profile)
-                                    </button>
+                                            <button
+                                                onClick={() => setShowConfirmModal(true)}
+                                                className="w-full py-3.5 bg-gold hover:bg-gold-hover text-[#1A1A1A] font-black rounded-xl transition-all shadow-lg active:scale-95 text-sm hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.5)]"
+                                            >
+                                                อัปเดตสายเทรด (Change Profile)
+                                            </button>
+                                        </>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -316,7 +330,11 @@ export default function AnalyticsPage() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="text-lg font-black tracking-tight mb-2">{analytics.primaryFeedback}</h3>
-                                    <p className="text-sm text-muted leading-relaxed">{analytics.recommendation}</p>
+                                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-line bg-background/50 p-4 rounded-xl border border-theme-border mt-3 relative overflow-hidden">
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gold"></div>
+                                        <p className="font-bold text-muted mb-2 text-xs uppercase tracking-wider">💡 ความเห็นจาก AI (ข้อดี/ข้อเสีย/คำแนะนำ)</p>
+                                        {analytics.recommendation}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -354,7 +372,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* Secondary Metrics */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
                             <InfoCard
                                 icon={<ArrowUpRight className="w-4 h-4 text-emerald-500" />}
                                 label="กำไรเฉลี่ย (Avg Win)"
@@ -366,12 +384,6 @@ export default function AnalyticsPage() {
                                 label="ขาดทุนเฉลี่ย (Avg Loss)"
                                 value={`${analytics.averageLossPct.toFixed(2)}%`}
                                 valueColor="text-red-500"
-                            />
-                            <InfoCard
-                                icon={<Award className="w-4 h-4 text-gold" />}
-                                label="Profit Factor"
-                                value={analytics.profitFactor ? analytics.profitFactor.toFixed(2) : '-'}
-                                valueColor={analytics.profitFactor >= 1.5 ? "text-gold" : "text-muted"}
                             />
                         </div>
 
@@ -547,12 +559,6 @@ export default function AnalyticsPage() {
                                                 <span className="text-sm font-medium">แพ้สูงสุดติดกัน</span>
                                             </div>
                                             <span className="font-black text-red-500">{analytics.maxConsecutiveLosses} ไม้</span>
-                                        </div>
-                                    )}
-                                    {analytics.profitFactorFeedback && (
-                                        <div className="p-3 rounded-xl bg-background/50">
-                                            <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">Profit Factor Analysis</p>
-                                            <p className="text-sm text-foreground">{analytics.profitFactorFeedback}</p>
                                         </div>
                                     )}
                                     {analytics.streakFeedback && (

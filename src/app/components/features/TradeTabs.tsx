@@ -7,6 +7,7 @@ import {
   BuyStockRequest,
   AccountInfo,
   StockQuote,
+  Position,
 } from "@/src/app/types/broker";
 import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import MarketStatusBadge from "@/src/app/components/features/MarketStatusBadge";
@@ -39,6 +40,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   } | null>(null);
 
   const [quote, setQuote] = useState<StockQuote | null>(null);
+  const [position, setPosition] = useState<Position | null>(null);
 
   // Watchlist State
   const [isFavorite, setIsFavorite] = useState(false);
@@ -107,6 +109,21 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     const intervalId = setInterval(fetchPrice, 3000);
     return () => clearInterval(intervalId);
   }, [symbol]);
+
+  // ดึงข้อมูล Position ของหุ้นตัวนี้
+  useEffect(() => {
+    const fetchPosition = async () => {
+      if (!user?.alpacaAccountId || !symbol) return;
+      try {
+        const positions = await brokerService.getOpenPositions(user.alpacaAccountId);
+        const currentPos = positions.find(p => p.symbol === symbol);
+        setPosition(currentPos || null);
+      } catch (error) {
+        console.error("Failed to fetch position:", error);
+      }
+    };
+    fetchPosition();
+  }, [user, symbol, account]); // ดึงใหม่เมื่อ account หรือ symbol เปลี่ยน
 
   // Reset ค่าเมื่อเปลี่ยน Symbol หรือ Input Mode
   useEffect(() => {
@@ -226,6 +243,14 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     return "Limit Price";
   };
 
+  // ฟังก์ชันขายทั้งหมด
+  const handleSellAll = () => {
+    if (!position) return;
+    setOrderSide("SELL");
+    setInputMode("SHARES");
+    setAmount(position.qty);
+  };
+
   return (
     <div className="bg-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden flex flex-col transition-colors duration-300">
       {/* Header: Symbol & Price Info */}
@@ -316,6 +341,26 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
 
       {/* Form Area */}
       <div className="p-6 space-y-5">
+        {/* Simplified Position Info: Show ONLY on SELL side & minimal style */}
+        {!isBuy && position && position.qty > 0 && (
+          <div className="flex items-center justify-between px-3 py-2.5 bg-background rounded-xl border border-theme-border/50 transition-all duration-300">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-muted font-bold uppercase tracking-tight">Available to Sell</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm font-mono font-bold text-foreground">{position.qty}</span>
+                <span className="text-[10px] text-muted font-medium">Shares</span>
+                <span className="text-xs text-muted/60 ml-1">≈ ${((position.qty) * (quote?.price || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSellAll}
+              className="px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/5 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg transition-all"
+            >
+              Sell All
+            </button>
+          </div>
+        )}
         {/* Toggle: Shares vs Dollars */}
         <div className="flex bg-background p-1 rounded-lg border border-theme-border">
           <button

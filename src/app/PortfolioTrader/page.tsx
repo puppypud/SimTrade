@@ -97,24 +97,6 @@ export default function DashboardPage() {
             </span>
           </p>
         </div>
-
-        <div className="flex items-center gap-6 bg-surface p-4 rounded-2xl border border-theme-border shadow-sm">
-          <div className="text-right">
-            <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">Day Trades Used</p>
-            <div className="flex items-center gap-2 justify-end">
-              <span className="text-xl font-black text-foreground">{account.daytradeCount}</span>
-              <div className="w-12 h-1.5 bg-theme-border rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gold transition-all duration-1000"
-                  style={{ width: `${Math.min((account.daytradeCount / 3) * 100, 100)}%` }}
-                ></div>
-              </div>
-              <span className="text-xs text-muted font-bold">/ 3</span>
-            </div>
-          </div>
-          <div className="w-[1px] h-10 bg-theme-border mx-2"></div>
-          <Zap className="w-8 h-8 text-gold animate-pulse" />
-        </div>
       </div>
 
       {/* 2. Hero Balance Card (High Impact) */}
