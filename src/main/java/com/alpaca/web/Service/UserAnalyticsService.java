@@ -46,13 +46,22 @@ public class UserAnalyticsService {
         this.stockAnalysisService = stockAnalysisService;
     }
 
+    private static class RemainingBuyOrder {
+        OrderHistory order;
+        BigDecimal remainingQty;
+
+        public RemainingBuyOrder(OrderHistory order) {
+            this.order = order;
+            this.remainingQty = order.getFilledQty();
+        }
+    }
     public UserAnalyticsResult analyzeUserBehavior(Long userId) {
         // 1. ดึงข้อมูล User Account เพื่อเอา Trader Type เดิม (Stated Type)
         UserAccount user = accountRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         String statedType = user.getTraderType();
 
-        // 2. ดึงออเดอร์และจับคู่
+        // 2. ดึง Order ทั้งหมดและเรียงจาก เก่า -> ใหม่ (Ascending) เพื่อทำ FIFO
         List<OrderHistory> orders = orderRepository.findByUserAccount_IdOrderByFilledAtDesc(userId)
                 .stream()
                 .filter(o -> "filled".equalsIgnoreCase(o.getStatus()))
@@ -92,62 +101,36 @@ public class UserAnalyticsService {
 
         for (Map.Entry<String, List<OrderHistory>> entry : ordersBySymbol.entrySet()) {
             String symbol = entry.getKey();
-            Queue<OrderHistory> buyQueue = new LinkedList<>();
-
-            // -------------------------------------------------------
-            // ✅ จุดที่แก้ไข: เรียกใช้ fetchStockCategorySafely ตรงนี้
-            // เพื่อให้ได้ Category ที่ถูกต้อง (หาใน DB ไม่เจอ -> คำนวณสด)
-            // -------------------------------------------------------
+            // ใช้ LinkedList เก็บ RemainingBuyOrder แทน OrderHistory เพียวๆ
+            LinkedList<RemainingBuyOrder> buyQueue = new LinkedList<>();
             String stockCategory = fetchStockCategorySafely(symbol);
 
             for (OrderHistory order : entry.getValue()) {
                 if ("buy".equalsIgnoreCase(order.getSide())) {
-                    buyQueue.add(order);
-                } else if ("sell".equalsIgnoreCase(order.getSide()) && !buyQueue.isEmpty()) {
-                    // ดึง Buy ล่าสุดมาจับคู่ (FIFO)
-                    OrderHistory matchedBuy = buyQueue.poll();
+                    // เพิ่มเข้าคิวรอขาย
+                    buyQueue.add(new RemainingBuyOrder(order));
+                } else if ("sell".equalsIgnoreCase(order.getSide())) {
+                    BigDecimal qtyToSell = order.getFilledQty();
 
-                    TradeExecutionRecord record = new TradeExecutionRecord();
-                    record.setSymbol(symbol);
-                    record.setCategory(stockCategory); // ✅ ใส่ค่าที่ดึงมาได้
+                    // วนลูปตัดสต็อกจนกว่าจะครบจำนวนที่ขาย หรือของหมดคิว
+                    while (qtyToSell.compareTo(BigDecimal.ZERO) > 0 && !buyQueue.isEmpty()) {
+                        RemainingBuyOrder matchedBuy = buyQueue.peek(); // ดูตัวแรก (ยังไม่เอาออก)
 
-                    // 1. คำนวณระยะเวลาถือครอง
-                    record.setHoldingPeriod(Duration.between(matchedBuy.getFilledAt(), order.getFilledAt()));
+                        // หาจำนวนที่จะ Match กันได้ (Min ระหว่าง ยอดขายที่เหลือ กับ ยอดซื้อที่เหลือในไม้นั้น)
+                        BigDecimal matchedQty = qtyToSell.min(matchedBuy.remainingQty);
 
-                    // 2. เช็คว่าถือข้ามคืนไหม
-                    LocalDate buyDate = matchedBuy.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
-                    LocalDate sellDate = order.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
-                    record.setOvernight(!buyDate.isEqual(sellDate));
+                        TradeExecutionRecord record = createTradeRecord(matchedBuy.order, order, matchedQty, stockCategory);
+                        closedTrades.add(record);
 
-                    // 3. คำนวณ % PnL
-                    BigDecimal buyPrice = matchedBuy.getFilledAvgPrice();
-                    BigDecimal sellPrice = order.getFilledAvgPrice();
-                    BigDecimal qty = order.getFilledQty(); // จำนวนหุ้นที่ขาย
+                        // Update ยอดคงเหลือ
+                        qtyToSell = qtyToSell.subtract(matchedQty);
+                        matchedBuy.remainingQty = matchedBuy.remainingQty.subtract(matchedQty);
 
-                    if (buyPrice.compareTo(BigDecimal.ZERO) > 0) {
-                        BigDecimal pnlPct = sellPrice.subtract(buyPrice)
-                                .divide(buyPrice, 4, RoundingMode.HALF_UP)
-                                .multiply(new BigDecimal("100"));
-                        record.setRealizedProfitPercentage(pnlPct);
-                    } else {
-                        record.setRealizedProfitPercentage(BigDecimal.ZERO);
+                        // ถ้าไม้ซื้อนี้หมดแล้ว ให้เอาออกจากคิว
+                        if (matchedBuy.remainingQty.compareTo(BigDecimal.ZERO) == 0) {
+                            buyQueue.poll();
+                        }
                     }
-
-
-                    // 4. บันทึกเวลาเข้าซื้อ (Entry Time) -> ใช้สำหรับวิเคราะห์ Golden Time
-                    record.setEntryTime(LocalDateTime.from(matchedBuy.getFilledAt()));
-
-                    // 5. บันทึกขนาดไม้ (Position Size) -> ใช้สำหรับเช็ค Money Management
-                    // ทุน = ราคาซื้อ x จำนวน
-                    BigDecimal positionSize = buyPrice.multiply(qty);
-                    record.setPositionSize(positionSize);
-
-                    // 6. บันทึกกำไรตัวเงิน (Realized Amount) -> ใช้สำหรับเช็ค Profit Factor
-                    // กำไร($) = (ราคาขาย - ราคาซื้อ) x จำนวน
-                    BigDecimal pnlAmount = (sellPrice.subtract(buyPrice)).multiply(qty);
-                    record.setRealizedProfitAmount(pnlAmount);
-
-                    closedTrades.add(record);
                 }
             }
         }
@@ -253,8 +236,7 @@ public class UserAnalyticsService {
             case "Scalper" -> category.equalsIgnoreCase("SPECULATIVE") || category.equalsIgnoreCase("HIGH_VOLATILITY");
             case "Day Trader" -> category.equalsIgnoreCase("TRENDING") || category.equalsIgnoreCase("SPECULATIVE");
             case "Swing Trader" -> category.equalsIgnoreCase("SWING") || category.equalsIgnoreCase("TRENDING");
-            case "Position Trader" -> category.equalsIgnoreCase("STABLE") || category.equalsIgnoreCase("BLUECHIP")
-                    || category.equalsIgnoreCase("DIVIDEND");
+            case "Position Trader" -> category.equalsIgnoreCase("STABLE") || category.equalsIgnoreCase("BLUECHIP") || category.equalsIgnoreCase("DIVIDEND");
             default -> false;
         };
     }
@@ -323,63 +305,44 @@ public class UserAnalyticsService {
 
         // Check 2: พฤติกรรมการถือยาว/สั้น (Actual) ตรงกับ Type ที่ระบุไว้ (Stated) ไหม?
         boolean isBehaviorMatched = statedType.equalsIgnoreCase(actualBehaviorType);
-
         boolean isProfitable = (totalPnL > 0) || (winRate > 50.0);
 
         result.setStyleMatched(isStockMatched && isBehaviorMatched);
         result.setProfitable(isProfitable);
 
-        // --- 4. Recommendation Engine (Logic การแนะนำเปลี่ยนสาย) ---
-
-        // Case A: ตรงปกทุกอย่าง (Behavior ตรง, Stock ตรง)
-        if (isStockMatched && isBehaviorMatched) {
-            if (isProfitable) {
-                result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
-                result.setRecommendation(String.format("คุณระบุว่าเป็น %s และทำได้จริงทั้งการเลือกหุ้น %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้", statedType, predominantCategory));
-                result.setSuggestedTraderType(statedType); // แนะนำให้เป็นเหมือนเดิม
-            } else {
-                result.setPrimaryFeedback("มาถูกทางแล้ว แต่ต้องปรับจังหวะ (Execution Issue)");
-                result.setRecommendation("สไตล์และหุ้นถูกต้องแล้ว แต่ผลลัพธ์ยังขาดทุน ให้โฟกัสที่ Technical Analysis จุดเข้า/ออก แทนการเปลี่ยนสไตล์");
-            }
-        }
-
-        // Case B: พฤติกรรมขัดแย้ง แต่กำไร (Identity Crisis -> Success)
-        else if (!isBehaviorMatched && isProfitable) {
-            result.setPrimaryFeedback("ค้นพบตัวตนใหม่! (New Strength Discovered)");
-            result.setRecommendation(String.format(
-                    "คุณระบุว่าเป็น %s แต่ผลลัพธ์ที่ดีของคุณเกิดจากการเทรดแบบ %s! ระบบแนะนำให้คุณเปลี่ยน Profile เพื่อให้ตรงกับความถนัดจริง",
-                    statedType, actualBehaviorType));
-
-            // **จุดสำคัญ** ส่งค่า Suggestion กลับไปให้ User กดเปลี่ยน
-            result.setSuggestedTraderType(actualBehaviorType);
-        }
-
-        // Case C: หุ้นผิดประเภท (Asset Mismatch)
-        else if (!isStockMatched) {
-            result.setPrimaryFeedback("เล่นหุ้นผิดประเภท (Wrong Asset Class)");
-
-            String suggestedTypeByStock = getTraderTypeFromCategory(predominantCategory);
-
-            if (isProfitable) {
-                result.setRecommendation(String.format(
-                        "คุณเลือกหุ้น %s ซึ่งเหมาะกับสาย %s มากกว่า ถ้าคุณชอบหุ้นกลุ่มนี้ แนะนำให้เปลี่ยนสายการเทรด",
-                        predominantCategory, suggestedTypeByStock));
-                result.setSuggestedTraderType(suggestedTypeByStock);
-            } else {
-                result.setRecommendation(String.format(
-                        "คุณเป็น %s แต่ไปเล่นหุ้น %s ซึ่งมีความเสี่ยงผิดธรรมชาติ ทำให้ควบคุมผลลัพธ์ยาก ควรกลับมาเล่นหุ้นที่ตรงสาย",
-                        statedType, predominantCategory));
-            }
-        }
-
-        // Case D: มั่วซั่ว (Total Chaos)
-        else {
-            result.setPrimaryFeedback("สับสนทิศทาง (No Clear Strategy)");
-            result.setRecommendation("พฤติกรรมของคุณไม่ชัดเจนและผลลัพธ์ติดลบ แนะนำให้หยุดเทรดและทบทวนความรู้พื้นฐานของสาย " + statedType + " ใหม่");
-        }
+        generateRecommendation(result, statedType, actualBehaviorType, predominantCategory, isStockMatched, isBehaviorMatched, isProfitable);
 
         return result;
     }
+
+    private void generateRecommendation(UserAnalyticsResult result, String statedType, String actualType, String stockCat, boolean stockMatch, boolean behaviorMatch, boolean profitable) {
+        if (stockMatch && behaviorMatch) {
+            if (profitable) {
+                result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
+                result.setRecommendation(String.format("คุณทำได้ตามแผน %s ทั้งหุ้นกลุ่ม %s และระยะเวลาถือครอง", statedType, stockCat));
+            } else {
+                result.setPrimaryFeedback("มาถูกทางแล้ว แต่ต้องปรับจังหวะ (Execution Issue)");
+                result.setRecommendation("สไตล์ถูกต้องแต่ผลลัพธ์ยังติดลบ ให้โฟกัสที่ Technical Analysis และจุดเข้าออก");
+            }
+        } else if (!behaviorMatch && profitable) {
+            result.setPrimaryFeedback("ค้นพบตัวตนใหม่! (New Strength Discovered)");
+            result.setRecommendation(String.format("คุณระบุว่าเป็น %s แต่กำไรจากการเทรดแบบ %s แนะนำให้เปลี่ยน Profile", statedType, actualType));
+            result.setSuggestedTraderType(actualType);
+        } else if (!stockMatch) {
+            result.setPrimaryFeedback("เล่นหุ้นผิดประเภท (Wrong Asset Class)");
+            String suggested = getTraderTypeFromCategory(stockCat);
+            if (profitable) {
+                result.setRecommendation(String.format("คุณกำไรจากหุ้น %s ซึ่งเหมาะกับสาย %s มากกว่า", stockCat, suggested));
+                result.setSuggestedTraderType(suggested);
+            } else {
+                result.setRecommendation(String.format("คุณเป็น %s แต่เล่นหุ้น %s ซึ่งผิดธรรมชาติ ควรกลับมาเล่นหุ้นตรงสาย", statedType, stockCat));
+            }
+        } else {
+            result.setPrimaryFeedback("สับสนทิศทาง (No Clear Strategy)");
+            result.setRecommendation("พฤติกรรมไม่ชัดเจนและขาดทุน ควรหยุดเทรดและทบทวนความรู้พื้นฐาน");
+        }
+    }
+
     private String getTraderTypeFromCategory(String category) {
         if (category.equalsIgnoreCase("SPECULATIVE") || category.equalsIgnoreCase("HIGH_VOLATILITY")) return "Scalper";
         if (category.equalsIgnoreCase("TRENDING")) return "Day Trader";
@@ -747,5 +710,39 @@ public class UserAnalyticsService {
 
                     result.setLongestHeldDuration(durationText);
                 });
+    }
+
+    private TradeExecutionRecord createTradeRecord(OrderHistory buyOrder, OrderHistory sellOrder, BigDecimal qty, String category) {
+        TradeExecutionRecord record = new TradeExecutionRecord();
+        record.setSymbol(buyOrder.getSymbol());
+        record.setCategory(category);
+        record.setHoldingPeriod(Duration.between(buyOrder.getFilledAt(), sellOrder.getFilledAt()));
+
+        LocalDate buyDate = buyOrder.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
+        LocalDate sellDate = sellOrder.getFilledAt().atZone(ZoneId.of("America/New_York")).toLocalDate();
+        record.setOvernight(!buyDate.isEqual(sellDate));
+
+        BigDecimal buyPrice = buyOrder.getFilledAvgPrice();
+        BigDecimal sellPrice = sellOrder.getFilledAvgPrice();
+
+        // คำนวณ % PnL
+        if (buyPrice.compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal pnlPct = sellPrice.subtract(buyPrice)
+                    .divide(buyPrice, 4, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"));
+            record.setRealizedProfitPercentage(pnlPct);
+        } else {
+            record.setRealizedProfitPercentage(BigDecimal.ZERO);
+        }
+
+        record.setEntryTime(LocalDateTime.from(buyOrder.getFilledAt()));
+
+        // Position Size = BuyPrice * Matched Qty (ไม่ใช่ Qty ทั้งหมดของ Order)
+        record.setPositionSize(buyPrice.multiply(qty));
+
+        // Profit Amount = (Sell - Buy) * Matched Qty
+        record.setRealizedProfitAmount((sellPrice.subtract(buyPrice)).multiply(qty));
+
+        return record;
     }
 }
