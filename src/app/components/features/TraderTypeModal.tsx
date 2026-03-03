@@ -30,10 +30,10 @@ export default function TraderTypeModal({ isOpen, onClose, title = "เทรด
     const currentType = user.traderType || 'Unknown';
 
     const handleSave = async () => {
-        if (!user.email) return;
+        if (!user.id) return;
         try {
             setSaving(true);
-            await brokerService.updateTraderType(user.email, selected);
+            await brokerService.updateTraderType(user.id, selected);
             updateUser({ traderType: selected });
             setSaved(true);
             setTimeout(() => {

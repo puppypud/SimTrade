@@ -204,6 +204,7 @@ export interface RegisterRequest {
 
 export interface MarketStatus {
   status: string; // 'OPEN' | 'CLOSED' | 'MAINTENANCE'
+  isMaintenanceMode: boolean;
   isOpenForTrade: boolean;
   message: string;
   nextOpen: string;
@@ -216,15 +217,46 @@ export interface AdminActionResponse {
 }
 
 export interface UserAnalyticsResult {
-  traderType: string;         // ประเภทนักเทรด เช่น Scalper, Day Trader
-  totalClosedTrades: number;  // จำนวนไม้ที่เทรดจบแล้ว
-  primaryFeedback: string;    // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
-  recommendation: string;     // คำแนะนำแบบยาว
-  winRate: number;            // อัตราการชนะ (%)
-  totalRealizedPnL: number;   // กำไร/ขาดทุนสุทธิรวม (%)
-  averageWinPct: number;      // กำไรเฉลี่ยต่อไม้ที่ชนะ (%)
-  averageLossPct: number;     // ขาดทุนเฉลี่ยต่อไม้ที่แพ้ (%)
-  riskRewardRatio: number;    // สัดส่วน Risk:Reward
-  styleMatched: boolean;      // True = เล่นหุ้นถูกประเภทสายเทรด
-  profitable: boolean;        // True = ภาพรวมมีกำไร
+  traderType: string;              // ประเภทนักเทรด เช่น Scalper, Day Trader
+  suggestedTraderType?: string;    // สายที่ระบบแนะนำให้เปลี่ยน
+  totalClosedTrades: number;       // จำนวนไม้ที่เทรดจบแล้ว
+  primaryFeedback: string;         // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
+  recommendation: string;          // คำแนะนำแบบยาว
+  winRate: number;                 // อัตราการชนะ (%)
+  totalRealizedPnL: number;        // กำไร/ขาดทุนสุทธิรวม
+  averageWinPct: number;           // กำไรเฉลี่ยต่อไม้ที่ชนะ (%)
+  averageLossPct: number;          // ขาดทุนเฉลี่ยต่อไม้ที่แพ้ (%)
+  riskRewardRatio: number;         // สัดส่วน Risk:Reward
+  styleMatched: boolean;           // True = เล่นหุ้นถูกประเภทสายเทรด
+  profitable: boolean;             // True = ภาพรวมมีกำไร
+
+  // Behavioral Risk Analysis
+  fomoScore: number;
+  fomoStatus: string;              // "ปกติ", "มีแนวโน้ม", "พฤติกรรมเสี่ยง"
+  sellingWinnersTooEarlyScore: number;
+  sellingWinnersTooEarlyStatus: string;
+  holdingLosersTooLongScore: number;
+  holdingLosersTooLongStatus: string;
+  panicSellScore: number;
+  panicSellStatus: string;
+  behavioralFeedback: string;
+
+  // Stock Highlights
+  mostTradedStock: string;
+  mostTradedStockCount: number;
+  bestPerformingStock: string;
+  bestPerformingStockPnL: number;
+  worstPerformingStock: string;
+  worstPerformingStockPnL: number;
+  longestHeldStock: string;
+  longestHeldDuration: string;
+
+  // Advanced Metrics
+  sizingFeedback: string;
+  profitFactor: number;
+  profitFactorFeedback: string;
+  diversificationFeedback: string;
+  maxConsecutiveWins: number;
+  maxConsecutiveLosses: number;
+  streakFeedback: string;
 }

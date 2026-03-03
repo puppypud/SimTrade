@@ -241,16 +241,22 @@ export const brokerService = {
     return response.data;
   },
 
-  // 10. ดึงข้อมูล Analytics ของผู้ใช้
+  // 10. ดึงข้อมูล Profile ของผู้ใช้ (traderType จาก database)
+  getUserProfile: async (userId: number): Promise<{ id: number; traderType: string; riskBehavior: string }> => {
+    const response = await apiClient.get(`/api/analytics/user/${userId}/profile`);
+    return response.data;
+  },
+
+  // 11. ดึงข้อมูล Analytics ของผู้ใช้
   getUserAnalytics: async (userId: number): Promise<UserAnalyticsResult> => {
     const response = await apiClient.get(`/api/analytics/user/${userId}`);
     return response.data;
   },
 
-  // 11. อัปเดตประเภทนักเทรดของผู้ใช้ (เปลี่ยนสาย)
-  updateTraderType: async (email: string, traderType: string): Promise<any> => {
-    const response = await apiClient.put('/broker/user/trader-type', null, {
-      params: { email, traderType }
+  // 12. อัปเดตประเภทนักเทรดของผู้ใช้ (เปลี่ยนสาย) — ใช้ endpoint ของ UserAnalyticsController
+  updateTraderType: async (userId: number, newType: string): Promise<any> => {
+    const response = await apiClient.post(`/api/analytics/user/${userId}/update-type`, null, {
+      params: { newType }
     });
     return response.data;
   }

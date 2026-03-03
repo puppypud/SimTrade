@@ -146,7 +146,7 @@ const OrderDetailsModal: React.FC<OrderDetailsModalProps> = ({ accountId, orderI
                                 <InfoItem label="ราคาเฉลี่ย" value={formatCurrency(order.filledAvgPrice)} />
 
                                 <div className="flex flex-col">
-                                    <span className="text-xs text-muted font-medium mb-1">ค่าธรรมเนียม</span>
+                                    <span className="text-xs text-muted font-medium mb-1">ค่าธรรมเนียม(0.025%)</span>
                                     <span className="text-sm font-semibold text-red-500 truncate">
                                         {formatCurrency(order.commission)}
                                     </span>
