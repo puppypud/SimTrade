@@ -479,10 +479,10 @@ public class UserAnalyticsService {
             else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3) holdLoserScore -= 10.0;
         }
 
-        // 2. วิเคราะห์จาก Orders (ปรับปรุง Performance โดยการใช้ Map เก็บ Market Data)
-        // จัดกลุ่มตาม Symbol เพื่อดึงข้อมูลตลาดแบบลดจำนวนครั้ง
+        // 2. วิเคราะห์จาก Orders
+        // 2. วิเคราะห์จาก Orders (ปรับปรุงการดึงข้อมูล)
         Map<String, List<OrderHistory>> ordersBySymbol = allOrders.stream()
-                .sorted(Comparator.comparing(OrderHistory::getFilledAt).reversed()) // เอาใหม่สุดขึ้นก่อน
+                .sorted(Comparator.comparing(OrderHistory::getFilledAt).reversed())
                 .limit(RECENT_WINDOW * 2)
                 .collect(Collectors.groupingBy(OrderHistory::getSymbol));
 
@@ -494,18 +494,17 @@ public class UserAnalyticsService {
 
             if (symbolOrders.isEmpty()) continue;
 
-            // หาช่วงเวลา Min-Max ของ Order ใน Symbol นี้
             Instant minTime = symbolOrders.stream().map(OrderHistory::getFilledAt).min(Instant::compareTo).orElse(Instant.now());
             Instant maxTime = symbolOrders.stream().map(OrderHistory::getFilledAt).max(Instant::compareTo).orElse(Instant.now());
 
-            // ดึงข้อมูลเผื่อหน้าหลัง (เผื่อ RSI 14 แท่ง + 24 ชม สำหรับ Price Change)
-            ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(50);
-            ZonedDateTime fetchEnd = maxTime.atZone(marketZone).plusHours(1);
+            // 🟢 UPDATED: ดึงข้อมูลเผื่อเยอะๆ และใช้ limit=10000 เพื่อให้ครอบคลุม
+            ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(100); // เผื่อเยอะขึ้น
+            ZonedDateTime fetchEnd = maxTime.atZone(marketZone).plusHours(2);
 
             List<StockBar> cachedBars = new ArrayList<>();
             try {
-                // CALL API ครั้งเดียวต่อ 1 Symbol (แทนที่จะเรียกทุก Order)
-                cachedBars = marketDataService.getHistoricalBars(symbol, fetchStart, fetchEnd, "1Hour");
+                // ส่ง limit = 10000 เพื่อขอข้อมูลสูงสุดเท่าที่ API ให้
+                cachedBars = marketDataService.getHistoricalBars(symbol, fetchStart, fetchEnd, "1Hour", 10000);
             } catch (Exception e) {
                 System.err.println("Failed to fetch batch market data for " + symbol);
                 continue;
@@ -513,16 +512,18 @@ public class UserAnalyticsService {
 
             for (OrderHistory order : symbolOrders) {
                 try {
-                    // ส่ง cachedBars ไปคำนวณใน Memory
                     double rsi = calculateRsiFromCache(cachedBars, order.getFilledAt());
                     double priceChangePct = calculatePriceChangeFromCache(cachedBars, order.getFilledAt());
 
-                    if ("buy".equalsIgnoreCase(order.getSide())) {
-                        if (priceChangePct > 5.0 && rsi > 70.0) fomoScore += 15.0;
-                        else if (rsi < 45.0) fomoScore -= 10.0;
-                    } else if ("sell".equalsIgnoreCase(order.getSide())) {
-                        if (priceChangePct < -5.0 && rsi < 30.0) panicScore += 15.0;
-                        else if (rsi > 55.0) panicScore -= 10.0;
+                    // Logic เดิม แต่ตรวจสอบว่า RSI ต้องไม่ใช่ 50.0 (ค่ากลาง)
+                    if (rsi != 50.0) {
+                        if ("buy".equalsIgnoreCase(order.getSide())) {
+                            if (priceChangePct > 5.0 && rsi > 70.0) fomoScore += 15.0;
+                            else if (rsi < 45.0) fomoScore -= 10.0;
+                        } else if ("sell".equalsIgnoreCase(order.getSide())) {
+                            if (priceChangePct < -5.0 && rsi < 30.0) panicScore += 15.0;
+                            else if (rsi > 55.0) panicScore -= 10.0;
+                        }
                     }
                 } catch (Exception e) {
                     continue;
@@ -543,6 +544,7 @@ public class UserAnalyticsService {
         result.setHoldingLosersTooLongStatus(evaluateRiskLevel(result.getHoldingLosersTooLongScore()));
 
         generateBehavioralFeedback(result);
+
     }
 
     //ช่วยควบคุมให้ค่าคะแนน (Score) อยู่ในช่วงที่กำหนดเสมอ เช่น 0 ถึง 100
@@ -585,7 +587,7 @@ public class UserAnalyticsService {
             ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
             ZonedDateTime startTime = tradeTime.minusHours(40); // ดึงเผื่อ
 
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour");
+            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour",10000);
 
             if (bars.size() < 15) return 50.0; // ข้อมูลไม่พอคำนวณ RSI
 
@@ -604,7 +606,7 @@ public class UserAnalyticsService {
             ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
             ZonedDateTime startTime = tradeTime.minusHours(25);
 
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour");
+            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour" ,10000);
 
             if (bars.isEmpty()) return 0.0;
 
