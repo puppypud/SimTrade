@@ -121,6 +121,16 @@ public class BrokerController {
         log.info("cancelOrderForAccount accountId: " + accountId + " orderId: " + orderId);
         try {
             brokerService.cancelOrderForAccount(accountId, orderId);
+
+            // อัปเดตสถานะใน database ของเราให้ตรงกับ Alpaca ทันทีที่การยกเลิกหน้าเว็บสำเร็จ
+            java.util.Optional<com.alpaca.web.entity.OrderHistory> optOrder = orderHistoryRepository.findById(orderId);
+            if (optOrder.isPresent()) {
+                com.alpaca.web.entity.OrderHistory order = optOrder.get();
+                order.setStatus("CANCELED");
+                orderHistoryRepository.save(order);
+                log.info("✅ Updated order status to CANCELED in DB for orderId: " + orderId);
+            }
+
             return ResponseEntity.ok("order successfully cancelled" + orderId);
         } catch (Exception e) {
             log.error("error" + e.getMessage());
