@@ -33,28 +33,28 @@ const formatCurrency = (amount: number | string | null | undefined) => {
 
 const getStatusColor = (status: string) => {
     switch (status) {
-        case "FILLED": return "bg-emerald-100 text-emerald-700 border-emerald-200";
+        case "FILLED": return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
         case "CANCELED":
-        case "EXPIRED": return "bg-gray-100 text-gray-600 border-gray-200";
+        case "EXPIRED": return "bg-muted/10 text-muted border-muted/20";
         case "REJECTED":
-        case "FAILED": return "bg-red-100 text-red-700 border-red-200";
+        case "FAILED": return "bg-red-500/10 text-red-500 border-red-500/20";
         case "NEW":
-        case "ACCEPTED": return "bg-blue-100 text-blue-700 border-blue-200";
-        default: return "bg-gray-50 text-gray-600 border-gray-200";
+        case "ACCEPTED": return "bg-blue-500/10 text-blue-500 border-blue-500/20";
+        default: return "bg-muted/5 text-muted border-muted/10";
     }
 };
 
 const STATUS_LABELS: Record<string, string> = {
-    FILLED: "เสร็จสิ้น",
-    CANCELED: "ยกเลิก",
-    EXPIRED: "หมดอายุ",
-    REJECTED: "ถูกปฏิเสธ",
-    FAILED: "ล้มเหลว",
-    NEW: "รอจับคู่",
-    ACCEPTED: "รับคำสั่ง",
-    PENDING_NEW: "กำลังดำเนินการ",
-    ACCEPTED_FOR_BIDDING: "รอตลาดเปิด",
-    PARTIALLY_FILLED: "ได้ของบางส่วน",
+    FILLED: "Filled",
+    CANCELED: "Canceled",
+    EXPIRED: "Expired",
+    REJECTED: "Rejected",
+    FAILED: "Failed",
+    NEW: "New",
+    ACCEPTED: "Accepted",
+    PENDING_NEW: "Processing",
+    ACCEPTED_FOR_BIDDING: "Market Pending",
+    PARTIALLY_FILLED: "Partially Filled",
 };
 
 const CANCELLABLE_STATUSES = [
@@ -69,26 +69,26 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
 
     return (
         <>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm text-gray-600">
-                        <thead className="bg-gray-50 border-b border-gray-100">
+                    <table className="w-full text-left text-sm text-foreground/80">
+                        <thead className="bg-background/50 border-b border-theme-border">
                             <tr>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Date/Time</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Symbol</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Side / Type</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Status</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700 text-right">Filled Qty</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700 text-right">Avg Price</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700 text-right">Total Value</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700 text-center">Action</th>
+                                <th className="px-6 py-4 font-bold text-foreground">Date/Time</th>
+                                <th className="px-6 py-4 font-bold text-foreground">Symbol</th>
+                                <th className="px-6 py-4 font-bold text-foreground">Side / Type</th>
+                                <th className="px-6 py-4 font-bold text-foreground">Status</th>
+                                <th className="px-6 py-4 font-bold text-foreground text-right">Filled Qty</th>
+                                <th className="px-6 py-4 font-bold text-foreground text-right">Avg Price</th>
+                                <th className="px-6 py-4 font-bold text-foreground text-right">Total Value</th>
+                                <th className="px-6 py-4 font-bold text-foreground text-center">Action</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50">
+                        <tbody className="divide-y divide-theme-border/50">
                             {orders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
-                                        ยังไม่มีประวัติการทำรายการ
+                                    <td colSpan={8} className="px-6 py-12 text-center text-muted">
+                                        No transaction history available.
                                     </td>
                                 </tr>
                             ) : (
@@ -106,61 +106,61 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                     const canCancel = CANCELLABLE_STATUSES.includes(order.status);
 
                                     return (
-                                        <tr key={order.id} className="hover:bg-gray-50 transition-colors duration-150">
+                                        <tr key={order.id} className="hover:bg-background/40 transition-colors duration-150">
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="font-medium text-gray-900">{formatDate(order.submittedAt)}</div>
+                                                <div className="font-semibold text-foreground">{formatDate(order.submittedAt)}</div>
                                                 {order.filledAt && order.status === "FILLED" && (
-                                                    <div className="text-xs text-gray-400 mt-0.5">
+                                                    <div className="text-[10px] text-muted mt-0.5">
                                                         Filled at {new Date(order.filledAt).toLocaleTimeString()}
                                                     </div>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded text-xs tracking-wide">
+                                                <span className="font-black text-foreground bg-background px-2.5 py-1 rounded text-[11px] tracking-widest border border-theme-border shadow-sm">
                                                     {formatSymbolDisplay(order.symbol)}
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex flex-col items-start gap-1">
                                                     <div className="flex items-center">
-                                                        <span className={`font-bold text-xs px-2.5 py-1 rounded-full border ${isBuy ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"}`}>
+                                                        <span className={`font-bold text-[10px] px-2.5 py-0.5 rounded-full border ${isBuy ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-red-500/10 text-red-500 border-red-500/20"}`}>
                                                             {order.side}
                                                         </span>
-                                                        <span className="text-xs text-gray-500 ml-2 font-semibold uppercase">
+                                                        <span className="text-[10px] text-muted ml-2 font-black uppercase tracking-wider">
                                                             {order.orderType}
                                                         </span>
                                                     </div>
                                                     {limitPrice > 0 && (
-                                                        <span className="text-xs text-gray-400 ml-1">Price is {formatCurrency(limitPrice)}</span>
+                                                        <span className="text-[10px] text-muted/60 ml-1">Price: {formatCurrency(limitPrice)}</span>
                                                     )}
                                                 </div>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(order.status)}`}>
+                                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tight border ${getStatusColor(order.status)}`}>
                                                     {STATUS_LABELS[order.status] || order.status}
                                                 </span>
                                             </td>
-                                            <td className="px-6 py-4 text-right font-mono">
+                                            <td className="px-6 py-4 text-right font-mono text-sm">
                                                 {fQty > 0 ? (
-                                                    <span className="text-gray-900 font-medium">{new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(fQty)}</span>
-                                                ) : <span className="text-gray-300">-</span>}
+                                                    <span className="text-foreground font-bold">{new Intl.NumberFormat("en-US", { maximumFractionDigits: 4 }).format(fQty)}</span>
+                                                ) : <span className="text-muted/30">-</span>}
                                             </td>
-                                            <td className="px-6 py-4 text-right font-mono">
+                                            <td className="px-6 py-4 text-right font-mono text-sm text-foreground">
                                                 {fPrice > 0 ? (
-                                                    <span className="text-gray-900">{formatCurrency(fPrice)}</span>
-                                                ) : <span className="text-gray-300">-</span>}
+                                                    <span>{formatCurrency(fPrice)}</span>
+                                                ) : <span className="text-muted/30">-</span>}
                                             </td>
-                                            <td className="px-6 py-4 text-right font-mono font-bold text-gray-800">
+                                            <td className="px-6 py-4 text-right font-mono font-black text-sm text-foreground">
                                                 {totalValue > 0 ? formatCurrency(totalValue) : "-"}
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button
                                                         onClick={() => handleOpenModal(order.id)}
-                                                        className="p-2 text-gray-500 hover:text-gold hover:bg-gold/10 rounded-full transition-colors group relative"
-                                                        title="View Full Details"
+                                                        className="p-2 text-muted hover:text-gold hover:bg-gold/10 rounded-xl transition-all group"
+                                                        title="View Details"
                                                     >
-                                                        <Eye className="w-5 h-5" />
+                                                        <Eye className="w-4.5 h-4.5" />
                                                     </button>
                                                     {canCancel && <CancelOrderButton accountId={accountId} orderId={order.id} />}
                                                 </div>

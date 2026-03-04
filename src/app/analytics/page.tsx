@@ -168,7 +168,7 @@ export default function AnalyticsPage() {
                                     <h2 className="text-3xl font-black text-foreground mb-2 tracking-tight">{preTestInfo.label}</h2>
                                     <p className="text-sm text-muted mb-6">{preTestInfo.desc}</p>
 
-                                   
+
 
                                     <div className="h-px w-16 bg-theme-border mx-auto mb-4" />
                                     <p className="text-xs text-muted">ข้อมูลจากฐานข้อมูล (Onboarding Quiz)</p>
@@ -215,31 +215,31 @@ export default function AnalyticsPage() {
                     </div>
 
                     {/* Right: AI Analysis Result */}
-                    <div className={`bg-gradient-to-br from-[#1E293B] to-[#0F172A] rounded-[2rem] p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden border border-white/5 transition-all duration-700 ${analytics ? 'hover:shadow-[0_0_60px_-15px_rgba(255,215,0,0.15)]' : ''}`}>
+                    <div className={`bg-surface rounded-[2rem] p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden border border-theme-border transition-all duration-700 ${analytics ? 'hover:shadow-lg' : ''}`}>
                         <div className="absolute top-0 right-0 w-64 h-64 bg-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
                         <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
 
                         <div className="relative z-10 w-full flex-1 flex flex-col items-center">
                             <div className="flex items-center justify-center gap-2 mb-8">
                                 <Brain className={`w-5 h-5 text-gold ${analyzing ? 'animate-pulse' : ''}`} />
-                                <span className="text-xs font-black uppercase tracking-widest text-white/50">AI Analysis</span>
+                                <span className="text-xs font-black uppercase tracking-widest text-muted">AI Analysis</span>
                             </div>
 
                             {!analytics && !analyzing && !error && (
                                 <div className="flex-1 flex flex-col items-center justify-center py-8">
-                                    <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-6 border-2 border-dashed border-white/10">
-                                        <Brain className="w-10 h-10 text-white/20" />
+                                    <div className="w-24 h-24 rounded-full bg-background/50 flex items-center justify-center mx-auto mb-6 border-2 border-dashed border-theme-border">
+                                        <Brain className="w-10 h-10 text-muted/30" />
                                     </div>
-                                    <h2 className="text-xl font-black text-white/30 mb-2 tracking-tight">รอการวิเคราะห์</h2>
-                                    <p className="text-sm text-white/20">กดปุ่ม &quot;เริ่มวิเคราะห์&quot; เพื่อดูผลลัพธ์</p>
+                                    <h2 className="text-xl font-black text-foreground/40 mb-2 tracking-tight">รอการวิเคราะห์</h2>
+                                    <p className="text-sm text-muted/40">กดปุ่ม &quot;เริ่มวิเคราะห์&quot; เพื่อดูผลลัพธ์</p>
                                 </div>
                             )}
 
                             {analyzing && (
                                 <div className="flex-1 flex flex-col items-center justify-center py-8">
                                     <div className="w-24 h-24 rounded-full border-4 border-gold/20 border-t-gold animate-spin mx-auto mb-6" />
-                                    <h2 className="text-xl font-black text-white/60 mb-2">AI กำลังประมวลผล...</h2>
-                                    <p className="text-sm text-white/30">วิเคราะห์ประวัติการเทรดทั้งหมด</p>
+                                    <h2 className="text-xl font-black text-foreground/70 mb-2">AI กำลังประมวลผล...</h2>
+                                    <p className="text-sm text-muted/60">วิเคราะห์ประวัติการเทรดทั้งหมด</p>
                                     <div className="mt-4 flex gap-1">
                                         {[0, 1, 2].map(i => (
                                             <div key={i} className="w-2 h-2 rounded-full bg-gold animate-pulse" style={{ animationDelay: `${i * 300}ms` }} />
@@ -253,8 +253,8 @@ export default function AnalyticsPage() {
                                     <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border-2 border-red-500/20">
                                         <AlertCircle className="w-10 h-10 text-red-400" />
                                     </div>
-                                    <h2 className="text-xl font-black text-white/60 mb-2">ข้อมูลไม่เพียงพอ</h2>
-                                    <p className="text-sm text-white/30 max-w-xs">{error}</p>
+                                    <h2 className="text-xl font-black text-foreground/70 mb-2">ข้อมูลไม่เพียงพอ</h2>
+                                    <p className="text-sm text-muted/60 max-w-xs">{error}</p>
                                     <a href="/trade" className="mt-4 group px-6 py-2.5 bg-gold text-[#1A1A1A] font-black rounded-xl hover:scale-105 transition-all inline-flex items-center gap-2 text-sm">
                                         ไปหน้าเทรด
                                         <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -267,8 +267,8 @@ export default function AnalyticsPage() {
                                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 flex items-center justify-center mx-auto mb-6 border-2 border-gold/20 shadow-[0_0_30px_-8px_rgba(255,215,0,0.3)]">
                                         <span className="text-5xl drop-shadow-2xl">{aiTypeInfo.emoji}</span>
                                     </div>
-                                    <h2 className="text-3xl font-black text-white mb-2 tracking-tight">{aiTypeInfo.label}</h2>
-                                    <p className="text-sm text-white/60 mb-6">{aiTypeInfo.desc}</p>
+                                    <h2 className="text-3xl font-black text-foreground mb-2 tracking-tight">{aiTypeInfo.label}</h2>
+                                    <p className="text-sm text-muted font-medium mb-6">{aiTypeInfo.desc}</p>
 
                                     {/* Match Status */}
                                     <div className="mb-6 flex justify-center">
@@ -288,8 +288,8 @@ export default function AnalyticsPage() {
                                     {/* Suggested type if different */}
                                     {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType && analytics.suggestedTraderType !== 'Unknown' && (
                                         <>
-                                            <div className="mb-6 p-3 rounded-xl bg-white/5 border border-white/10 w-full">
-                                                <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-1">AI แนะนำให้เปลี่ยนเป็น</p>
+                                            <div className="mb-6 p-3 rounded-xl bg-background border border-theme-border w-full">
+                                                <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">AI แนะนำให้เปลี่ยนเป็น</p>
                                                 <p className="text-sm font-black text-gold">{suggestedInfo?.emoji} {suggestedInfo?.label}</p>
                                             </div>
 

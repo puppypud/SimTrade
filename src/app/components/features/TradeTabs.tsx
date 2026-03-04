@@ -258,20 +258,20 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   return (
     <div className="bg-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden flex flex-col transition-colors duration-300">
       {/* Header: Symbol & Price Info */}
-      <div className="px-6 py-4 border-b border-theme-border bg-surface/50 flex justify-between items-center">
+      <div className="px-5 py-3 border-b border-theme-border bg-surface/50 flex justify-between items-center">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-xl font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h2 className="text-lg font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
             <button
               onClick={toggleFavorite}
               className="p-1 hover:bg-background rounded-full transition-colors"
               title={isFavorite ? "Remove from Watchlist" : "Add to Watchlist"}
             >
               <Star
-                className={`w-5 h-5 ${isFavorite ? "text-gold fill-gold" : "text-muted"}`}
+                className={`w-4 h-4 ${isFavorite ? "text-gold fill-gold" : "text-muted"}`}
               />
             </button>
-            <div className="ml-2">
+            <div className="ml-1">
               <MarketStatusBadge />
             </div>
           </div>
@@ -280,12 +280,12 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
             {quote ? (
               <>
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-3xl font-bold tracking-tight font-mono ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'
+                  <span className={`text-2xl font-bold tracking-tight font-mono ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
                     ${quote.price.toFixed(2)}
                   </span>
                   {quote.openPrice && (
-                    <span className={`text-sm font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
                     </span>
                   )}

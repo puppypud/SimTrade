@@ -79,11 +79,11 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
     <div className="space-y-4">
       {/* Header Control */}
       <div className="flex justify-between items-center px-2 mb-2">
-        <h2 className="text-lg font-bold text-gray-800">
+        <h2 className="text-lg font-black text-foreground tracking-tight">
           My Assets ({positions.length})
         </h2>
-        <button className="text-xs text-blue-600 font-medium bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors">
-          เรียงตาม: มูลค่าสินทรัพย์ ▼
+        <button className="text-[10px] text-blue-500 font-black uppercase tracking-wider bg-blue-500/10 px-3 py-1.5 rounded-full hover:bg-blue-500/20 transition-all border border-blue-500/10">
+          Sort by: Value ▼
         </button>
       </div>
 
@@ -109,10 +109,10 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
         return (
           <div
             key={pos.assetId}
-            className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md 
+            className={`bg-surface rounded-2xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md 
               ${isExpanded
-                ? "border-blue-400 ring-1 ring-blue-100 shadow-blue-100"
-                : "border-gray-200"
+                ? "border-blue-400/50 ring-4 ring-blue-400/5 shadow-blue-400/10"
+                : "border-theme-border"
               }`}
           >
             {/* 1. Header Row */}
@@ -123,7 +123,7 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
               {/* Left: Symbol Info & Logo */}
               <div className="flex items-center space-x-4">
                 <div
-                  className="w-12 h-12 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden shrink-0 shadow-sm hover:border-blue-300 transition-all active:scale-90"
+                  className="w-12 h-12 rounded-full bg-background border border-theme-border flex items-center justify-center overflow-hidden shrink-0 shadow-sm hover:border-blue-400/50 transition-all active:scale-90"
                   title="คลิกไปหน้าเทรด"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -156,10 +156,10 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
                     router.push(`${targetPath}?symbol=${pos.symbol}`);
                   }}
                 >
-                  <div className="font-bold text-gray-900 text-lg">
+                  <div className="font-black text-foreground text-lg tracking-tight">
                     {formatSymbolDisplay(pos.symbol)}
                   </div>
-                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-2">
+                  <div className="text-[10px] text-muted font-bold mt-0.5 flex items-center gap-2 uppercase tracking-wide">
                     {/* แก้ไขตรงนี้: เปลี่ยน exchange เป็น % Weight + Icon */}
                     <div className="flex items-center gap-1.5 mr-2">
                       {/* Pie Chart Icon */}
@@ -171,14 +171,14 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
                         className="w-2.5 h-2.5" // ใส่ opacity-60 ถ้าอยากให้สีดูจางลงเหมือน text-gray-400
                       />
                       {/* Weight Percent (Bold & Larger) */}
-                      <span className="text-black font-medium text-xs">
+                      <span className="text-foreground font-black text-xs">
                         {portfolioWeight.toFixed(2)}%
                       </span>
                     </div>
 
                     <span className="flex items-center gap-1">
-                      <span className="text-gray-400">Day:</span>
-                      <span className={dayColor}>
+                      <span className="text-muted/60 uppercase text-[9px]">Day:</span>
+                      <span className={`${dayColor} font-black`}>
                         {isDayProfit ? "+" : ""}
                         {formatPercent(pos.changeToday)}
                       </span>
@@ -189,10 +189,10 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
 
               {/* Center: Market Value */}
               <div className="text-right hidden sm:block">
-                <div className="font-bold text-gray-900">
+                <div className="font-black text-foreground">
                   {formatCurrency(pos.marketValue)}
                 </div>
-                <div className="text-xs text-gray-400">
+                <div className="text-[10px] text-muted font-bold uppercase tracking-tighter">
                   ≈ {formatNumber(approxThb)} THB
                 </div>
               </div>
@@ -212,29 +212,29 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
 
             {/* 2. Expanded Details */}
             <div
-              className={`bg-gray-50/50 border-t border-gray-100 transition-all duration-300 ease-in-out ${isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+              className={`bg-background/40 border-t border-theme-border transition-all duration-300 ease-in-out ${isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                 }`}
             >
               <div className="p-6">
                 <div className="grid grid-cols-2 gap-y-6 gap-x-8 text-sm">
                   {/* Row 1 */}
                   <div>
-                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                    <p className="text-muted text-[10px] font-black mb-1 uppercase tracking-widest opacity-60">
                       Holdings (Shares)
                     </p>
-                    <p className="font-bold text-gray-800 font-mono text-base">
+                    <p className="font-black text-foreground font-mono text-base">
                       {formatNumber(pos.qty, 4)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                    <p className="text-muted text-[10px] font-black mb-1 uppercase tracking-widest opacity-60">
                       Current Price
                     </p>
                     <div className="flex items-baseline gap-2">
-                      <p className="font-bold text-gray-800 font-mono text-base">
+                      <p className="font-black text-foreground font-mono text-base">
                         {formatCurrency(pos.currentPrice)}
                       </p>
-                      <p className={`text-xs ${dayColor}`}>
+                      <p className={`text-[10px] font-black ${dayColor}`}>
                         ({isDayProfit ? "▲" : "▼"}{" "}
                         {Math.abs(pos.changeToday).toFixed(2)}%)
                       </p>
@@ -243,27 +243,27 @@ export default function PortfolioTable({ accountId }: PortfolioTableProps) {
 
                   {/* Row 2 */}
                   <div>
-                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                    <p className="text-muted text-[10px] font-black mb-1 uppercase tracking-widest opacity-60">
                       Avg Cost / Share
                     </p>
-                    <p className="font-medium text-gray-700 font-mono">
+                    <p className="font-bold text-foreground/80 font-mono">
                       {formatCurrency(pos.avgEntryPrice)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-gray-400 text-xs mb-1 uppercase tracking-wide">
+                    <p className="text-muted text-[10px] font-black mb-1 uppercase tracking-widest opacity-60">
                       Total Cost Basis
                     </p>
-                    <p className="font-medium text-gray-700 font-mono">
+                    <p className="font-bold text-foreground/80 font-mono">
                       {formatCurrency(totalCost)}
                     </p>
                   </div>
                 </div>
 
                 {/* Action Button Section */}
-                <div className="mt-8 pt-4 border-t border-gray-200 flex justify-end gap-3">
+                <div className="mt-8 pt-4 border-t border-theme-border flex justify-end gap-3">
                   <button
-                    className="bg-gray-900 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-gray-200 hover:bg-black transition-all active:scale-95 flex items-center gap-2"
+                    className="bg-gold text-black px-6 py-2 rounded-xl text-sm font-black shadow-lg shadow-gold/10 hover:bg-gold-hover transition-all active:scale-95 flex items-center gap-2 uppercase tracking-wide"
                     onClick={(e) => {
                       e.stopPropagation();
                       // เช็คว่าเป็น Crypto หรือไม่ (จาก symbol หรือ assetClass)
