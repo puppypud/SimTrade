@@ -8,55 +8,87 @@ import { ChevronDownIcon, ChevronUpIcon, UserIcon, PhoneIcon, MapPinIcon, Bankno
 import FundFirmModal from "@/src/app/components/features/FundFirmModal";
 import FundUserModal from "@/src/app/components/features/FundUserModal";
 
-export default function AdminUsersPage() {
+export default function AdminUsersPage({ params, searchParams }: any) {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [totalEquity, setTotalEquity] = useState<number | null>(null);
+  const [totalFee, setTotalFee] = useState<number | null>(null);
+  const [feeGraphData, setFeeGraphData] = useState<{ date: string, amount: number }[]>([]);
   const [isMaintenance, setIsMaintenance] = useState<boolean>(false);
   const [dashboardLoading, setDashboardLoading] = useState<boolean>(true);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [isFundFirmModalOpen, setIsFundFirmModalOpen] = useState(false);
+  const [isFundUserModalOpen, setIsFundUserModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string } | null>(null);
   const [fundingTargetId, setFundingTargetId] = useState<string | null>(null);
 
-  const handleFundUserQuick = async (e: React.MouseEvent, accountId: string, fullName: string) => {
+  const handleOpenFundUser = (e: React.MouseEvent, user: UserAccount) => {
     e.stopPropagation();
+    setSelectedUser({
+      id: user.id,
+      name: `${user.identity?.givenName || ''} ${user.identity?.familyName || ''}`.trim() || 'Unknown User'
+    });
+    setIsFundUserModalOpen(true);
+  };
 
-    // prompt ง่ายๆ ให้แอดมินระบุยอดเงิน
-    const amountStr = window.prompt(`แจกเงิน (USD) ให้ผู้ใช้: ${fullName}`, "10000");
-    if (!amountStr) return; // User ยกเลิก
+  const fetchFeeData = async (accounts: any[]) => {
+    let commissions = 0;
+    const dailyMap: Record<string, number> = {};
 
-    const amount = Number(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-      alert("⚠️ กรุณาระบุจำนวนเงินที่ถูกต้อง");
-      return;
+    const userOrders = await Promise.all(
+      accounts.map(async (u: any) => {
+        if (u.alpacaAccountId) {
+          try {
+            return await brokerService.getAllOrders(u.alpacaAccountId);
+          } catch (e) { return []; }
+        }
+        return [];
+      })
+    );
+
+    userOrders.flat().forEach((order: any) => {
+      const comm = Number(order.commission || 0);
+      if (comm > 0) {
+        commissions += comm;
+        const rawDate = order.filledAt || order.submittedAt || order.createdAt || new Date().toISOString();
+        const dateStr = typeof rawDate === 'string' ? rawDate.split('T')[0] : new Date(rawDate).toISOString().split('T')[0];
+        dailyMap[dateStr] = (dailyMap[dateStr] || 0) + comm;
+      }
+    });
+
+    const sortedDates = Object.keys(dailyMap).sort();
+    let graphData = sortedDates.map(date => ({
+      date,
+      amount: dailyMap[date]
+    }));
+
+    // Generate dummy data points for graph aesthetics if no actual fees exist yet
+    if (graphData.length === 0) {
+      const today = new Date();
+      graphData = Array.from({ length: 7 }).map((_, i) => {
+        const d = new Date(today);
+        d.setDate(d.getDate() - (6 - i));
+        return { date: d.toISOString().split('T')[0], amount: 0 };
+      });
     }
 
-    try {
-      setFundingTargetId(accountId);
-      await brokerService.fundUserAccount(accountId, amount);
-      alert(`✅ แจกแจกเงินจำนวน $${amount.toLocaleString()} ให้บัญชี ${fullName} สำเร็จ!`);
-      // สั่งดึงข้อมูลล่าสุดใหม่
-      await refreshDashboardData();
-    } catch (error) {
-      console.error("Failed to fund user account", error);
-      alert("❌ ไม่สามารถแจกเงินได้ กรุณาลองใหม่");
-    } finally {
-      setFundingTargetId(null);
-    }
+    setTotalFee(commissions);
+    // Keep last 14 days
+    setFeeGraphData(graphData.slice(-14));
   };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [usersData, equityData, statusData] = await Promise.all([
+        const [usersData, statusData] = await Promise.all([
           brokerService.getAllAccounts(),
-          brokerService.getAllUsersEquity(),
           brokerService.getMarketStatus()
         ]);
         setUsers(usersData);
-        setTotalEquity(equityData);
         setIsMaintenance(statusData.isMaintenanceMode);
+
+        await fetchFeeData(usersData);
+
       } catch (err: any) {
         console.error("Error fetching admin data:", err);
         setError("ไม่สามารถดึงข้อมูลระบบได้");
@@ -71,8 +103,8 @@ export default function AdminUsersPage() {
   const refreshDashboardData = async () => {
     setDashboardLoading(true);
     try {
-      const equityData = await brokerService.getAllUsersEquity();
-      setTotalEquity(equityData);
+      const accounts = await brokerService.getAllAccounts();
+      await fetchFeeData(accounts);
     } catch (err) {
       console.error("Failed to refresh dashboard data", err);
     } finally {
@@ -146,19 +178,50 @@ export default function AdminUsersPage() {
 
         {/* Dashboard Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Total Equity Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-center">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-green-100 rounded-lg text-green-700">
-                <BanknotesIcon className="w-6 h-6" />
+          {/* Total Fee & Commission Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between overflow-hidden relative">
+            <div className="flex items-center justify-between mb-4 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-green-100 rounded-lg text-green-700">
+                  <BanknotesIcon className="w-6 h-6" />
+                </div>
+                <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Fees Collected</h2>
               </div>
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Users Equity</h2>
             </div>
-            {dashboardLoading ? (
-              <div className="h-10 w-32 bg-gray-200 animate-pulse rounded mt-2"></div>
-            ) : (
-              <div className="text-4xl font-extrabold text-gray-900 mt-1">
-                {totalEquity !== null ? formatCurrency(totalEquity) : "-"}
+
+            <div className="relative z-10 mb-2">
+              {dashboardLoading ? (
+                <div className="h-10 w-32 bg-gray-200 animate-pulse rounded mt-2"></div>
+              ) : (
+                <div className="text-4xl font-extrabold text-gray-900 mt-1 flex items-baseline gap-2">
+                  {totalFee !== null ? formatCurrency(totalFee) : "-"}
+                  {totalFee === 0 && <span className="text-sm text-gray-400 font-medium">No fees yet</span>}
+                </div>
+              )}
+            </div>
+
+            {/* Sparkline Graph */}
+            {!dashboardLoading && (
+              <div className="h-16 flex items-end justify-between gap-[2px] w-full pt-4 mt-auto border-t border-gray-100 relative z-10">
+                {feeGraphData.map((d, i) => {
+                  const maxAmount = Math.max(...feeGraphData.map(x => x.amount)) || 1;
+                  const heightPct = Math.max((d.amount / maxAmount) * 100, 5); // min 5% height to show line
+                  return (
+                    <div
+                      key={i}
+                      className={`w-full rounded-sm relative group transition-all duration-300 ${d.amount > 0 ? 'bg-green-500 hover:bg-green-400' : 'bg-gray-100'}`}
+                      style={{ height: `${heightPct}%` }}
+                      title={`${d.date}: ${formatCurrency(d.amount)}`}
+                    >
+                      {/* Tooltip on Hover */}
+                      {d.amount > 0 && (
+                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-50">
+                          {formatCurrency(d.amount)}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -222,9 +285,8 @@ export default function AdminUsersPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">อีเมล / เบอร์โทร</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">เลขบัญชี</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">ยอดเงิน (Equity)</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">อีเมล</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">เบอร์โทรศัพท์</th>
                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
                     <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">จัดการ</th>
                   </tr>
@@ -241,34 +303,28 @@ export default function AdminUsersPage() {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
-                              {user.identity?.givenName?.[0]}{user.identity?.familyName?.[0]}
+                              {(user as any).firstName?.[0] || user.identity?.givenName?.[0] || 'U'}
+                              {(user as any).lastName?.[0] || user.identity?.familyName?.[0] || ''}
                             </div>
                             <div className="ml-4">
                               <div className="text-sm font-medium text-gray-900">
-                                {user.identity?.givenName} {user.identity?.familyName}
+                                {(user as any).firstName || user.identity?.givenName} {(user as any).lastName || user.identity?.familyName}
                               </div>
                               <div className="text-xs text-gray-500">
-                                {user.identity?.countryOfCitizenship || "USA"}
+                                {user.identity?.countryOfCitizenship || (user as any).country || "USA"}
                               </div>
                             </div>
                           </div>
                         </td>
 
-                        {/* 2. Contact */}
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{user.contact?.emailAddress}</div>
-                          <div className="text-xs text-gray-500">{user.contact?.phoneNumber}</div>
+                        {/* 2. Email */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{(user as any).email || user.contact?.emailAddress || 'No Email'}</div>
                         </td>
 
-                        {/* 3. Account No */}
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                          {user.accountNumber}
-                        </td>
-
-                        {/* 4. Equity */}
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="text-sm font-bold text-gray-900">{formatCurrency(user.lastEquity)}</div>
-                          <div className="text-xs text-gray-400">{user.currency}</div>
+                        {/* 3. Phone */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">{(user as any).phoneNumber || user.contact?.phoneNumber || 'No Phone'}</div>
                         </td>
 
                         {/* 5. Status */}
@@ -283,11 +339,7 @@ export default function AdminUsersPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-center text-gray-400">
                           <div className="flex items-center justify-center gap-2">
                             <button
-                              onClick={(e) => handleFundUserQuick(
-                                e,
-                                user.id,
-                                `${user.identity?.givenName || ''} ${user.identity?.familyName || ''}`.trim() || 'Unknown User'
-                              )}
+                              onClick={(e) => handleOpenFundUser(e, user)}
                               disabled={fundingTargetId === user.id}
                               className={`p-1.5 rounded-lg text-indigo-600 border border-transparent transition-colors tooltip-trigger flex items-center gap-1 font-semibold ${fundingTargetId === user.id ? "opacity-50 cursor-wait bg-indigo-50" : "hover:bg-indigo-100 hover:border-indigo-300 bg-indigo-50"
                                 }`}
@@ -317,9 +369,9 @@ export default function AdminUsersPage() {
                                   <UserIcon className="w-4 h-4 mr-2" /> ข้อมูลส่วนตัว
                                 </h3>
                                 <div className="space-y-2 text-sm text-gray-600">
-                                  <p><span className="font-medium text-gray-900">วันเกิด:</span> {user.identity?.dateOfBirth}</p>
-                                  <p><span className="font-medium text-gray-900">Account ID:</span> {user.id}</p>
-                                  <p><span className="font-medium text-gray-900">สัญชาติ:</span> {user.identity?.countryOfCitizenship}</p>
+                                  <p><span className="font-medium text-gray-900">วันเกิด:</span> {user.identity?.dateOfBirth || (user as any).dob || '-'}</p>
+                                  <p><span className="font-medium text-gray-900">Account ID:</span> {user.alpacaAccountId || user.id}</p>
+                                  <p><span className="font-medium text-gray-900">สัญชาติ:</span> {user.identity?.countryOfCitizenship || (user as any).country || 'N/A'}</p>
                                 </div>
                               </div>
 
@@ -364,6 +416,24 @@ export default function AdminUsersPage() {
         onClose={() => setIsFundFirmModalOpen(false)}
         onSuccess={refreshDashboardData}
       />
+
+      {selectedUser && (
+        <FundUserModal
+          isOpen={isFundUserModalOpen}
+          onClose={() => {
+            setIsFundUserModalOpen(false);
+            setSelectedUser(null);
+          }}
+          onSuccess={async () => {
+            await refreshDashboardData();
+            // Optional: Re-fetch user list if needed
+            const updatedUsers = await brokerService.getAllAccounts();
+            setUsers(updatedUsers);
+          }}
+          userId={selectedUser.id}
+          userName={selectedUser.name}
+        />
+      )}
     </div>
   );
 }

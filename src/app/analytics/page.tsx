@@ -15,7 +15,6 @@ import {
     Activity,
     Zap,
     PieChart,
-    Brain,
     History,
     RefreshCw,
     UserCircle,
@@ -30,9 +29,9 @@ import {
     ArrowUpRight,
     ArrowDownRight,
     ChevronRight,
-    Sparkles,
     Trophy,
     AlertTriangle,
+    LineChart,
     Play
 } from 'lucide-react';
 
@@ -132,7 +131,7 @@ export default function AnalyticsPage() {
                 {/* ======= HEADER ======= */}
                 <div className="text-center space-y-3 pt-6">
                     <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-gold/10 border border-gold/20 rounded-full text-xs font-black text-gold uppercase tracking-widest mb-2">
-                        <Sparkles className="w-3.5 h-3.5" />
+                        <LineChart className="w-3.5 h-3.5" />
                         AI-Powered Analysis
                     </div>
                     <h1 className="text-4xl md:text-5xl font-black text-foreground tracking-tight">
@@ -183,7 +182,7 @@ export default function AnalyticsPage() {
                             <div className="flex flex-col items-center gap-3">
                                 <div className="relative">
                                     <div className="w-20 h-20 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
-                                    <Brain className="w-8 h-8 text-gold absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                    <LineChart className="w-8 h-8 text-gold absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                                 </div>
                                 <p className="text-xs text-muted font-bold whitespace-nowrap">กำลังวิเคราะห์...</p>
                             </div>
@@ -221,14 +220,14 @@ export default function AnalyticsPage() {
 
                         <div className="relative z-10 w-full flex-1 flex flex-col items-center">
                             <div className="flex items-center justify-center gap-2 mb-8">
-                                <Brain className={`w-5 h-5 text-gold ${analyzing ? 'animate-pulse' : ''}`} />
+                                <LineChart className={`w-5 h-5 text-gold ${analyzing ? 'animate-pulse' : ''}`} />
                                 <span className="text-xs font-black uppercase tracking-widest text-muted">AI Analysis</span>
                             </div>
 
                             {!analytics && !analyzing && !error && (
                                 <div className="flex-1 flex flex-col items-center justify-center py-8">
                                     <div className="w-24 h-24 rounded-full bg-background/50 flex items-center justify-center mx-auto mb-6 border-2 border-dashed border-theme-border">
-                                        <Brain className="w-10 h-10 text-muted/30" />
+                                        <BarChart2 className="w-10 h-10 text-muted/30" />
                                     </div>
                                     <h2 className="text-xl font-black text-foreground/40 mb-2 tracking-tight">รอการวิเคราะห์</h2>
                                     <p className="text-sm text-muted/40">กดปุ่ม &quot;เริ่มวิเคราะห์&quot; เพื่อดูผลลัพธ์</p>
@@ -421,7 +420,7 @@ export default function AnalyticsPage() {
                                     )}
                                     {analytics.worstPerformingStock && analytics.worstPerformingStock !== '-' && (
                                         <StockHighlightCard
-                                            icon={<Skull className="w-4 h-4" />}
+                                            icon={<TrendingDown className="w-4 h-4" />}
                                             label="หุ้นตัวร้าย"
                                             symbol={analytics.worstPerformingStock}
                                             detail={`${analytics.worstPerformingStockPnL?.toFixed(2)}%`}
@@ -490,7 +489,7 @@ export default function AnalyticsPage() {
                             {analytics.behavioralFeedback && (
                                 <div className="bg-surface rounded-2xl p-5 border border-theme-border">
                                     <div className="flex items-start gap-3">
-                                        <Brain className="w-5 h-5 text-gold mt-0.5 flex-shrink-0" />
+                                        <Zap className="w-5 h-5 text-gold mt-0.5 flex-shrink-0" />
                                         <div>
                                             <p className="text-xs font-black uppercase tracking-widest text-muted mb-2">สรุปพฤติกรรม</p>
                                             <p className="text-sm text-foreground leading-relaxed">{analytics.behavioralFeedback}</p>
