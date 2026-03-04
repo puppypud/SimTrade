@@ -270,36 +270,26 @@ export default function AnalyticsPage() {
                                     <p className="text-sm text-muted font-medium mb-6">{aiTypeInfo.desc}</p>
 
                                     {/* Match Status */}
-                                    <div className="mb-6 flex justify-center">
-                                        {isMatch ? (
-                                            <div className="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500/30 rounded-full flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(16,185,129,0.3)]">
-                                                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                                                <span className="text-xs font-bold text-emerald-400 uppercase tracking-widest">พฤติกรรมตรงกับโปรไฟล์</span>
-                                            </div>
-                                        ) : (
-                                            <div className="px-5 py-2.5 bg-amber-500/20 border border-amber-500/30 rounded-full flex items-center gap-2 shadow-[0_0_20px_-5px_rgba(245,158,11,0.3)]">
-                                                <AlertCircle className="w-4 h-4 text-amber-400" />
-                                                <span className="text-xs font-bold text-amber-400 uppercase tracking-widest">พฤติกรรมต่างจากโปรไฟล์</span>
-                                            </div>
-                                        )}
+                                    {/* Match Status - Removed */}
+
+                                    {/* Always show Suggested type + Change Button if analysis exists */}
+                                    <div className="mb-6 p-4 rounded-xl bg-background border border-theme-border w-full">
+                                        <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">
+                                            {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown' ? "AI แนะนำให้เปลี่ยนเป็น" : "ประเภทนักเทรดของคุณ"}
+                                        </p>
+                                        <p className="text-sm font-black text-gold">
+                                            {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown'
+                                                ? `${suggestedInfo?.emoji || ''} ${suggestedInfo?.label || analytics.suggestedTraderType}`
+                                                : `${aiTypeInfo.emoji} ${aiTypeInfo.label}`}
+                                        </p>
                                     </div>
 
-                                    {/* Suggested type if different */}
-                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType && analytics.suggestedTraderType !== 'Unknown' && (
-                                        <>
-                                            <div className="mb-6 p-3 rounded-xl bg-background border border-theme-border w-full">
-                                                <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">AI แนะนำให้เปลี่ยนเป็น</p>
-                                                <p className="text-sm font-black text-gold">{suggestedInfo?.emoji} {suggestedInfo?.label}</p>
-                                            </div>
-
-                                            <button
-                                                onClick={() => setShowConfirmModal(true)}
-                                                className="w-full py-3.5 bg-gold hover:bg-gold-hover text-[#1A1A1A] font-black rounded-xl transition-all shadow-lg active:scale-95 text-sm hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.5)]"
-                                            >
-                                                อัปเดตสายเทรด (Change Profile)
-                                            </button>
-                                        </>
-                                    )}
+                                    <button
+                                        onClick={() => setShowConfirmModal(true)}
+                                        className="w-full py-3.5 bg-gold hover:bg-gold-hover text-[#1A1A1A] font-black rounded-xl transition-all shadow-lg active:scale-95 text-sm hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.5)]"
+                                    >
+                                        อัปเดตสายเทรด (Change Profile)
+                                    </button>
                                 </>
                             )}
                         </div>

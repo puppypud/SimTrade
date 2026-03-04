@@ -13,7 +13,6 @@ interface WatchlistPanelProps {
 }
 
 const SEVEN_ANGELS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
-const GET_FAVORITES_KEY = (email?: string) => `simtrade_favorites_${email || 'guest'}`;
 
 // Mock Full Names for the layout
 const COMPANY_NAMES: Record<string, string> = {
@@ -28,39 +27,55 @@ const COMPANY_NAMES: Record<string, string> = {
 
 export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: WatchlistPanelProps) {
     const { user } = useAuth();
-    const [favorites, setFavorites] = useState<string[]>([]);
-    const [newFavorite, setNewFavorite] = useState("");
+    const [recommendedStocks, setRecommendedStocks] = useState<string[]>([]);
     const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
     const [bars, setBars] = useState<Record<string, number[]>>({}); // Real sparkline data
     const [loading, setLoading] = useState(true);
     const [expandedSeven, setExpandedSeven] = useState(false);
-    const [expandedFavorites, setExpandedFavorites] = useState(false);
+    const [expandedRecommended, setExpandedRecommended] = useState(false);
 
-    // Load favorites from local storage on mount or when user changes
     useEffect(() => {
-        if (!user) return;
-        try {
-            const key = GET_FAVORITES_KEY(user.email);
-            const stored = localStorage.getItem(key);
-            if (stored) {
-                setFavorites(JSON.parse(stored));
-            } else {
-                setFavorites([]); // Clear for new user if no stored data
+        const fetchIdentityAndStocks = async () => {
+            let currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
+            if (user?.id) {
+                try {
+                    const profile = await brokerService.getUserProfile(user.id);
+                    if (profile.traderType && profile.traderType !== 'Unknown') {
+                        currentIdentity = profile.traderType;
+                        localStorage.setItem('simtrade_identity', currentIdentity);
+                    }
+                } catch (e) {
+                    console.error("Failed to load trader identity", e);
+                }
             }
-        } catch (e) {
-            console.error("Failed to load favorites", e);
-        }
+
+            const storedRandoms = localStorage.getItem(`simtrade_random_stocks_${currentIdentity}`);
+            if (storedRandoms) {
+                try {
+                    const parsed = JSON.parse(storedRandoms);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setRecommendedStocks(parsed);
+                        return;
+                    }
+                } catch (e) { }
+            }
+
+            // Fetch dynamic from API Instead
+            try {
+                const selected = await brokerService.getRecommendedStocks(currentIdentity);
+                if (selected && selected.length > 0) {
+                    setRecommendedStocks(selected);
+                    localStorage.setItem(`simtrade_random_stocks_${currentIdentity}`, JSON.stringify(selected));
+                }
+            } catch (error) {
+                console.error("Failed to fetch recommended stocks from API", error);
+            }
+        };
+        fetchIdentityAndStocks();
     }, [user]);
 
-    // Save favorites whenever it changes
-    useEffect(() => {
-        if (!user) return;
-        const key = GET_FAVORITES_KEY(user.email);
-        localStorage.setItem(key, JSON.stringify(favorites));
-    }, [favorites, user]);
-
     const fetchQuotes = useCallback(async () => {
-        const allSymbols = [...new Set([...SEVEN_ANGELS, ...favorites])];
+        const allSymbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
 
         // We fetch one by one concurrently. If backend supported batch, it would be better.
         const promises = allSymbols.map(async (sym) => {
@@ -87,10 +102,10 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         });
         setLoading(false);
 
-    }, [favorites]);
+    }, [recommendedStocks]);
 
     const fetchBars = useCallback(async () => {
-        const symbols = [...new Set([...SEVEN_ANGELS, ...favorites])];
+        const symbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
         const newBars: Record<string, number[]> = {};
 
         // Fetch bars for each symbol to generate sparklines
@@ -107,7 +122,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         }));
 
         setBars(prev => ({ ...prev, ...newBars }));
-    }, [favorites]);
+    }, [recommendedStocks]);
 
     // Initial fetch and polling
     useEffect(() => {
@@ -120,37 +135,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
             clearInterval(barInterval);
         };
     }, [fetchQuotes, fetchBars]);
-
-    const handleAddFavorite = (e: React.FormEvent) => {
-        e.preventDefault();
-        const symbol = newFavorite.trim().toUpperCase();
-        if (!symbol) return;
-
-        if (!favorites.includes(symbol) && !SEVEN_ANGELS.includes(symbol)) {
-            setFavorites(prev => [...prev, symbol]);
-            // Instantly trigger a fetch for the new symbol
-            brokerService.getLatestQuote(symbol).then(data => {
-                setQuotes(prev => ({ ...prev, [symbol]: data }));
-            }).catch(err => console.error("Error fetching new favorite:", err));
-        }
-        setNewFavorite("");
-    };
-
-    const handleRemoveFavorite = (e: React.MouseEvent, symbolToRemove: string) => {
-        e.stopPropagation();
-        setFavorites(prev => prev.filter(sym => sym !== symbolToRemove));
-    };
-
-    const handleQuickAdd = (e: React.MouseEvent, symbolToAdd: string) => {
-        e.stopPropagation();
-        if (!favorites.includes(symbolToAdd)) {
-            setFavorites(prev => [...prev, symbolToAdd]);
-            // Instantly trigger a fetch
-            brokerService.getLatestQuote(symbolToAdd).then(data => {
-                setQuotes(prev => ({ ...prev, [symbolToAdd]: data }));
-            }).catch(err => console.error("Error fetching new favorite:", err));
-        }
-    };
 
     const renderStockItem = (symbol: string, index: number, isFavoriteList: boolean = false) => {
         const quote = quotes[symbol];
@@ -255,7 +239,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[9px] font-black uppercase tracking-wider border border-gold/20">
-                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : "หุ้นที่ติดตาม"}
+                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : "หุ้นกลุ่มเดียวกัน"}
                         </span>
                         {isUp && percentChange > 5 && (
                             <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-wider border border-emerald-500/20">
@@ -315,21 +299,12 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         >
                             Trade {symbol}
                         </button>
-                        {isFavoriteList ? (
-                            <button
-                                onClick={(e) => handleRemoveFavorite(e, symbol)}
-                                className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        ) : !favorites.includes(symbol) && (
-                            <button
-                                onClick={(e) => handleQuickAdd(e, symbol)}
-                                className="p-2 text-gold hover:bg-gold/10 rounded-xl transition-colors"
-                            >
-                                <Plus className="w-4 h-4" />
-                            </button>
-                        )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onSelectSymbol(symbol); }}
+                            className="bg-gold text-black text-[10px] font-black px-4 py-2 rounded-xl hover:bg-gold-hover transition-colors uppercase tracking-widest"
+                        >
+                            Trade {symbol}
+                        </button>
                     </div>
                 </div>
             </div>
@@ -370,51 +345,45 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 )}
             </div>
 
-            {/* My Favorites Section */}
+            {/* Recommended Stocks Section */}
             <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col h-full max-h-[600px] overflow-hidden">
                 <div className="p-5 border-b border-theme-border flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground">My Favorites</h2>
+                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <Star className="w-5 h-5 text-gold" />
+                        ตัวเลือกหุ้นในกลุ่มเดียวกัน
+                    </h2>
+                    <button
+                        onClick={() => {
+                            const currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
+                            localStorage.removeItem(`simtrade_random_stocks_${currentIdentity}`);
+                            window.location.reload();
+                        }}
+                        className="text-xs font-bold text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
+                    >
+                        สุ่มใหม่
+                    </button>
                 </div>
 
-                <form onSubmit={handleAddFavorite} className="px-5 pt-4 pb-2 relative">
-                    <input
-                        type="text"
-                        value={newFavorite}
-                        onChange={(e) => setNewFavorite(e.target.value)}
-                        placeholder="Add symbol e.g. NFLX"
-                        className="w-full pl-3 pr-10 py-2 bg-background border border-theme-border rounded-xl text-sm font-medium text-foreground focus:ring-2 focus:ring-gold focus:border-transparent outline-none uppercase placeholder-muted placeholder:normal-case shadow-inner"
-                        maxLength={10}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!newFavorite.trim()}
-                        className="absolute right-7 top-1/2 -translate-y-[20%] p-1.5 bg-surface shadow-sm border border-theme-border text-gold rounded-lg hover:border-gold/50 hover:bg-theme-border disabled:opacity-50 transition-all"
-                    >
-                        <Plus className="w-4 h-4" />
-                    </button>
-                </form>
-
-                <div className="flex flex-col flex-1 overflow-y-auto px-5 pb-3">
-                    {favorites.length === 0 ? (
+                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
+                    {recommendedStocks.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-2 py-12 text-center">
-                            <Star className="w-8 h-8 text-theme-border" />
-                            <p>Your watchlist is empty.</p>
-                            <p className="text-xs">Add your favorite stocks to track them easily.</p>
+                            <Star className="w-8 h-8 text-theme-border animate-pulse" />
+                            <p>Loading similar stocks...</p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
-                            {favorites.slice(0, expandedFavorites ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
+                            {recommendedStocks.slice(0, expandedRecommended ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
                         </div>
                     )}
                 </div>
 
-                {favorites.length > 4 && (
+                {recommendedStocks.length > 4 && (
                     <button
-                        onClick={() => setExpandedFavorites(!expandedFavorites)}
+                        onClick={() => setExpandedRecommended(!expandedRecommended)}
                         className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
                     >
-                        {expandedFavorites ? "ย่อลง" : "ดูเพิ่มเติม"}
-                        <Plus className={`w-3 h-3 transition-transform ${expandedFavorites ? 'rotate-45' : ''}`} />
+                        {expandedRecommended ? "ย่อลง" : "ดูเพิ่มเติม"}
+                        <Plus className={`w-3 h-3 transition-transform ${expandedRecommended ? 'rotate-45' : ''}`} />
                     </button>
                 )}
             </div>

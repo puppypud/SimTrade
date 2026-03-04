@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
 import OrderTableClient from "@/src/app/components/features/OrderTableClient";
@@ -12,31 +12,30 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user?.alpacaAccountId) {
-        setLoading(false);
-        return;
-      }
+  const fetchOrders = useCallback(async () => {
+    if (!user?.alpacaAccountId) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const fetchedOrders = await brokerService.getAllOrders(user.alpacaAccountId);
-        // เรียงลำดับ ใหม่ -> เก่า
-        fetchedOrders.sort(
-          (a: Order, b: Order) =>
-            new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
-        );
-        setOrders(fetchedOrders);
-      } catch (e) {
-        console.error("Failed to fetch orders", e);
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrders();
+    try {
+      const fetchedOrders = await brokerService.getAllOrders(user.alpacaAccountId);
+      fetchedOrders.sort(
+        (a: Order, b: Order) =>
+          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      );
+      setOrders(fetchedOrders);
+    } catch (e) {
+      console.error("Failed to fetch orders", e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
   if (loading) {
     return (
@@ -64,7 +63,7 @@ export default function HistoryPage() {
           </p>
         </div>
 
-        <OrderTableClient orders={orders} accountId={user.alpacaAccountId} />
+        <OrderTableClient orders={orders} accountId={user.alpacaAccountId} onRefresh={fetchOrders} />
       </div>
     </div>
   );

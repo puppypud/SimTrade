@@ -1,18 +1,18 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { brokerService } from '@/src/app/services/brokerService';
 
 interface CancelOrderButtonProps {
   accountId: string;
   orderId: string;
+  onCancelled?: () => void;
 }
 
-export default function CancelOrderButton({ accountId, orderId }: CancelOrderButtonProps) {
+export default function CancelOrderButton({ accountId, orderId, onCancelled }: CancelOrderButtonProps) {
   const [isCancelling, setIsCancelling] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const router = useRouter();
+  const [isDone, setIsDone] = useState(false);
 
   const handleCancelClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -24,14 +24,18 @@ export default function CancelOrderButton({ accountId, orderId }: CancelOrderBut
     setIsCancelling(true);
     try {
       await brokerService.cancelOrder(accountId, orderId);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      router.refresh();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      setIsDone(true);
+      if (onCancelled) onCancelled();
     } catch (error: any) {
       console.error('Failed to cancel order:', error);
     } finally {
       setIsCancelling(false);
     }
   };
+
+  // ยกเลิกสำเร็จแล้ว → ซ่อนปุ่ม
+  if (isDone) return null;
 
   return (
     <>

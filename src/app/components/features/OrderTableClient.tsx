@@ -61,11 +61,16 @@ const CANCELLABLE_STATUSES = [
     "NEW", "ACCEPTED", "PENDING_NEW", "ACCEPTED_FOR_BIDDING", "PARTIALLY_FILLED",
 ];
 
-export default function OrderTableClient({ orders, accountId }: { orders: Order[], accountId: string }) {
+export default function OrderTableClient({ orders, accountId, onRefresh }: { orders: Order[], accountId: string, onRefresh?: () => void }) {
     const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
     const handleOpenModal = (orderId: string) => setSelectedOrderId(orderId);
     const handleCloseModal = () => setSelectedOrderId(null);
+
+    const handleOrderCancelled = () => {
+        // Re-fetch จาก API จริง เพื่อได้ status ล่าสุดจาก Backend/Alpaca
+        if (onRefresh) onRefresh();
+    };
 
     return (
         <>
@@ -92,7 +97,7 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                     </td>
                                 </tr>
                             ) : (
-                                orders.map((order) => {
+                                orders.map((order: Order) => {
                                     const fQty = typeof order.filledQty === 'string' ? parseFloat(order.filledQty) : (order.filledQty || 0);
                                     const fPrice = typeof order.filledAvgPrice === 'string' ? parseFloat(order.filledAvgPrice) : (order.filledAvgPrice || 0);
                                     const notional = typeof order.notional === 'string' ? parseFloat(order.notional) : (order.notional || 0);
@@ -162,7 +167,7 @@ export default function OrderTableClient({ orders, accountId }: { orders: Order[
                                                     >
                                                         <Eye className="w-4.5 h-4.5" />
                                                     </button>
-                                                    {canCancel && <CancelOrderButton accountId={accountId} orderId={order.id} />}
+                                                    {canCancel && <CancelOrderButton accountId={accountId} orderId={order.id} onCancelled={() => handleOrderCancelled()} />}
                                                 </div>
                                             </td>
                                         </tr>

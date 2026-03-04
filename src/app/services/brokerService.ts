@@ -259,5 +259,13 @@ export const brokerService = {
       params: { newType }
     });
     return response.data;
+  },
+
+  // 13. ดึงหุ้นแนะนำตามประเภทนักเทรด (จาก Industry/Category)
+  getRecommendedStocks: async (traderType: string): Promise<string[]> => {
+    const response = await apiClient.get(`/broker/assets/recommended`, {
+      params: { traderType }
+    });
+    return response.data;
   }
 };
