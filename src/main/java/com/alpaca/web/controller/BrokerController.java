@@ -451,6 +451,18 @@ public class BrokerController {
         }
     }
 
+    @GetMapping("/assets/recommended")
+    public ResponseEntity<?> getRecommendedStocks(
+            @RequestParam(value = "traderType", required = false, defaultValue = "Day Trader") String traderType) {
+        try {
+            List<String> recommended = stockAnalysisService.getRecommendedStocks(traderType);
+            return ResponseEntity.ok(recommended);
+        } catch (Exception e) {
+            log.error("Error fetching recommended stocks", e);
+            return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/user/onboarding")
     public ResponseEntity<?> submitOnboarding(@RequestBody OnboardingRequest request) {
         // 💡 เพิ่มบรรทัดนี้เพื่อปริ้นดูว่า Backend รับค่าอะไรมาบ้าง!

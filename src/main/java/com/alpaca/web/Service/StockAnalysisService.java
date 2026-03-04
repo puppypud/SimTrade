@@ -1,4 +1,5 @@
 package com.alpaca.web.Service;
+
 import com.alpaca.web.Repository.StockAssetRepository;
 import com.alpaca.web.dto.FinnhubFinancials;
 import com.alpaca.web.dto.FinnhubProfileDTO;
@@ -14,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,10 +54,10 @@ public class StockAnalysisService {
             log.info("📌 Database is empty. Seeding 12 bulletproof stocks from Finnhub API...");
 
             List<String> seedSymbols = Arrays.asList(
-                    "KO", "WMT", "LLY",      // กลุ่มมั่นคง (Stable)
+                    "KO", "WMT", "LLY", // กลุ่มมั่นคง (Stable)
                     "NVDA", "TSLA", "NFLX", // กลุ่มกระแส (Trending)
-                    "JPM", "DIS", "NKE",     // กลุ่มเล่นรอบ (Swing)
-                    "MSTR", "COIN", "MARA"  // กลุ่มเก็งกำไร (Speculative)
+                    "JPM", "DIS", "NKE", // กลุ่มเล่นรอบ (Swing)
+                    "MSTR", "COIN", "MARA" // กลุ่มเก็งกำไร (Speculative)
             );
 
             for (String symbol : seedSymbols) {
@@ -90,32 +93,34 @@ public class StockAnalysisService {
         }
     }
 
-    public String calculateCategory(BigDecimal beta, BigDecimal marketCap, Long volume, BigDecimal pe, String industry, BigDecimal yearHigh, BigDecimal yearLow, BigDecimal currentPrice) {
-        double absBeta    = (beta      != null) ? Math.abs(beta.doubleValue())        : 1.0;
+    public String calculateCategory(BigDecimal beta, BigDecimal marketCap, Long volume, BigDecimal pe, String industry,
+            BigDecimal yearHigh, BigDecimal yearLow, BigDecimal currentPrice) {
+        double absBeta = (beta != null) ? Math.abs(beta.doubleValue()) : 1.0;
         double capBillion = (marketCap != null) ? marketCap.doubleValue() / 1_000_000_000.0 : 0.0;
-        long   vol        = (volume    != null) ? volume                              : 0L;
-        double peValue    = (pe        != null) ? pe.doubleValue()                    : -1.0;
-        String ind        = (industry  != null) ? industry.toLowerCase()              : "";
+        long vol = (volume != null) ? volume : 0L;
+        double peValue = (pe != null) ? pe.doubleValue() : -1.0;
+        String ind = (industry != null) ? industry.toLowerCase() : "";
 
         // ── ตำแหน่งราคาในช่วง 52 สัปดาห์ ────────────────────────────────────────
         double pricePosition = 0.5;
         if (yearHigh != null && yearLow != null && currentPrice != null) {
-            double high  = yearHigh.doubleValue();
-            double low   = yearLow.doubleValue();
+            double high = yearHigh.doubleValue();
+            double low = yearLow.doubleValue();
             double price = currentPrice.doubleValue();
-            if (high > low) pricePosition = (price - low) / (high - low);
+            if (high > low)
+                pricePosition = (price - low) / (high - low);
         }
 
         // ── กระดานคะแนน ──────────────────────────────────────────────────────────
-        int stableScore      = 0;
-        int trendScore       = 0;
-        int swingScore       = 0;   // ★ เพิ่ม Swing Score แยกออกมา
+        int stableScore = 0;
+        int trendScore = 0;
+        int swingScore = 0; // ★ เพิ่ม Swing Score แยกออกมา
         int speculativeScore = 0;
 
         // ════════════════════════════════════════════════════════════════
         // 🚨 FAST-TRACK: Beta สูงมากผิดปกติ (>= 2.5) = เก็งกำไรทันที
-        //    ครอบคลุม MSTR (Bitcoin proxy), COIN (Crypto exchange) ที่
-        //    Finnhub จัด industry เป็น "Software" หรือ "Financial" ไม่ใช่ "Crypto"
+        // ครอบคลุม MSTR (Bitcoin proxy), COIN (Crypto exchange) ที่
+        // Finnhub จัด industry เป็น "Software" หรือ "Financial" ไม่ใช่ "Crypto"
         // ════════════════════════════════════════════════════════════════
         if (absBeta >= 2.5) {
             return "เก็งกำไร (Speculative)";
@@ -123,55 +128,72 @@ public class StockAnalysisService {
 
         // ════════════════════════════════════════════════════════════════
         // 1. MARKET CAP — ขนาดบริษัท
-        //    ★ แก้: Banking ใหญ่ (JPM) ไม่ใช่มั่นคง เพราะ Cyclical กับ Economy
-        //           ให้ Cap >= 100B ได้ stableScore เฉพาะเมื่อ Beta ต่ำ (จะ combine กันใน step 2)
+        // ★ แก้: Banking ใหญ่ (JPM) ไม่ใช่มั่นคง เพราะ Cyclical กับ Economy
+        // ให้ Cap >= 100B ได้ stableScore เฉพาะเมื่อ Beta ต่ำ (จะ combine กันใน step 2)
         // ════════════════════════════════════════════════════════════════
-        if      (capBillion >= 100.0) stableScore      += 2;
-        else if (capBillion >= 10.0)  swingScore        += 1;  // Mid-cap → เล่นรอบ
-        else if (capBillion <   2.0)  speculativeScore  += 3;  // Small-cap → เก็งกำไรหนักขึ้น
+        if (capBillion >= 100.0)
+            stableScore += 2;
+        else if (capBillion >= 10.0)
+            swingScore += 1; // Mid-cap → เล่นรอบ
+        else if (capBillion < 2.0)
+            speculativeScore += 3; // Small-cap → เก็งกำไรหนักขึ้น
 
         // ════════════════════════════════════════════════════════════════
         // 2. BETA — ความผันผวนเทียบตลาด
-        //    แยกชัดว่า "บริษัทใหญ่สวิงแรง = กระแส" vs "บริษัทเล็กสวิงแรง = เก็งกำไร"
-        //    ★ แก้: Beta 1.0-1.1 (เช่น JPM=1.07) ไม่ควรได้ stableScore
-        //           เพราะ Beta > 1.0 หมายถึงสวิงกว่าตลาด ไม่ใช่หุ้นนิ่ง
+        // แยกชัดว่า "บริษัทใหญ่สวิงแรง = กระแส" vs "บริษัทเล็กสวิงแรง = เก็งกำไร"
+        // ★ แก้: Beta 1.0-1.1 (เช่น JPM=1.07) ไม่ควรได้ stableScore
+        // เพราะ Beta > 1.0 หมายถึงสวิงกว่าตลาด ไม่ใช่หุ้นนิ่ง
         // ════════════════════════════════════════════════════════════════
-        if      (absBeta <= 0.8)  stableScore      += 3;  // Defensive แท้จริง
-        else if (absBeta <= 1.0)  stableScore       += 1;  // นิ่งกว่าตลาดนิดหน่อย
-            // 1.0 < Beta <= 1.6: Swing Zone (DIS=1.46, NKE=1.30 ไม่ใช่ Trending)
+        if (absBeta <= 0.8)
+            stableScore += 3; // Defensive แท้จริง
+        else if (absBeta <= 1.0)
+            stableScore += 1; // นิ่งกว่าตลาดนิดหน่อย
+        // 1.0 < Beta <= 1.6: Swing Zone (DIS=1.46, NKE=1.30 ไม่ใช่ Trending)
         else if (absBeta <= 1.6) {
-            if (capBillion >= 10.0) swingScore      += 2;
-            else                    speculativeScore += 2;
+            if (capBillion >= 10.0)
+                swingScore += 2;
+            else
+                speculativeScore += 2;
         } else {
             // Beta > 1.6 = กระแสจริงหรือเสี่ยงสูง
-            if (capBillion >= 50.0) trendScore      += 3;  // Tech ยักษ์ที่คนแห่เทรด เช่น NVDA, TSLA
-            else if (capBillion >= 10.0) swingScore += 2;
-            else                    speculativeScore += 3; // ตัวเล็กสวิงจัด = เสี่ยง
+            if (capBillion >= 50.0)
+                trendScore += 3; // Tech ยักษ์ที่คนแห่เทรด เช่น NVDA, TSLA
+            else if (capBillion >= 10.0)
+                swingScore += 2;
+            else
+                speculativeScore += 3; // ตัวเล็กสวิงจัด = เสี่ยง
         }
 
         // ════════════════════════════════════════════════════════════════
         // 3. P/E — มูลค่าและความคาดหวัง
-        //    ★ แก้: P/E ติดลบ + บริษัทเล็ก → Speculative ชัดขึ้น
+        // ★ แก้: P/E ติดลบ + บริษัทเล็ก → Speculative ชัดขึ้น
         // ════════════════════════════════════════════════════════════════
-        if      (peValue > 0 && peValue <= 20)  stableScore      += 2;  // Value / Defensive
-        else if (peValue > 20 && peValue <= 40) swingScore        += 1;
-        else if (peValue > 40)                  trendScore        += 2;  // Growth / Hype
+        if (peValue > 0 && peValue <= 20)
+            stableScore += 2; // Value / Defensive
+        else if (peValue > 20 && peValue <= 40)
+            swingScore += 1;
+        else if (peValue > 40)
+            trendScore += 2; // Growth / Hype
         else if (peValue < 0) {
             // P/E ติดลบ = ขาดทุน
-            if (capBillion < 10.0) speculativeScore += 3;  // เล็ก+ขาดทุน → เก็งกำไรหนัก
-            else                   swingScore        += 1;  // ใหญ่แต่ขาดทุน (เช่น AAL, DIS) → เล่นรอบ
+            if (capBillion < 10.0)
+                speculativeScore += 3; // เล็ก+ขาดทุน → เก็งกำไรหนัก
+            else
+                swingScore += 1; // ใหญ่แต่ขาดทุน (เช่น AAL, DIS) → เล่นรอบ
         }
 
         // ════════════════════════════════════════════════════════════════
         // 4. VOLUME — ★ แก้สำคัญ: Volume สูงอย่างเดียว ≠ กระแส
-        //    ต้องมี Beta สูงด้วยจึงถือว่ากระแส
+        // ต้องมี Beta สูงด้วยจึงถือว่ากระแส
         // ════════════════════════════════════════════════════════════════
         if (vol > 30_000_000) {
-            if      (absBeta >= 1.3) trendScore  += 2;  // Volume มาก + สวิงแรง = กระแสจริง
-            else if (absBeta >= 1.0) swingScore   += 1;  // Volume มาก แต่ปกติ = เล่นรอบ
+            if (absBeta >= 1.3)
+                trendScore += 2; // Volume มาก + สวิงแรง = กระแสจริง
+            else if (absBeta >= 1.0)
+                swingScore += 1; // Volume มาก แต่ปกติ = เล่นรอบ
             // Beta ต่ำ: ไม่ให้คะแนน (เช่น KO มี Volume สูงแต่ไม่ใช่กระแส)
         } else if (vol < 1_000_000) {
-            speculativeScore += 1;  // ซื้อขายน้อย = สภาพคล่องต่ำ → เสี่ยงขึ้น
+            speculativeScore += 1; // ซื้อขายน้อย = สภาพคล่องต่ำ → เสี่ยงขึ้น
         }
 
         // ════════════════════════════════════════════════════════════════
@@ -187,14 +209,16 @@ public class StockAnalysisService {
             stableScore += 2;
         }
 
-        // กลุ่มกระแส — Semiconductor, EV, Cloud (ไม่รวม Software เพราะ MSTR จะโดน Fast-Track ไปก่อน)
+        // กลุ่มกระแส — Semiconductor, EV, Cloud (ไม่รวม Software เพราะ MSTR จะโดน
+        // Fast-Track ไปก่อน)
         else if (ind.contains("semiconductor") || ind.contains("internet") ||
                 ind.contains("cloud") || ind.contains("social media") ||
                 ind.contains("electric vehicle") || ind.contains("ev ")) {
             trendScore += 2;
         }
 
-        // กลุ่มกระแส — Software (NVDA จริงๆ เป็น Semiconductor แต่ Software ทั่วไปก็ Trend)
+        // กลุ่มกระแส — Software (NVDA จริงๆ เป็น Semiconductor แต่ Software ทั่วไปก็
+        // Trend)
         else if (ind.contains("software")) {
             trendScore += 2;
         }
@@ -214,15 +238,19 @@ public class StockAnalysisService {
         // กลุ่ม Airlines — ★ ขาดทุน (AAL-style) = เก็งกำไร | มีกำไร = เล่นรอบ
         // +4 เพราะต้องชนะ swing ที่สะสมจาก Beta+Cap
         else if (ind.contains("airline") || ind.contains("air transport")) {
-            if (peValue < 0) speculativeScore += 4;
-            else             swingScore        += 2;
+            if (peValue < 0)
+                speculativeScore += 4;
+            else
+                swingScore += 2;
         }
 
         // กลุ่ม Aerospace/Space/Defense — Startup อวกาศ vs. Defense ยักษ์
         else if (ind.contains("aerospace") || ind.contains("space") ||
                 ind.contains("defense") || ind.contains("military")) {
-            if   (capBillion < 10.0) speculativeScore += 2;  // RKLB = Startup อวกาศ
-            else                     swingScore        += 1;  // LMT, RTX = Defense ใหญ่
+            if (capBillion < 10.0)
+                speculativeScore += 2; // RKLB = Startup อวกาศ
+            else
+                swingScore += 1; // LMT, RTX = Defense ใหญ่
         }
 
         // กลุ่มเล่นรอบ — Banking / Financial
@@ -253,13 +281,16 @@ public class StockAnalysisService {
         // ════════════════════════════════════════════════════════════════
         // 6. PRICE POSITION — ตำแหน่งราคาในช่วง 52 สัปดาห์
         // ════════════════════════════════════════════════════════════════
-        if      (pricePosition > 0.85) trendScore       += 1;  // Near 52W High = Trending
-        else if (pricePosition < 0.15) speculativeScore  += 1;  // Near 52W Low = Risk/Speculative
-        else if (pricePosition >= 0.35 && pricePosition <= 0.65) swingScore += 1; // Mid-range = Swing
+        if (pricePosition > 0.85)
+            trendScore += 1; // Near 52W High = Trending
+        else if (pricePosition < 0.15)
+            speculativeScore += 1; // Near 52W Low = Risk/Speculative
+        else if (pricePosition >= 0.35 && pricePosition <= 0.65)
+            swingScore += 1; // Mid-range = Swing
 
         // ════════════════════════════════════════════════════════════════
         // 7. สรุปผล — เลือกกลุ่มที่คะแนนสูงสุด
-        //    ★ เพิ่ม Swing Score เป็นตัวแปรอิสระ (ไม่ใช้แค่ fallback)
+        // ★ เพิ่ม Swing Score เป็นตัวแปรอิสระ (ไม่ใช้แค่ fallback)
         // ════════════════════════════════════════════════════════════════
         int maxScore = Math.max(Math.max(stableScore, trendScore),
                 Math.max(swingScore, speculativeScore));
@@ -269,11 +300,15 @@ public class StockAnalysisService {
                 absBeta, String.format("%.1f", capBillion), vol, peValue, ind);
 
         // ต้องมีคะแนนขั้นต่ำ 3 เพื่อป้องกัน noise
-        if (maxScore < 3) return "เล่นรอบ (Swing)";
+        if (maxScore < 3)
+            return "เล่นรอบ (Swing)";
 
-        if (speculativeScore == maxScore) return "เก็งกำไร (Speculative)";
-        if (trendScore       == maxScore) return "กระแส (Trending)";
-        if (stableScore      == maxScore) return "มั่นคง (Stable)";
+        if (speculativeScore == maxScore)
+            return "เก็งกำไร (Speculative)";
+        if (trendScore == maxScore)
+            return "กระแส (Trending)";
+        if (stableScore == maxScore)
+            return "มั่นคง (Stable)";
 
         return "เล่นรอบ (Swing)";
     }
@@ -282,15 +317,14 @@ public class StockAnalysisService {
     public StockInfoDatabaseDTO getStockInfo(String symbol) {
         String cleanSymbol = symbol.trim().toUpperCase();
 
-            // 1. ค้นหาใน Database ก่อน (ถ้าเป็น 12 ตัวหลัก จะเจอตรงนี้และส่งกลับเลย)
+        // 1. ค้นหาใน Database ก่อน (ถ้าเป็น 12 ตัวหลัก จะเจอตรงนี้และส่งกลับเลย)
         Optional<StockAsset> dbStockOpt = stockAssetRepository.findById(cleanSymbol);
         if (dbStockOpt.isPresent()) {
             StockAsset dbStock = dbStockOpt.get();
             log.info("🔍 พบหุ้น {} ใน Database", cleanSymbol);
             return new StockInfoDatabaseDTO(
                     dbStock.getSymbol(), dbStock.getName(), dbStock.getBeta(),
-                    dbStock.getMarketCap(), dbStock.getAvgVolume(), dbStock.getCategory(), dbStock.getIndustry()
-            );
+                    dbStock.getMarketCap(), dbStock.getAvgVolume(), dbStock.getCategory(), dbStock.getIndustry());
         }
 
         // 2. ถ้าไม่เจอใน DB -> เริ่มกระบวนการ "คำนวณสด (On-the-fly)"
@@ -303,7 +337,8 @@ public class StockAnalysisService {
             FinnhubStockDTO quote = restTemplate.getForObject(quoteUrl, FinnhubStockDTO.class);
 
             // 🌟 B. ดึง Market Cap, Beta สถิติ (Metric)
-            String metricUrl = "https://finnhub.io/api/v1/stock/metric?symbol=" + cleanSymbol + "&metric=all&token=" + apiKey;
+            String metricUrl = "https://finnhub.io/api/v1/stock/metric?symbol=" + cleanSymbol + "&metric=all&token="
+                    + apiKey;
             FinnhubFinancials financials = restTemplate.getForObject(metricUrl, FinnhubFinancials.class);
 
             // 🔥 C. ดึง Profile (Industry & Name) -> เพิ่มตรงนี้
@@ -318,8 +353,10 @@ public class StockAnalysisService {
             FinnhubFinancials.Metric m = financials.getMetric();
 
             // 🌟 3. เตรียมข้อมูลสำหรับสูตรคำนวณ
-            // Finnhub ให้ MarketCap เป็นหน่วยล้าน (Millions) ต้องคูณ 1,000,000 เพื่อให้เป็นหน่วยเต็ม
-            BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000")) : BigDecimal.ZERO;
+            // Finnhub ให้ MarketCap เป็นหน่วยล้าน (Millions) ต้องคูณ 1,000,000
+            // เพื่อให้เป็นหน่วยเต็ม
+            BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000"))
+                    : BigDecimal.ZERO;
             String industry = (profile != null && profile.getIndustry() != null) ? profile.getIndustry() : "Unknown";
             String fullName = (profile != null && profile.getName() != null) ? profile.getName() : cleanSymbol;
             // ดึงค่า High/Low รอบปีจาก Metric (ไม่ใช่จาก Quote)
@@ -349,17 +386,17 @@ public class StockAnalysisService {
             }
             BigDecimal pe = m.getPe();
 
-            //ใช้ค่า beta
+            // ใช้ค่า beta
             BigDecimal finalBeta = m.getBeta();
-            //4. รันสูตร estimateBeta (ของคุณ) และจัดกลุ่ม
+            // 4. รันสูตร estimateBeta (ของคุณ) และจัดกลุ่ม
             // ถ้า API ไม่ให้ Beta มา (เป็น Null หรือเป็น 0) ถึงจะใช้ "สูตรสำรอง" ของเรา
             if (finalBeta == null || finalBeta.compareTo(BigDecimal.ZERO) == 0) {
                 log.info("⚠️ ไม่พบค่า Beta ของจริงสำหรับ {} กำลังใช้ระบบ EstimateBeta", cleanSymbol);
                 finalBeta = estimateBeta(marketCapFull, volumeLong, pe, yearHigh, yearLow, currentPrice);
             }
 
-
-            String category = calculateCategory(finalBeta, marketCapFull, volumeLong, pe, industry, yearHigh, yearLow, currentPrice);
+            String category = calculateCategory(finalBeta, marketCapFull, volumeLong, pe, industry, yearHigh, yearLow,
+                    currentPrice);
 
             log.info("✅ คำนวณสำเร็จ: {} กลุ่ม: {}", cleanSymbol, category);
 
@@ -370,8 +407,7 @@ public class StockAnalysisService {
                     marketCapFull.longValue(),
                     volumeLong,
                     category,
-                    industry
-            );
+                    industry);
 
         } catch (Exception e) {
             log.error("❌ Finnhub Error สำหรับ {}: {}", cleanSymbol, e.getMessage());
@@ -379,12 +415,12 @@ public class StockAnalysisService {
         }
     }
 
-    //รวมปัจจัย Market Cap, P/E Ratio และ 52-Week Price Volatility
+    // รวมปัจจัย Market Cap, P/E Ratio และ 52-Week Price Volatility
 
     private BigDecimal estimateBeta(BigDecimal marketCap, Long volume, BigDecimal pe,
-                                    BigDecimal yearHigh, BigDecimal yearLow, BigDecimal price) {
+            BigDecimal yearHigh, BigDecimal yearLow, BigDecimal price) {
 
-            // 1. จัดการค่าเบื้องต้น
+        // 1. จัดการค่าเบื้องต้น
         double capBillion = (marketCap != null) ? marketCap.doubleValue() / 1_000_000_000.0 : 0.0;
         double peValue = (pe != null) ? pe.doubleValue() : -1.0;
 
@@ -428,13 +464,55 @@ public class StockAnalysisService {
         }
 
         // กฎข้อ 5: หุ้นสภาพคล่องสูงปรี๊ด / หุ้นในกระแส (High Liquidity)
-        // วอลลุ่มเฉลี่ยเกิน 20 ล้านหุ้น (แสดงว่ามีคนรุมเทรดเยอะ มักจะสวิงกว่าตลาดนิดหน่อย)
+        // วอลลุ่มเฉลี่ยเกิน 20 ล้านหุ้น (แสดงว่ามีคนรุมเทรดเยอะ
+        // มักจะสวิงกว่าตลาดนิดหน่อย)
         if (volume != null && volume > 20_000_000) {
             return new BigDecimal("1.30");
         }
 
         // ค่า Default: ตลาดโดยรวม (Market Average)
         return new BigDecimal("1.00");
+    }
+
+    public List<String> getRecommendedStocks(String traderType) {
+        String category = "เล่นรอบ (Swing)"; // fallback
+        if (traderType != null) {
+            String lowerType = traderType.toLowerCase().trim();
+            if (lowerType.contains("scalper"))
+                category = "เก็งกำไร (Speculative)";
+            else if (lowerType.contains("day trader"))
+                category = "กระแส (Trending)";
+            else if (lowerType.contains("position trader"))
+                category = "มั่นคง (Stable)";
+            else if (lowerType.contains("swing trader"))
+                category = "เล่นรอบ (Swing)";
+        }
+
+        List<StockAsset> assets = stockAssetRepository.findByCategory(category);
+        List<String> symbols = new ArrayList<>();
+        if (assets != null) {
+            for (StockAsset asset : assets) {
+                if (asset.isTradable()) {
+                    symbols.add(asset.getSymbol());
+                }
+            }
+        }
+
+        // Add fallbacks just in case the DB is missing some stocks
+        if (symbols.isEmpty()) {
+            if (category.contains("เก็งกำไร"))
+                symbols.addAll(Arrays.asList("MSTR", "COIN", "MARA", "RIOT", "HUT"));
+            else if (category.contains("กระแส"))
+                symbols.addAll(Arrays.asList("NVDA", "TSLA", "NFLX", "AMD", "PLTR"));
+            else if (category.contains("มั่นคง"))
+                symbols.addAll(Arrays.asList("KO", "WMT", "LLY", "JNJ", "PG"));
+            else
+                symbols.addAll(Arrays.asList("JPM", "DIS", "NKE", "BA", "SBUX"));
+        }
+
+        Collections.shuffle(symbols);
+        int numToPick = Math.min(symbols.size(), 5);
+        return symbols.subList(0, numToPick);
     }
 
     private StockInfoDatabaseDTO fetchStockDataFromApi(String cleanSymbol) {
@@ -445,7 +523,8 @@ public class StockAnalysisService {
             String quoteUrl = "https://finnhub.io/api/v1/quote?symbol=" + cleanSymbol + "&token=" + apiKey;
             FinnhubStockDTO quote = restTemplate.getForObject(quoteUrl, FinnhubStockDTO.class);
 
-            String metricUrl = "https://finnhub.io/api/v1/stock/metric?symbol=" + cleanSymbol + "&metric=all&token=" + apiKey;
+            String metricUrl = "https://finnhub.io/api/v1/stock/metric?symbol=" + cleanSymbol + "&metric=all&token="
+                    + apiKey;
             FinnhubFinancials financials = restTemplate.getForObject(metricUrl, FinnhubFinancials.class);
 
             String profileUrl = "https://finnhub.io/api/v1/stock/profile2?symbol=" + cleanSymbol + "&token=" + apiKey;
@@ -459,7 +538,8 @@ public class StockAnalysisService {
             String industry = (profile != null && profile.getIndustry() != null) ? profile.getIndustry() : "Unknown";
             String fullName = (profile != null && profile.getName() != null) ? profile.getName() : cleanSymbol;
 
-            BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000")) : BigDecimal.ZERO;
+            BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000"))
+                    : BigDecimal.ZERO;
             BigDecimal yearHigh = m.getYearHigh();
             BigDecimal yearLow = m.getYearLow();
             BigDecimal currentPrice = quote.getCurrentPrice();
@@ -481,12 +561,12 @@ public class StockAnalysisService {
             }
 
             // คำนวณจัดกลุ่ม
-            String category = calculateCategory(finalBeta, marketCapFull, volumeLong, pe, industry, yearHigh, yearLow, currentPrice);
+            String category = calculateCategory(finalBeta, marketCapFull, volumeLong, pe, industry, yearHigh, yearLow,
+                    currentPrice);
 
             // ส่งคืนเป็นก้อน DTO ทันที ไม่ต้องเรียก stockAssetRepository.save()
             return new StockInfoDatabaseDTO(
-                    cleanSymbol, fullName, finalBeta, marketCapFull.longValue(), volumeLong, category, industry
-            );
+                    cleanSymbol, fullName, finalBeta, marketCapFull.longValue(), volumeLong, category, industry);
 
         } catch (Exception e) {
             log.error("❌ API Error สำหรับ {}: {}", cleanSymbol, e.getMessage());
