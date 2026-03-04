@@ -146,7 +146,7 @@ export default function AdminUsersPage({ params, searchParams }: any) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground font-sans transition-colors duration-300">
       {/* Navbar Fixed */}
       <div className="fixed top-0 left-0 right-0 z-50">
         <Navbar />
@@ -158,17 +158,17 @@ export default function AdminUsersPage({ params, searchParams }: any) {
         {/* Header Section */}
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-              จัดการระบบ <span className="text-indigo-600">Admin Panel</span>
+            <h1 className="text-3xl font-extrabold tracking-tight text-foreground">
+              จัดการระบบ <span className="text-gold">Admin Panel</span>
             </h1>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-sm text-muted">
               ควบคุมการทำงานของระบบและจัดการข้อมูลสมาชิก SimTrade
             </p>
           </div>
           <div className="mt-4 md:mt-0">
             <button
               onClick={() => setIsFundFirmModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+              className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-gold text-black hover:bg-gold-hover transition-colors shadow-sm"
             >
               <PlusCircleIcon className="w-5 h-5 mr-2" />
               Fund Firm Account
@@ -179,43 +179,43 @@ export default function AdminUsersPage({ params, searchParams }: any) {
         {/* Dashboard Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           {/* Total Fee & Commission Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between overflow-hidden relative">
+          <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-6 flex flex-col justify-between overflow-hidden relative transition-colors duration-300">
             <div className="flex items-center justify-between mb-4 relative z-10">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-100 rounded-lg text-green-700">
+                <div className="p-2 bg-green-500/10 rounded-lg text-green-500">
                   <BanknotesIcon className="w-6 h-6" />
                 </div>
-                <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Fees Collected</h2>
+                <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Total Fees Collected</h2>
               </div>
             </div>
 
             <div className="relative z-10 mb-2">
               {dashboardLoading ? (
-                <div className="h-10 w-32 bg-gray-200 animate-pulse rounded mt-2"></div>
+                <div className="h-10 w-32 bg-theme-border animate-pulse rounded mt-2"></div>
               ) : (
-                <div className="text-4xl font-extrabold text-gray-900 mt-1 flex items-baseline gap-2">
+                <div className="text-4xl font-extrabold text-foreground mt-1 flex items-baseline gap-2">
                   {totalFee !== null ? formatCurrency(totalFee) : "-"}
-                  {totalFee === 0 && <span className="text-sm text-gray-400 font-medium">No fees yet</span>}
+                  {totalFee === 0 && <span className="text-sm text-muted font-medium">No fees yet</span>}
                 </div>
               )}
             </div>
 
             {/* Sparkline Graph */}
             {!dashboardLoading && (
-              <div className="h-16 flex items-end justify-between gap-[2px] w-full pt-4 mt-auto border-t border-gray-100 relative z-10">
+              <div className="h-16 flex items-end justify-between gap-[2px] w-full pt-4 mt-auto border-t border-theme-border relative z-10 transition-colors duration-300">
                 {feeGraphData.map((d, i) => {
                   const maxAmount = Math.max(...feeGraphData.map(x => x.amount)) || 1;
                   const heightPct = Math.max((d.amount / maxAmount) * 100, 5); // min 5% height to show line
                   return (
                     <div
                       key={i}
-                      className={`w-full rounded-sm relative group transition-all duration-300 ${d.amount > 0 ? 'bg-green-500 hover:bg-green-400' : 'bg-gray-100'}`}
+                      className={`w-full rounded-sm relative group transition-all duration-300 ${d.amount > 0 ? 'bg-green-500 hover:bg-green-400' : 'bg-theme-border'}`}
                       style={{ height: `${heightPct}%` }}
                       title={`${d.date}: ${formatCurrency(d.amount)}`}
                     >
                       {/* Tooltip on Hover */}
                       {d.amount > 0 && (
-                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-50">
+                        <div className="absolute opacity-0 group-hover:opacity-100 bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 bg-surface border border-theme-border text-foreground text-[10px] font-bold px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-50">
                           {formatCurrency(d.amount)}
                         </div>
                       )}
@@ -227,35 +227,35 @@ export default function AdminUsersPage({ params, searchParams }: any) {
           </div>
 
           {/* Users Count Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-center">
+          <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-6 flex flex-col justify-center transition-colors duration-300">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-indigo-100 rounded-lg text-indigo-700">
+              <div className="p-2 bg-gold/10 rounded-lg text-gold">
                 <UserIcon className="w-6 h-6" />
               </div>
-              <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total Subscribed Users</h2>
+              <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Total Subscribed Users</h2>
             </div>
             {dashboardLoading ? (
-              <div className="h-10 w-24 bg-gray-200 animate-pulse rounded mt-2"></div>
+              <div className="h-10 w-24 bg-theme-border animate-pulse rounded mt-2"></div>
             ) : (
-              <div className="text-4xl font-extrabold text-gray-900 mt-1">
-                {users.length} <span className="text-lg font-medium text-gray-500">Accounts</span>
+              <div className="text-4xl font-extrabold text-foreground mt-1">
+                {users.length} <span className="text-lg font-medium text-muted">Accounts</span>
               </div>
             )}
           </div>
 
           {/* Maintenance Mode Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col justify-between">
+          <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-6 flex flex-col justify-between transition-colors duration-300">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${isMaintenance ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                <div className={`p-2 rounded-lg ${isMaintenance ? 'bg-red-500/10 text-red-500' : 'bg-green-500/10 text-green-500'}`}>
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 </div>
-                <h2 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">System Status</h2>
+                <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">System Status</h2>
               </div>
-              <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${isMaintenance ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+              <span className={`px-2.5 py-1 text-xs font-bold rounded-full border ${isMaintenance ? 'bg-red-500/10 text-red-500 border-red-500/20' : 'bg-green-500/10 text-green-500 border-green-500/20'}`}>
                 {isMaintenance ? 'MAINTENANCE' : 'ONLINE'}
               </span>
             </div>
@@ -264,8 +264,8 @@ export default function AdminUsersPage({ params, searchParams }: any) {
               onClick={handleToggleMaintenance}
               disabled={dashboardLoading}
               className={`mt-4 w-full py-2.5 px-4 rounded-xl font-bold text-sm transition-all shadow-sm ${isMaintenance
-                ? 'bg-gray-800 hover:bg-gray-900 text-white'
-                : 'bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-200'
+                ? 'bg-theme-border hover:brightness-110 text-foreground'
+                : 'bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20'
                 }`}
             >
               {isMaintenance ? 'Turn System Online' : 'Enable Maintenance Mode'}
@@ -274,43 +274,43 @@ export default function AdminUsersPage({ params, searchParams }: any) {
         </div>
 
         {/* Table Card */}
-        <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-100">
+        <div className="bg-surface shadow-xl rounded-2xl overflow-hidden border border-theme-border transition-colors duration-300">
           {loading ? (
-            <div className="p-12 text-center text-gray-500 animate-pulse">กำลังโหลดข้อมูล...</div>
+            <div className="p-12 text-center text-muted animate-pulse">กำลังโหลดข้อมูล...</div>
           ) : error ? (
-            <div className="p-12 text-center text-red-500 bg-red-50">{error}</div>
+            <div className="p-12 text-center text-red-400 bg-red-900/20">{error}</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-theme-border">
+                <thead className="bg-background">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ชื่อ-นามสกุล</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">อีเมล</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">เบอร์โทรศัพท์</th>
-                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">สถานะ</th>
-                    <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">จัดการ</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">ชื่อ-นามสกุล</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">อีเมล</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-muted uppercase tracking-wider">เบอร์โทรศัพท์</th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-muted uppercase tracking-wider">สถานะ</th>
+                    <th className="px-6 py-4 text-center text-xs font-semibold text-muted uppercase tracking-wider">จัดการ</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-surface divide-y divide-theme-border">
                   {users.map((user) => (
                     <React.Fragment key={user.id}>
                       {/* แถวหลัก (Main Row) */}
                       <tr
                         onClick={() => toggleRow(user.id)}
-                        className={`cursor-pointer transition-colors duration-200 ${expandedRow === user.id ? "bg-indigo-50" : "hover:bg-gray-50"}`}
+                        className={`cursor-pointer transition-colors duration-200 ${expandedRow === user.id ? "bg-background" : "hover:bg-background"}`}
                       >
                         {/* 1. Identity */}
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="h-10 w-10 flex-shrink-0 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold">
+                            <div className="h-10 w-10 flex-shrink-0 rounded-full bg-gold/10 flex items-center justify-center text-gold font-bold">
                               {(user as any).firstName?.[0] || user.identity?.givenName?.[0] || 'U'}
                               {(user as any).lastName?.[0] || user.identity?.familyName?.[0] || ''}
                             </div>
                             <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">
+                              <div className="text-sm font-medium text-foreground">
                                 {(user as any).firstName || user.identity?.givenName} {(user as any).lastName || user.identity?.familyName}
                               </div>
-                              <div className="text-xs text-gray-500">
+                              <div className="text-xs text-muted">
                                 {user.identity?.countryOfCitizenship || (user as any).country || "USA"}
                               </div>
                             </div>
@@ -319,29 +319,29 @@ export default function AdminUsersPage({ params, searchParams }: any) {
 
                         {/* 2. Email */}
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{(user as any).email || user.contact?.emailAddress || 'No Email'}</div>
+                          <div className="text-sm text-foreground">{(user as any).email || user.contact?.emailAddress || 'No Email'}</div>
                         </td>
 
                         {/* 3. Phone */}
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{(user as any).phoneNumber || user.contact?.phoneNumber || 'No Phone'}</div>
+                          <div className="text-sm text-foreground">{(user as any).phoneNumber || user.contact?.phoneNumber || 'No Phone'}</div>
                         </td>
 
                         {/* 5. Status */}
                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === "ACTIVE" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${user.status === "ACTIVE" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
                             }`}>
                             {user.status}
                           </span>
                         </td>
 
                         {/* 6. Actions (Fund + Expand) */}
-                        <td className="px-6 py-4 whitespace-nowrap text-center text-gray-400">
+                        <td className="px-6 py-4 whitespace-nowrap text-center text-muted">
                           <div className="flex items-center justify-center gap-2">
                             <button
                               onClick={(e) => handleOpenFundUser(e, user)}
                               disabled={fundingTargetId === user.id}
-                              className={`p-1.5 rounded-lg text-indigo-600 border border-transparent transition-colors tooltip-trigger flex items-center gap-1 font-semibold ${fundingTargetId === user.id ? "opacity-50 cursor-wait bg-indigo-50" : "hover:bg-indigo-100 hover:border-indigo-300 bg-indigo-50"
+                              className={`p-1.5 rounded-lg text-gold border border-transparent transition-colors tooltip-trigger flex items-center gap-1 font-semibold ${fundingTargetId === user.id ? "opacity-50 cursor-wait bg-gold/5" : "hover:bg-gold/20 hover:border-gold/30 bg-gold/10"
                                 }`}
                               title="Fund User Account"
                             >
@@ -349,9 +349,9 @@ export default function AdminUsersPage({ params, searchParams }: any) {
                               <span className="text-xs">แจกเงิน</span>
                             </button>
                             {expandedRow === user.id ? (
-                              <ChevronUpIcon className="w-5 h-5 text-indigo-600" />
+                              <ChevronUpIcon className="w-5 h-5 text-gold" />
                             ) : (
-                              <ChevronDownIcon className="w-5 h-5" />
+                              <ChevronDownIcon className="w-5 h-5 opacity-70" />
                             )}
                           </div>
                         </td>
@@ -359,42 +359,42 @@ export default function AdminUsersPage({ params, searchParams }: any) {
 
                       {/* แถวขยาย (Expanded Details Row) */}
                       {expandedRow === user.id && (
-                        <tr className="bg-indigo-50">
-                          <td colSpan={6} className="px-6 py-6 border-b border-indigo-100">
+                        <tr className="bg-background">
+                          <td colSpan={6} className="px-6 py-6 border-b border-theme-border">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fadeIn">
 
                               {/* Card 1: ข้อมูลส่วนตัว */}
-                              <div className="bg-white p-4 rounded-lg shadow-sm border border-indigo-100">
-                                <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
+                              <div className="bg-surface p-4 rounded-lg shadow-sm border border-theme-border">
+                                <h3 className="text-sm font-semibold text-gold mb-3 flex items-center">
                                   <UserIcon className="w-4 h-4 mr-2" /> ข้อมูลส่วนตัว
                                 </h3>
-                                <div className="space-y-2 text-sm text-gray-600">
-                                  <p><span className="font-medium text-gray-900">วันเกิด:</span> {user.identity?.dateOfBirth || (user as any).dob || '-'}</p>
-                                  <p><span className="font-medium text-gray-900">Account ID:</span> {user.alpacaAccountId || user.id}</p>
-                                  <p><span className="font-medium text-gray-900">สัญชาติ:</span> {user.identity?.countryOfCitizenship || (user as any).country || 'N/A'}</p>
+                                <div className="space-y-2 text-sm text-muted">
+                                  <p><span className="font-medium text-foreground">วันเกิด:</span> {user.identity?.dateOfBirth || (user as any).dob || '-'}</p>
+                                  <p><span className="font-medium text-foreground">Account ID:</span> {user.alpacaAccountId || user.id}</p>
+                                  <p><span className="font-medium text-foreground">สัญชาติ:</span> {user.identity?.countryOfCitizenship || (user as any).country || 'N/A'}</p>
                                 </div>
                               </div>
 
                               {/* Card 2: ที่อยู่ */}
-                              <div className="bg-white p-4 rounded-lg shadow-sm border border-indigo-100">
-                                <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
+                              <div className="bg-surface p-4 rounded-lg shadow-sm border border-theme-border">
+                                <h3 className="text-sm font-semibold text-gold mb-3 flex items-center">
                                   <MapPinIcon className="w-4 h-4 mr-2" /> ที่อยู่ & ติดต่อ
                                 </h3>
-                                <div className="space-y-2 text-sm text-gray-600">
+                                <div className="space-y-2 text-sm text-muted">
                                   <p>{user.contact?.streetAddress?.[0]}</p>
                                   <p>{user.contact?.city}, {user.contact?.state} {user.contact?.postalCode}</p>
                                 </div>
                               </div>
 
                               {/* Card 3: ข้อมูลอื่นๆ */}
-                              <div className="bg-white p-4 rounded-lg shadow-sm border border-indigo-100">
-                                <h3 className="text-sm font-semibold text-indigo-900 mb-3 flex items-center">
+                              <div className="bg-surface p-4 rounded-lg shadow-sm border border-theme-border">
+                                <h3 className="text-sm font-semibold text-gold mb-3 flex items-center">
                                   <CalendarIcon className="w-4 h-4 mr-2" /> ข้อมูลระบบ
                                 </h3>
-                                <div className="space-y-2 text-sm text-gray-600">
-                                  <p><span className="font-medium text-gray-900">วันที่สมัคร:</span> {formatDate(user.createdAt)}</p>
-                                  <p><span className="font-medium text-gray-900">ประเภท:</span> Trading Account</p>
-                                  <p className="text-green-600 font-medium">ยืนยันตัวตนแล้ว</p>
+                                <div className="space-y-2 text-sm text-muted">
+                                  <p><span className="font-medium text-foreground">วันที่สมัคร:</span> {formatDate(user.createdAt)}</p>
+                                  <p><span className="font-medium text-foreground">ประเภท:</span> Trading Account</p>
+                                  <p className="text-green-500 font-medium">ยืนยันตัวตนแล้ว</p>
                                 </div>
                               </div>
 
