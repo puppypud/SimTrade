@@ -418,21 +418,20 @@ public class BrokerService {
         log.info("✅ โอนเงิน $100,000 เข้าบัญชี {} เรียบร้อยแล้ว!", userAccountId);
     }
 
-    // เติมเงินเข้าบัญชีเรา
+    // เติมเงินเข้าบัญชีเรา (Sandbox ใช้ ACH เพราะ WIRE ต้องการ bank_id)
     public void addMoneyToFirmAccount(Double amount) {
         try {
             log.info("Admin: กำลังเสกเงินเข้า Firm Account จำนวน ${}", amount);
 
             CreateTransferRequest transferRequest = new CreateTransferRequest()
-                    .transferType(TransferType.WIRE) // จำลองการโอนแบบ Wire
+                    .transferType(TransferType.ACH) // ใช้ ACH แทน WIRE (Sandbox ไม่ต้องใช้ bank_id)
                     .direction(TransferDirection.INCOMING) // ขาเข้า (เติมเงิน)
                     .timing(TransferTiming.IMMEDIATE) // ทันที
                     .amount(BigDecimal.valueOf(amount));
 
             Transfer transfer = brokerAPI.broker().funding().createTransferForAccount(
-                    UUID.fromString(FIRM_ACCOUNT_ID), // <--- ปิดวงเล็บตรงนี้
-                    transferRequest // <--- parameter ตัวที่ 2
-            );
+                    UUID.fromString(FIRM_ACCOUNT_ID),
+                    transferRequest);
             log.info("✅ เติมเงินเข้า Firm สำเร็จ! Transfer ID: {}", transfer.getId());
 
         } catch (ApiException e) {
