@@ -50,28 +50,6 @@ function TradeStockContent() {
                     </button>
                 </div>
 
-                <div className="flex items-center justify-between px-2 mb-6">
-                    {currentSymbol ? (
-                        <div className="flex items-baseline gap-3">
-                            <h1 className="text-3xl font-bold text-foreground animate-in fade-in slide-in-from-left-2 duration-300">
-                                {currentSymbol}
-                            </h1>
-                            <span className="px-2 py-1 bg-surface border border-theme-border text-muted text-xs font-bold rounded-md">/ USD</span>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full ml-4">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                Market Open
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-bold text-muted">Stock Trading</h1>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                Market Open
-                            </span>
-                        </div>
-                    )}
-                </div>
 
                 {/* Main Layout Wrapper - Responsive Grid/Flex */}
                 <div className="flex flex-col lg:flex-row gap-6">

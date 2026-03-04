@@ -49,12 +49,16 @@ const MarketStatusBadge = () => {
         statusText = 'MARKET CLOSED';
     }
 
+    const isClosed = status.status === 'CLOSED';
+    const isMaint = status.status === 'MAINTENANCE';
+
     return (
-        <div className="flex items-center space-x-2 bg-background px-3 py-1.5 rounded-full border border-theme-border shadow-sm cursor-help"
+        <div className="flex items-center gap-1.5 bg-background/50 px-2.5 py-1 rounded-lg border border-theme-border shadow-sm cursor-help hover:bg-background/80 transition-colors whitespace-nowrap"
             title={status.status === 'MAINTENANCE' ? status.message : `Next Open: ${new Date(status.nextOpen).toLocaleString()}`}>
-            <div className={`w-2 h-2 rounded-full ${indicatorColor} animate-pulse shadow-[0_0_8px_currentColor]`}></div>
-            <span className="text-[10px] sm:text-xs font-bold tracking-wider text-foreground uppercase">
-                {statusText}
+            <div className={`w-1.5 h-1.5 rounded-full ${indicatorColor} animate-pulse shadow-[0_0_4px_currentColor] flex-shrink-0`}></div>
+            <span className={`text-[10px] font-black uppercase tracking-tight ${isClosed ? 'text-red-500' : isMaint ? 'text-orange-500' : 'text-emerald-500'
+                }`}>
+                {status.status === 'MAINTENANCE' ? 'Maintenance' : statusText}
             </span>
         </div>
     );

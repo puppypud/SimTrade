@@ -40,7 +40,7 @@ export default function HistoryPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center text-gray-500">
+      <div className="flex h-screen items-center justify-center text-muted animate-pulse">
         Loading History...
       </div>
     );
@@ -49,18 +49,18 @@ export default function HistoryPage() {
   if (error || !user?.alpacaAccountId) {
     return (
       <div className="p-10 text-center text-red-500">
-        {error ? "ไม่สามารถดึงข้อมูลประวัติการเทรดได้ในขณะนี้" : "Please log in to view execution history."}
+        {error ? "Failed to fetch order history. Please try again later." : "Please log in to view execution history."}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-10 font-sans">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Order History</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            ประวัติคำสั่งซื้อขายย้อนหลัง
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Order History</h1>
+          <p className="text-muted mt-1 text-sm">
+            View and manage your past order executions
           </p>
         </div>
 
