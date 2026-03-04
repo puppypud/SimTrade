@@ -69,28 +69,15 @@ public class BrokerController {
             String alpacaIdStr = userOptional.get().getAlpacaAccountId();
             UUID accountId = UUID.fromString(alpacaIdStr);
 
-            // เช็คตลาดว่าเปิด/ปิด/ปรับปรุง ไหม เพื่อซื้อขาย
+            // เช็คตลาดว่าอยู่ในโหมดปรับปรุงไหม (block เฉพาะ MAINTENANCE เท่านั้น)
+            // ถ้าตลาดปิด → ปล่อยผ่านให้ Alpaca API ตัดสินเอง (Alpaca จะ queue หรือ reject
+            // ตามกฎของมัน)
             Map<String, Object> marketStatus = marketDataService.getCurrentMaketStatus();
             String currentStatus = (String) marketStatus.get("status");
 
-            // ถ้าปิดปรับปรุง (ห้ามซื้อขายทุกอย่าง ทั้งหุ้นและ Crypto)
             if ("MAINTENANCE".equals(currentStatus)) {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body("❌ " + marketStatus.get("message"));
-            }
-            // ถ้าตลาดปิด → block เฉพาะ Market Order สำหรับหุ้นปกติ
-            // Limit / Stop / Stop Limit → อนุญาตให้ส่งได้ (Alpaca จะ queue ไว้รอตลาดเปิด)
-            else if ("CLOSED".equals(currentStatus)) {
-                if (!symbol.contains("/")) { // ถ้าไม่ใช่ Crypto
-                    OrderType requestedType = OrderType.valueOf(orderTypeStr.toUpperCase());
-                    if (requestedType == OrderType.MARKET) {
-                        return ResponseEntity.badRequest()
-                                .body("❌ ไม่สามารถส่งคำสั่ง Market Order ได้ ตลาดหุ้นปิดทำการในขณะนี้ (ใช้ Limit/Stop Order แทนได้)");
-                    }
-                    // Limit/Stop/Stop Limit → ปล่อยผ่าน พร้อม log แจ้งเตือน
-                    log.info("📋 ตลาดปิด แต่รับคำสั่ง {} Order สำหรับ {} (จะ execute เมื่อตลาดเปิด)", requestedType,
-                            symbol);
-                }
             }
 
             OrderSide side = OrderSide.valueOf(orderSideStr.toUpperCase());
