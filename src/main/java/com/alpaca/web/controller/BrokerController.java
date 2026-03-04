@@ -78,22 +78,18 @@ public class BrokerController {
                 return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                         .body("❌ " + marketStatus.get("message"));
             }
-            // ถ้าตลาดปิด (ห้ามซื้อหุ้นปกติ แต่ถ้าเป็น Crypto เทรดได้ 24 ชม.)
+            // ถ้าตลาดปิด → block เฉพาะ Market Order สำหรับหุ้นปกติ
+            // Limit / Stop / Stop Limit → อนุญาตให้ส่งได้ (Alpaca จะ queue ไว้รอตลาดเปิด)
             else if ("CLOSED".equals(currentStatus)) {
-                if (!symbol.contains("/")) { // ถ้าชื่อหุ้นไม่มีเครื่องหมาย / (แปลว่าไม่ใช่คริปโต)
-                    return ResponseEntity.badRequest()
-                            .body("❌ ไม่สามารถส่งคำสั่งได้ ตลาดหุ้นปิดทำการในขณะนี้");
-                }
-            }
-            // 1. เช็คสภาพคล่อง
-            Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
-            if (OrderSide.valueOf(orderSideStr) == OrderSide.BUY
-                    && OrderType.valueOf(orderTypeStr) == OrderType.MARKET) {
-                if (quote.containsKey("askPrice")) {
-                    double currentAsk = Double.parseDouble(quote.get("askPrice").toString());
-                    if (currentAsk == 0) {
-                        return ResponseEntity.badRequest().body("❌ ไม่สามารถซื้อได้ในขณะนี้ (ไม่มีสภาพคล่อง/ตลาดปิด)");
+                if (!symbol.contains("/")) { // ถ้าไม่ใช่ Crypto
+                    OrderType requestedType = OrderType.valueOf(orderTypeStr.toUpperCase());
+                    if (requestedType == OrderType.MARKET) {
+                        return ResponseEntity.badRequest()
+                                .body("❌ ไม่สามารถส่งคำสั่ง Market Order ได้ ตลาดหุ้นปิดทำการในขณะนี้ (ใช้ Limit/Stop Order แทนได้)");
                     }
+                    // Limit/Stop/Stop Limit → ปล่อยผ่าน พร้อม log แจ้งเตือน
+                    log.info("📋 ตลาดปิด แต่รับคำสั่ง {} Order สำหรับ {} (จะ execute เมื่อตลาดเปิด)", requestedType,
+                            symbol);
                 }
             }
 
