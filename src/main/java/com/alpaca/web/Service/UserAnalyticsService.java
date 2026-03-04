@@ -361,7 +361,7 @@ public class UserAnalyticsService {
         double avgWin = winCount > 0 ? sumWinPct / winCount : 0.0;
         double avgLoss = lossCount > 0 ? sumLossPct / lossCount : 0.0;
         double riskReward = avgLoss > 0 ? avgWin / avgLoss : avgWin;
-  //
+  ///
         // คำนวณ Highlights (หุ้นตัวโปรด, หุ้นทำเงิน)
         calculateHighlights(result, trades);
 
