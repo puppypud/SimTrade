@@ -164,91 +164,86 @@ public class UserAnalyticsService {
     private String classifyTraderType(List<TradeExecutionRecord> trades) {
         if (trades.isEmpty()) return "Unknown";
 
-        long totalSeconds = 0;
         int scalperBehavior = 0;
         int dayTraderBehavior = 0;
         int swingBehavior = 0;
         int positionBehavior = 0;
-        int noiseBehavior = 0; // พฤติกรรมที่ไม่สมเหตุสมผล / สับสน
-        int bagHolderBehavior = 0; // <--- (Optional) เพิ่มเพื่อดักคนติดดอย
 
         for (TradeExecutionRecord t : trades) {
             long seconds = t.getHoldingPeriod().getSeconds();
-            String category = (t.getCategory() != null) ? t.getCategory() : "UNKNOWN";
 
-            // --- Logic ใหม่: ผสม Time + Category ---
-
-            // Case 1: Scalping (ต้องเร็ว + หุ้นต้องซิ่ง) - ต่ำกว่า 30 นาที
+            // ใช้แค่ Timeframe และ Over-night เป็นตัวตัดเกรดหลัก
             if (seconds <= 1800) {
-                if (isVolatileStock(category)) {
-                    scalperBehavior++;
-                } else {
-                    noiseBehavior++; // ถือสั้นมาก ในหุ้นนิ่งๆ = เทรดมั่ว/ลังเล
-                }
-            }
-            // Case 2: Day Trading (จบในวัน) - ต่ำกว่า 12 ชม. และไม่ข้ามคืน
-            else if (seconds <= 43200 && !t.isOvernight()) {
-                if (isVolatileStock(category) || isTrendingOrCyclical(category)) {
-                    dayTraderBehavior++;
-                } else {
-                    noiseBehavior++; // Day Trade หุ้นนิ่งๆ ก็ถือว่าเสียเวลาเปล่า (Noise)
-                }
-            }
-            // Case 3: Swing (ถือข้ามวัน - 3 สัปดาห์)
-            else if (seconds <= 1814400) {
-                if (isTrendingOrCyclical(category)) {
-                    swingBehavior++;
-                } else if ("STABLE".equalsIgnoreCase(category) || category.contains("มั่นคง")) {
-                    // ถือหุ้นเต่า 1-2 สัปดาห์ อาจจะเป็น Position Trader ที่ใจร้อน
-                    positionBehavior++;
-                } else {
-                    swingBehavior++; // Default ให้เป็น Swing ไปก่อน
-                }
-            }
-            // Case 4: Position (ถือยาวเกิน 3 สัปดาห์)
-            else {
-                if (isVolatileStock(category)) {
-                    // ถือหุ้นซิ่งยาวเกิน 3 สัปดาห์ = ติดดอย (Bag Holder)
-                    bagHolderBehavior += 2; // ให้คะแนนหนักหน่อย
-                } else {
-                    positionBehavior++;
-                }
+                scalperBehavior++; // ไม่เกิน 30 นาที = Scalper
+            } else if (seconds <= 43200 && !t.isOvernight()) {
+                dayTraderBehavior++; // จบในวัน ไม่ห่อข้ามคืน = Day Trader
+            } else if (seconds <= 1814400) {
+                swingBehavior++; // ถือข้ามคืน ถึง 3 สัปดาห์ = Swing Trader
+            } else {
+                positionBehavior++; // ถือยาวกว่า 3 สัปดาห์ = Position Trader
             }
         }
 
-        // หา Max Score เพื่อระบุ Type หลัก
-        return determineDominantStyle(scalperBehavior, dayTraderBehavior, swingBehavior, positionBehavior, noiseBehavior, bagHolderBehavior);
+        // หา Max Score เพื่อระบุ Type หลัก (เหลือแค่ 4 สาย)
+        return determineDominantStyle(scalperBehavior, dayTraderBehavior, swingBehavior, positionBehavior);
     }
-
-    // Helper methods
-
-    private boolean isVolatileStock(String category) {
-        if (category == null) return false;
-        String c = category.toUpperCase();
-        return c.contains("SPECULATIVE") || c.contains("เก็งกำไร") || c.contains("HIGH_VOLATILITY");
-    }
-
-    private boolean isTrendingOrCyclical(String category) {
-        if (category == null) return false;
-        String c = category.toUpperCase();
-        return c.contains("TRENDING") || c.contains("กระแส") ||
-                c.contains("SWING") || c.contains("เล่นรอบ");
-    }
-
-    private String determineDominantStyle(int scalp, int day, int swing, int pos, int noise, int bagHolder) {
-        int max = Math.max(scalp, Math.max(day, Math.max(swing, Math.max(pos, Math.max(noise, bagHolder)))));
-
+    private String determineDominantStyle(int scalp, int day, int swing, int pos) {
+        int max = Math.max(Math.max(scalp, day), Math.max(swing, pos));
         if (max == 0) return "Unknown";
 
-        // เรียงลำดับ Priority ในการตัดสิน (ถ้าคะแนนเท่ากัน จะเลือกอันไหนก่อน)
-        if (max == bagHolder) return "Bag Holder (นักสะสมดอย)"; // เตือนแรงสุด
-        if (max == noise) return "Indecisive / Noise Trader";  // เตือนรองลงมา
         if (max == scalp) return "Scalper";
         if (max == day) return "Day Trader";
         if (max == swing) return "Swing Trader";
-
         return "Position Trader";
     }
+
+    private String checkBadHabits(List<TradeExecutionRecord> trades, String actualType) {
+        int bagHolderCount = 0;
+        int noiseCount = 0;
+
+        for (TradeExecutionRecord t : trades) {
+            long seconds = t.getHoldingPeriod().getSeconds();
+            String category = t.getCategory() != null ? t.getCategory().toUpperCase() : "UNKNOWN";
+
+            // นิยาม Bag Holder: ถือหุ้นซิ่ง (Speculative) นานเกิน 3 สัปดาห์ และขาดทุน
+            if (seconds > 1814400 && (category.contains("SPECULATIVE") || category.contains("เก็งกำไร"))) {
+                if (t.getRealizedProfitPercentage().compareTo(BigDecimal.ZERO) < 0) {
+                    bagHolderCount++;
+                }
+            }
+
+            // นิยาม Noise Trader: ถือหุ้นนิ่งๆ (Stable) สั้นมากต่ำกว่า 30 นาที
+            if (seconds <= 1800 && (category.contains("STABLE") || category.contains("มั่นคง"))) {
+                noiseCount++;
+            }
+        }
+
+        List<String> warnings = new ArrayList<>();
+        if (bagHolderCount >= 2) {
+            warnings.add("⚠️ ตรวจพบพฤติกรรม 'นักสะสมดอย' (ถือหุ้นเก็งกำไรที่ขาดทุนไว้นานเกินไป)");
+        }
+        if (noiseCount >= 3) {
+            warnings.add("⚠️ ตรวจพบพฤติกรรม 'Overtrading / Noise' (ซื้อขายหุ้นที่วิ่งช้าบ่อยเกินไปจนเสียค่าธรรมเนียมฟรี)");
+        }
+
+        return warnings.isEmpty() ? "" : "\n" + String.join("\n", warnings);
+    }
+//    // Helper methods
+//
+//    private boolean isVolatileStock(String category) {
+//        if (category == null) return false;
+//        String c = category.toUpperCase();
+//        return c.contains("SPECULATIVE") || c.contains("เก็งกำไร") || c.contains("HIGH_VOLATILITY");
+//    }
+//
+//    private boolean isTrendingOrCyclical(String category) {
+//        if (category == null) return false;
+//        String c = category.toUpperCase();
+//        return c.contains("TRENDING") || c.contains("กระแส") ||
+//                c.contains("SWING") || c.contains("เล่นรอบ");
+//    }
+
+
 
     // ==========================================
     // ส่วนที่ 3: กฎประเมินความเหมาะสม (Rule Engine)
@@ -313,11 +308,11 @@ public class UserAnalyticsService {
             case "Scalper" ->
                 cat.contains("SPECULATIVE") || cat.contains("เก็งกำไร") || cat.contains("HIGH_VOLATILITY");
             case "Day Trader" -> cat.contains("TRENDING") || cat.contains("กระแส") || cat.contains("SPECULATIVE")
-                    || cat.contains("เก็งกำไร");
+                    || cat.contains("เก็งกำไร")|| cat.contains("SWING") || cat.contains("เล่นรอบ");
             case "Swing Trader" ->
                 cat.contains("SWING") || cat.contains("เล่นรอบ") || cat.contains("TRENDING") || cat.contains("กระแส");
             case "Position Trader" -> cat.contains("STABLE") || cat.contains("มั่นคง") || cat.contains("BLUECHIP")
-                    || cat.contains("DIVIDEND");
+                    || cat.contains("DIVIDEND") || cat.contains("TRENDING") || cat.contains("กระแส");
             default -> false;
         };
     }
@@ -393,7 +388,14 @@ public class UserAnalyticsService {
         generateDetailedRecommendation(result, statedType, actualBehaviorType, predominantCategory, isStockMatched,
                 isBehaviorMatched, isProfitable);
 
+        String badHabitWarnings = checkBadHabits(trades, actualBehaviorType);
+        if (!badHabitWarnings.isEmpty()) {
+            String currentRec = result.getRecommendation();
+            result.setRecommendation(currentRec + "\n\nคำเตือนเพิ่มเติม:" + badHabitWarnings);
+        }
+
         return result;
+
     }
 
     private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType,
