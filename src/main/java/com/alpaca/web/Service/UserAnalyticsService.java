@@ -159,41 +159,95 @@ public class UserAnalyticsService {
     }
 
     // ==========================================
-    // ส่วนที่ 2: วิเคราะห์แยกประภทนักเทรด
+    // ส่วนที่ 2: วิเคราะห์แยกประภทนักเทรด Advanced Trader Classification (Time + Asset Context)
     // ==========================================
     private String classifyTraderType(List<TradeExecutionRecord> trades) {
-        if (trades.isEmpty())
-            return "Unknown";
+        if (trades.isEmpty()) return "Unknown";
 
         long totalSeconds = 0;
-        int overnightCount = 0;
+        int scalperBehavior = 0;
+        int dayTraderBehavior = 0;
+        int swingBehavior = 0;
+        int positionBehavior = 0;
+        int noiseBehavior = 0; // พฤติกรรมที่ไม่สมเหตุสมผล / สับสน
+        int bagHolderBehavior = 0; // <--- (Optional) เพิ่มเพื่อดักคนติดดอย
 
         for (TradeExecutionRecord t : trades) {
-            totalSeconds += t.getHoldingPeriod().getSeconds();
-            if (t.isOvernight())
-                overnightCount++;
-        }
-        double avgHoldingSeconds = (double) totalSeconds / trades.size();
-        double overnightRatio = (double) overnightCount / trades.size();
+            long seconds = t.getHoldingPeriod().getSeconds();
+            String category = (t.getCategory() != null) ? t.getCategory() : "UNKNOWN";
 
-        // เกณฑ์ในการตัดสินใจ (สามารถแก้ตัวเลขตรงนี้ได้)
-        // Scalper: ถือเฉลี่ยน้อยกว่า 30 นาที (1800 วิ) และไม่ค่อยห่อข้ามคืน
-        if (avgHoldingSeconds <= 1800 && overnightRatio < 0.1) {
-            return "Scalper";
+            // --- Logic ใหม่: ผสม Time + Category ---
+
+            // Case 1: Scalping (ต้องเร็ว + หุ้นต้องซิ่ง) - ต่ำกว่า 30 นาที
+            if (seconds <= 1800) {
+                if (isVolatileStock(category)) {
+                    scalperBehavior++;
+                } else {
+                    noiseBehavior++; // ถือสั้นมาก ในหุ้นนิ่งๆ = เทรดมั่ว/ลังเล
+                }
+            }
+            // Case 2: Day Trading (จบในวัน) - ต่ำกว่า 12 ชม. และไม่ข้ามคืน
+            else if (seconds <= 43200 && !t.isOvernight()) {
+                if (isVolatileStock(category) || isTrendingOrCyclical(category)) {
+                    dayTraderBehavior++;
+                } else {
+                    noiseBehavior++; // Day Trade หุ้นนิ่งๆ ก็ถือว่าเสียเวลาเปล่า (Noise)
+                }
+            }
+            // Case 3: Swing (ถือข้ามวัน - 3 สัปดาห์)
+            else if (seconds <= 1814400) {
+                if (isTrendingOrCyclical(category)) {
+                    swingBehavior++;
+                } else if ("STABLE".equalsIgnoreCase(category) || category.contains("มั่นคง")) {
+                    // ถือหุ้นเต่า 1-2 สัปดาห์ อาจจะเป็น Position Trader ที่ใจร้อน
+                    positionBehavior++;
+                } else {
+                    swingBehavior++; // Default ให้เป็น Swing ไปก่อน
+                }
+            }
+            // Case 4: Position (ถือยาวเกิน 3 สัปดาห์)
+            else {
+                if (isVolatileStock(category)) {
+                    // ถือหุ้นซิ่งยาวเกิน 3 สัปดาห์ = ติดดอย (Bag Holder)
+                    bagHolderBehavior += 2; // ให้คะแนนหนักหน่อย
+                } else {
+                    positionBehavior++;
+                }
+            }
         }
-        // Day Trader: ถือเฉลี่ยน้อยกว่า 1 วันทำการ (สมมติ < 12 ชม.)
-        // และห่อข้ามคืนน้อยกว่า 20%
-        else if (avgHoldingSeconds <= 43200 && overnightRatio <= 0.2) {
-            return "Day Trader";
-        }
-        // Swing Trader: ถือเฉลี่ยเกิน 1 วัน แต่ไม่เกิน 3 สัปดาห์ (1814400 วิ)
-        else if (avgHoldingSeconds <= 1814400) {
-            return "Swing Trader";
-        }
-        // Position Trader: ถือยาวกว่า 3 สัปดาห์
-        else {
-            return "Position Trader";
-        }
+
+        // หา Max Score เพื่อระบุ Type หลัก
+        return determineDominantStyle(scalperBehavior, dayTraderBehavior, swingBehavior, positionBehavior, noiseBehavior, bagHolderBehavior);
+    }
+
+    // Helper methods
+
+    private boolean isVolatileStock(String category) {
+        if (category == null) return false;
+        String c = category.toUpperCase();
+        return c.contains("SPECULATIVE") || c.contains("เก็งกำไร") || c.contains("HIGH_VOLATILITY");
+    }
+
+    private boolean isTrendingOrCyclical(String category) {
+        if (category == null) return false;
+        String c = category.toUpperCase();
+        return c.contains("TRENDING") || c.contains("กระแส") ||
+                c.contains("SWING") || c.contains("เล่นรอบ");
+    }
+
+    private String determineDominantStyle(int scalp, int day, int swing, int pos, int noise, int bagHolder) {
+        int max = Math.max(scalp, Math.max(day, Math.max(swing, Math.max(pos, Math.max(noise, bagHolder)))));
+
+        if (max == 0) return "Unknown";
+
+        // เรียงลำดับ Priority ในการตัดสิน (ถ้าคะแนนเท่ากัน จะเลือกอันไหนก่อน)
+        if (max == bagHolder) return "Bag Holder (นักสะสมดอย)"; // เตือนแรงสุด
+        if (max == noise) return "Indecisive / Noise Trader";  // เตือนรองลงมา
+        if (max == scalp) return "Scalper";
+        if (max == day) return "Day Trader";
+        if (max == swing) return "Swing Trader";
+
+        return "Position Trader";
     }
 
     // ==========================================
@@ -1074,4 +1128,5 @@ public class UserAnalyticsService {
             return 0.0;
         return ((currentPrice - prevPrice) / prevPrice) * 100.0;
     }
+
 }
