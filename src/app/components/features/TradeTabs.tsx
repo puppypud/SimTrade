@@ -218,9 +218,13 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       }, 3000);
     } catch (error: any) {
       console.error(error);
+      const errorData = error?.response?.data;
+      const errorMsg = typeof errorData === 'string'
+        ? errorData
+        : errorData?.message || "Failed to place order.";
       setMessage({
         type: "error",
-        text: error?.response?.data?.message || "Failed to place order.",
+        text: errorMsg,
       });
     } finally {
       setLoading(false);
