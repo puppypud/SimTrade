@@ -481,67 +481,44 @@ public class StockAnalysisService {
      * ครั้งต่อไปเร็วจาก Cache
      */
     public List<String> getRecommendedStocks(String traderType) {
-        // 1. แปลง traderType → category ที่ต้องการ
-        String targetCategory = "เล่นรอบ (Swing)"; // fallback
+        String category = "เล่นรอบ (Swing)"; // fallback
         if (traderType != null) {
             String lowerType = traderType.toLowerCase().trim();
             if (lowerType.contains("scalper"))
-                targetCategory = "เก็งกำไร (Speculative)";
+                category = "เก็งกำไร (Speculative)";
             else if (lowerType.contains("day trader"))
-                targetCategory = "กระแส (Trending)";
+                category = "กระแส (Trending)";
             else if (lowerType.contains("position trader"))
-                targetCategory = "มั่นคง (Stable)";
+                category = "มั่นคง (Stable)";
             else if (lowerType.contains("swing trader"))
-                targetCategory = "เล่นรอบ (Swing)";
+                category = "เล่นรอบ (Swing)";
         }
 
-        // 2. Pool หุ้นยอดนิยม 30 ตัว ครอบคลุมทุก Sector (Tech, Healthcare, Finance,
-        // Consumer, Energy, Speculative)
-        List<String> stockPool = Arrays.asList(
-                // Tech / Trending
-                "NVDA", "TSLA", "NFLX", "AMD", "PLTR", "META", "AAPL", "MSFT", "GOOGL", "AMZN",
-                // Finance / Swing / Cyclical
-                "JPM", "DIS", "NKE", "BA", "SBUX", "GS", "V", "MA",
-                // Consumer / Stable / Defensive
-                "KO", "WMT", "LLY", "JNJ", "PG", "MCD", "PEP", "COST",
-                // Speculative / Crypto-related / High-Beta
-                "MSTR", "COIN", "MARA", "RIOT");
-
-        // 3. คำนวณสด: เรียก getStockInfo() สำหรับแต่ละตัว
-        // getStockInfo() มี @Cacheable → ครั้งแรกจะยิง API จริง, ครั้งต่อไปดึงจาก Cache
-        List<String> matchedSymbols = new ArrayList<>();
-        for (String symbol : stockPool) {
-            try {
-                StockInfoDatabaseDTO info = getStockInfo(symbol);
-                if (info != null && info.getCategory() != null) {
-                    if (info.getCategory().equals(targetCategory)) {
-                        matchedSymbols.add(symbol);
-                    }
+        List<StockAsset> assets = stockAssetRepository.findByCategory(category);
+        List<String> symbols = new ArrayList<>();
+        if (assets != null) {
+            for (StockAsset asset : assets) {
+                if (asset.isTradable()) {
+                    symbols.add(asset.getSymbol());
                 }
-            } catch (Exception e) {
-                log.warn("⚠️ ข้ามหุ้น {} เพราะคำนวณไม่ได้: {}", symbol, e.getMessage());
             }
         }
 
-        // 4. Fallback ถ้าไม่มีหุ้นตรง category เลย
-        if (matchedSymbols.isEmpty()) {
-            log.warn("⚠️ ไม่พบหุ้นที่ตรงกับ category: {} → ใช้ค่าเริ่มต้น", targetCategory);
-            if (targetCategory.contains("เก็งกำไร"))
-                matchedSymbols.addAll(Arrays.asList("MSTR", "COIN", "MARA", "RIOT"));
-            else if (targetCategory.contains("กระแส"))
-                matchedSymbols.addAll(Arrays.asList("NVDA", "TSLA", "NFLX", "AMD", "PLTR"));
-            else if (targetCategory.contains("มั่นคง"))
-                matchedSymbols.addAll(Arrays.asList("KO", "WMT", "LLY", "JNJ", "PG"));
+        // Add fallbacks just in case the DB is missing some stocks
+        if (symbols.isEmpty()) {
+            if (category.contains("เก็งกำไร"))
+                symbols.addAll(Arrays.asList("MSTR", "COIN", "MARA", "RIOT", "HUT"));
+            else if (category.contains("กระแส"))
+                symbols.addAll(Arrays.asList("NVDA", "TSLA", "NFLX", "AMD", "PLTR"));
+            else if (category.contains("มั่นคง"))
+                symbols.addAll(Arrays.asList("KO", "WMT", "LLY", "JNJ", "PG"));
             else
-                matchedSymbols.addAll(Arrays.asList("JPM", "DIS", "NKE", "BA", "SBUX"));
+                symbols.addAll(Arrays.asList("JPM", "DIS", "NKE", "BA", "SBUX"));
         }
 
-        log.info("✅ คำนวณสด: พบหุ้นกลุ่ม [{}] จำนวน {} ตัว → สุ่มเลือก 3-5 ตัว", targetCategory, matchedSymbols.size());
-
-        // 5. สุ่มและเลือก 3-5 ตัว
-        Collections.shuffle(matchedSymbols);
-        int numToPick = Math.min(matchedSymbols.size(), 5);
-        return new ArrayList<>(matchedSymbols.subList(0, numToPick));
+        Collections.shuffle(symbols);
+        int numToPick = Math.min(symbols.size(), 5);
+        return symbols.subList(0, numToPick);
     }
 
     private StockInfoDatabaseDTO fetchStockDataFromApi(String cleanSymbol) {
