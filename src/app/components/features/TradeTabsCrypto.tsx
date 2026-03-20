@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { AccountInfo } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface TradeTabsCryptoProps {
   symbol: string;
 }
-
-const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
 
 const formatPrice = (val: any) => {
   const num = Number(val);
@@ -18,6 +18,7 @@ const formatPrice = (val: any) => {
 };
 
 export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
+  const { user } = useAuth();
   // --- State ---
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [inputMode, setInputMode] = useState<"COIN" | "USD">("COIN");
@@ -77,15 +78,16 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
   // 1. Fetch Account
   useEffect(() => {
     const fetchAccount = async () => {
+      if (!user?.alpacaAccountId) return;
       try {
-        const data = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+        const data = await brokerService.getAccountInfo(user.alpacaAccountId);
         setAccount(data);
       } catch (error) {
         console.error("Failed to fetch account info", error);
       }
     };
     fetchAccount();
-  }, []);
+  }, [user]);
 
   // 2. Real-time Quote
   useEffect(() => {
@@ -126,8 +128,14 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
     setMessage(null);
 
     try {
+      if (!user?.alpacaAccountId) {
+        setMessage({ type: "error", text: "Please log in to trade." });
+        setLoading(false);
+        return;
+      }
+
       await brokerService.createCryptoOrder(
-        HARDCODED_ACCOUNT_ID,
+        user.alpacaAccountId,
         symbol,
         orderSide,
         Number(amount),
@@ -143,8 +151,19 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
       setMessage({ type: "success", text: `Success! ${orderSide} order placed.` });
       setAmount("");
 
-      const updatedAccount = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+      // รอสักครู่เพื่อให้ Alpaca อัปเดตยอดคงเหลือในระบบ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const updatedAccount = await brokerService.getAccountInfo(user.alpacaAccountId);
       setAccount(updatedAccount);
+
+      // ดึงเพิ่มอีกรอบหลังจาก 3 วินาทีเพื่อความชัวร์ (เผื่อข้อมูลยังไม่สะท้อนทันที)
+      setTimeout(async () => {
+        if (user?.alpacaAccountId) {
+          const finalUpdate = await brokerService.getAccountInfo(user.alpacaAccountId);
+          setAccount(finalUpdate);
+        }
+      }, 3000);
 
     } catch (error: any) {
       console.error(error);
@@ -165,7 +184,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
         <div className="flex justify-between items-start mb-2">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h2 className="text-xl font-bold text-foreground tracking-tight">{symbol}</h2>
+              <h2 className="text-xl font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
               <button
                 onClick={toggleFavorite}
                 className="p-1 hover:bg-background rounded-full transition-colors"
@@ -268,7 +287,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
         {/* Amount Input */}
         <div>
           <label className="block text-xs font-semibold text-muted mb-1.5">
-            {inputMode === "COIN" ? `Quantity (${symbol.split('/')[0]})` : "Amount ($)"}
+            {inputMode === "COIN" ? `Quantity (${formatSymbolDisplay(symbol).split('/')[0]})` : "Amount ($)"}
           </label>
           <input
             type="number" min="0" step="any"
@@ -329,7 +348,7 @@ export default function TradeTabsCrypto({ symbol }: TradeTabsCryptoProps) {
               ${loading ? "bg-gray-400 cursor-not-allowed" : isBuy ? "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-200" : "bg-red-600 hover:bg-red-500 shadow-red-200"}
             `}
           >
-            {loading ? "Processing..." : `${orderSide} ${symbol}`}
+            {loading ? "Processing..." : `${orderSide} ${formatSymbolDisplay(symbol)}`}
           </button>
         </div>
       </div>

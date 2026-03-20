@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import StockLWChart from '@/src/app/components/ui/Chart';
 import TradeTabs from '@/src/app/components/features/TradeTabs';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
+import StockInfoPanel from '@/src/app/components/features/StockInfoPanel';
 import { ArrowLeft } from 'lucide-react';
 
 export default function TradeStockPage() {
@@ -49,28 +50,6 @@ function TradeStockContent() {
                     </button>
                 </div>
 
-                <div className="flex items-center justify-between px-2 mb-6">
-                    {currentSymbol ? (
-                        <div className="flex items-baseline gap-3">
-                            <h1 className="text-3xl font-bold text-foreground animate-in fade-in slide-in-from-left-2 duration-300">
-                                {currentSymbol}
-                            </h1>
-                            <span className="px-2 py-1 bg-surface border border-theme-border text-muted text-xs font-bold rounded-md">/ USD</span>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full ml-4">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                Market Open
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-bold text-muted">Stock Trading</h1>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full">
-                                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                                Market Open
-                            </span>
-                        </div>
-                    )}
-                </div>
 
                 {/* Main Layout Wrapper - Responsive Grid/Flex */}
                 <div className="flex flex-col lg:flex-row gap-6">
@@ -84,9 +63,12 @@ function TradeStockContent() {
 
                         {/* Chart */}
                         {currentSymbol ? (
-                            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 flex-1 min-h-[500px]">
-                                <StockLWChart symbol={currentSymbol} />
-                            </div>
+                            <>
+                                <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 flex-1 min-h-[500px]">
+                                    <StockLWChart symbol={currentSymbol} />
+                                </div>
+                                <StockInfoPanel symbol={currentSymbol} />
+                            </>
                         ) : (
                             // Empty State
                             <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 min-h-[500px] flex flex-col items-center justify-center text-muted bg-surface w-full h-full">

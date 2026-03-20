@@ -20,12 +20,13 @@ export interface getCryptoBars {
 }
 
 // สำหรับ Request ซื้อหุ้น
-export interface BuyStockRequest {   
+export interface BuyStockRequest {
   accountId: string;
+  email: string;
   symbol: string;
   qty?: number;
   notional?: number;
-  OrderSide: 'BUY' | 'SELL' ;
+  OrderSide: 'BUY' | 'SELL';
   OrderType: 'MARKET' | 'LIMIT' | 'STOP' | 'STOP_LIMIT' | 'TRAILING_STOP';
   TimeInForce: 'DAY' | 'GTC' | 'IOC' | 'FOK';
   limitPrice?: number;
@@ -35,30 +36,30 @@ export interface BuyStockRequest {
 
 export interface Order {
   id: string;
-  clientOrderId: string;
-  createdAt: string;
-  updatedAt: string;
+  clientOrderId?: string;
+  createdAt?: string;
+  updatedAt?: string;
   submittedAt: string;
   filledAt: string | null;
-  assetId: string;
+  assetId?: string;
   symbol: string;
-  assetClass: string;
+  assetClass?: string;
   notional: number | null;
   qty: number | null;
-  filledQty: number;
-  filledAvgPrice: number | null;
-  orderClass: string | null;
+  filledQty: number | string;
+  filledAvgPrice: number | string | null;
+  orderClass?: string | null;
   orderType: string; // MARKET, LIMIT
-  type: string;
+  type?: string;
   side: string; // BUY, SELL
-  timeInForce: string;
-  limitPrice: number | null;
-  stopPrice: number | null;
+  timeInForce?: string;
+  limitPrice: number | string | null;
+  stopPrice?: number | string | null;
   status: string; // FILLED, CANCELED, etc.
-  extendedHours: boolean;
-  commission: number;
+  extendedHours?: boolean;
+  commission?: number | string;
 }
- 
+
 export interface AccountInfo {
   id: string;
   accountNumber: string;
@@ -74,17 +75,17 @@ export interface AccountInfo {
   createdAt: string;
 }
 export interface Position {
-assetId: string;
+  assetId: string;
   symbol: string;
   exchange: string;
   assetClass: string;
   assetMarginable: boolean;
-  avgEntryPrice: number;    
-  qty: number;              
-  side: string;             
+  avgEntryPrice: number;
+  qty: number;
+  side: string;
   marketValue: number;
-  costBasis: number;        
-  unrealizedPl: number;     
+  costBasis: number;
+  unrealizedPl: number;
   unrealizedPlpc: number;   // ค่า % ที่คูณ 100 แล้ว
   unrealizedIntradayPl: number;
   unrealizedIntradayPlpc: number;
@@ -105,6 +106,7 @@ export interface StockQuote {
   bidPrice: number;     // ราคาซื้อ (Bid)
   bidSize: number;
   openPrice?: number;   // ราคาเปิดวัน (Optional)
+  prevClose?: number;   // ราคาปิดวันก่อนหน้า
 }
 export interface cancelorder {
   orderId: string;
@@ -134,4 +136,127 @@ export interface UserAccount {
     countryOfCitizenship: string;
   };
 }
- 
+
+// ------------------------------------------------------------------
+// Types added mapping to backend DTOs for unimplemented features
+// ------------------------------------------------------------------
+
+export interface CreateAccountRequest {
+  email?: string;
+  password?: string;
+  firstName?: string;
+  lastName?: string;
+  phoneNumber?: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+}
+
+export interface OnboardingRequest {
+  email: string;
+  riskBehavior: string;
+  traderType: string;
+}
+
+export interface StockSearchDto {
+  symbol: string;
+  name: string;
+  exchange: string;
+}
+
+export interface StockInfoDatabaseDTO {
+  symbol: string;
+  name: string;
+  beta: number;
+  marketCap: number;
+  volume: number;
+  category: string;
+  industry: string;
+}
+
+// Matches the backend UserAccount entity in com.alpaca.web.entity.UserAccount
+export interface LocalUserAccount {
+  id: number;
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  accountNumber: string;
+  phoneNumber: string;
+  status: string;
+  alpacaAccountId: string;
+  createdAt: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password?: string;
+  firstName: string;
+  lastName: string;
+  phoneNumber: string;
+
+}
+
+export interface MarketStatus {
+  status: string; // 'OPEN' | 'CLOSED' | 'MAINTENANCE'
+  isMaintenanceMode: boolean;
+  isOpenForTrade: boolean;
+  message: string;
+  nextOpen: string;
+  nextClose: string;
+}
+
+export interface AdminActionResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface UserAnalyticsResult {
+  traderType: string;              // ประเภทนักเทรด เช่น Scalper, Day Trader
+  suggestedTraderType?: string;    // สายที่ระบบแนะนำให้เปลี่ยน
+  totalClosedTrades: number;       // จำนวนไม้ที่เทรดจบแล้ว
+  primaryFeedback: string;         // สรุปผลลัพธ์สั้นๆ (หัวข้อ)
+  recommendation: string;          // คำแนะนำแบบยาว
+  winRate: number;                 // อัตราการชนะ (%)
+  totalRealizedPnL: number;        // กำไร/ขาดทุนสุทธิรวม
+  averageWinPct: number;           // กำไรเฉลี่ยต่อไม้ที่ชนะ (%)
+  averageLossPct: number;          // ขาดทุนเฉลี่ยต่อไม้ที่แพ้ (%)
+  riskRewardRatio: number;         // สัดส่วน Risk:Reward
+  styleMatched: boolean;           // True = เล่นหุ้นถูกประเภทสายเทรด
+  profitable: boolean;             // True = ภาพรวมมีกำไร
+
+  // Behavioral Risk Analysis
+  fomoScore: number;
+  fomoStatus: string;              // "ปกติ", "มีแนวโน้ม", "พฤติกรรมเสี่ยง"
+  sellingWinnersTooEarlyScore: number;
+  sellingWinnersTooEarlyStatus: string;
+  holdingLosersTooLongScore: number;
+  holdingLosersTooLongStatus: string;
+  panicSellScore: number;
+  panicSellStatus: string;
+  behavioralFeedback: string;
+
+  // Stock Highlights
+  mostTradedStock: string;
+  mostTradedStockCount: number;
+  bestPerformingStock: string;
+  bestPerformingStockPnL: number;
+  worstPerformingStock: string;
+  worstPerformingStockPnL: number;
+  longestHeldStock: string;
+  longestHeldDuration: string;
+
+  // Advanced Metrics
+  sizingFeedback: string;
+  profitFactor: number;
+  profitFactorFeedback: string;
+  diversificationFeedback: string;
+  maxConsecutiveWins: number;
+  maxConsecutiveLosses: number;
+  streakFeedback: string;
+}

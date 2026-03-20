@@ -42,21 +42,26 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
     try {
       if (chartData.length === 0) setIsLoading(true);
 
-      console.log(`Fetching data for ${sym} (${vType})...`);
-      const bars: any[] = await brokerService.getStockBars(sym, vType);
+      const [bars, quote]: [any[], any] = await Promise.all([
+        brokerService.getStockBars(sym, vType),
+        brokerService.getLatestQuote(sym)
+      ]);
 
       bars.sort(
         (a: any, b: any) => new Date(a.t).getTime() - new Date(b.t).getTime()
       );
 
       let formattedData: [number, number][] = [];
-      let referencePrice: number | undefined = undefined;
+      // สำหรับ 1D ให้ใช้ราคาปิดเมื่อวานเป็นหลัก
+      // สำหรับช่วงเวลาอื่น (5D, 1M, ...) ให้ใช้ราคาปิด (Close) ของแท่งแรกในอดีตสุดเป็นเกณฑ์อ้างอิง
+      let referencePrice: number | undefined = vType === "1D" ? (quote?.prevClose || quote?.openPrice) : undefined;
 
       if (bars.length > 0) {
-        // ใช้ราคาเปิดของแท่งแรกเป็นราคาอ้างอิง (แท่งแรกคือ 21:30 จาก Backend)
-        referencePrice = Number(bars[0].o);
+        if (!referencePrice) {
+          // ใช้ราคาปิดของแท่งแรกสุดที่มีให้ เพราะเป็นจุดเริ่มต้นของช่วงเวลาที่ดึงมา
+          referencePrice = Number(bars[0].c);
+        }
 
-        // Map ข้อมูลใส่กราฟได้เลย ไม่ต้อง filter อะไรอีกแล้ว
         formattedData = bars.map((b: any) => [
           new Date(b.t).getTime(),
           Number(b.c),
@@ -136,6 +141,8 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
         timeVisible: true,
         secondsVisible: false,
         borderColor: "#e5e7eb",
+        fixLeftEdge: true,
+        rightOffset: 5,
         tickMarkFormatter: (time: number) => {
           const date = new Date(time * 1000);
           return date.toLocaleTimeString("th-TH", {
@@ -196,16 +203,7 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
     }));
     newSeries.setData(formattedSeriesData);
 
-    if (viewType === "1D" && formattedSeriesData.length > 0) {
-      const firstDataTime = formattedSeriesData[0].time as number;
-      const marketCloseTime = firstDataTime + 23400;
-      chart
-        .timeScale()
-        .setVisibleRange({
-          from: firstDataTime as Time,
-          to: marketCloseTime as Time,
-        });
-    } else {
+    if (formattedSeriesData.length > 0) {
       chart.timeScale().fitContent();
     }
 

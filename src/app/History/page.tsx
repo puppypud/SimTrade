@@ -1,265 +1,69 @@
-// src/app/History/page.tsx
+"use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { Order } from "@/src/app/types/broker";
-import CancelOrderButton from "@/src/app/components/features/cancelOrder";
+import OrderTableClient from "@/src/app/components/features/OrderTableClient";
+import { useAuth } from "@/src/context/AuthContext";
 
-// ฟังก์ชันจัดรูปแบบวันที่
-const formatDate = (dateString: string) => {
-  if (!dateString) return "-";
-  // กำหนด timeZone เป็น 'Asia/Bangkok' หรือ 'UTC' ให้ชัดเจน
-  // กำหนด locale เป็น 'en-GB' หรือ 'th-TH' ให้ชัดเจน
-  return new Date(dateString).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Bangkok", // ✅ บังคับให้เป็นเวลาไทยเสมอ (ทั้ง server และ client จะได้ตรงกัน)
-    hour12: false, // บังคับรูปแบบ 24 ชั่วโมง
-  });
-};
+export default function HistoryPage() {
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
-const formatCurrency = (amount: number | null) => {
-  if (amount === null || amount === undefined) return "-";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-  }).format(amount);
-};
+  const fetchOrders = useCallback(async () => {
+    if (!user?.alpacaAccountId) {
+      setLoading(false);
+      return;
+    }
 
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case "FILLED":
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
-    case "CANCELED":
-    case "EXPIRED":
-      return "bg-gray-100 text-gray-600 border-gray-200";
-    case "REJECTED":
-    case "FAILED":
-      return "bg-red-100 text-red-700 border-red-200";
-    case "NEW":
-    case "ACCEPTED":
-      return "bg-blue-100 text-blue-700 border-blue-200";
-    default:
-      return "bg-gray-50 text-gray-600 border-gray-200";
-  }
-};
-  const STATUS_LABELS: Record<string, string> = {
-    FILLED: "เสร็จสิ้น", // แก้คำได้ตามใจชอบตรงนี้
-    CANCELED: "ยกเลิก",
-    EXPIRED: "หมดอายุ",
-    REJECTED: "ถูกปฏิเสธ",
-    FAILED: "ล้มเหลว",
-    NEW: "รอจับคู่",
-    ACCEPTED: "รับคำสั่ง",
-    PENDING_NEW: "กำลังดำเนินการ",
-    ACCEPTED_FOR_BIDDING: "รอตลาดเปิด",
-    PARTIALLY_FILLED: "ได้ของบางส่วน",
-  };
+    try {
+      const fetchedOrders = await brokerService.getAllOrders(user.alpacaAccountId);
+      fetchedOrders.sort(
+        (a: Order, b: Order) =>
+          new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+      );
+      setOrders(fetchedOrders);
+    } catch (e) {
+      console.error("Failed to fetch orders", e);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
-const CANCELLABLE_STATUSES = [
-  "NEW",
-  "ACCEPTED",
-  "PENDING_NEW",
-  "ACCEPTED_FOR_BIDDING",
-  "PARTIALLY_FILLED",
-];
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
 
-export default async function HistoryPage() {
-  const accountId = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
-  let orders: Order[] = [];
-
-  try {
-    orders = await brokerService.getAllOrders(accountId);
-    // เรียงลำดับ ใหม่ -> เก่า
-    orders.sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center text-muted animate-pulse">
+        Loading History...
+      </div>
     );
-  } catch (e) {
-    console.error("Failed to fetch orders", e);
+  }
+
+  if (error || !user?.alpacaAccountId) {
     return (
       <div className="p-10 text-center text-red-500">
-        ไม่สามารถดึงข้อมูลประวัติการเทรดได้ในขณะนี้
+        {error ? "Failed to fetch order history. Please try again later." : "Please log in to view execution history."}
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-10 font-sans">
+    <div className="min-h-screen bg-background p-6 md:p-10 font-sans transition-colors duration-300">
       <div className="max-w-6xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Order History</h1>
-          <p className="text-gray-500 mt-1 text-sm">
-            ประวัติคำสั่งซื้อขายย้อนหลัง
+          <h1 className="text-3xl font-bold text-foreground tracking-tight">Order History</h1>
+          <p className="text-muted mt-1 text-sm">
+            View and manage your past order executions
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-600">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="px-6 py-4 font-semibold text-gray-700">
-                    Date/Time
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">
-                    Symbol
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">
-                    Side / Type
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700">
-                    Status
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
-                    Filled Qty
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
-                    Avg Price
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-right">
-                    Total Value
-                  </th>
-                  <th className="px-6 py-4 font-semibold text-gray-700 text-center">
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {orders.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={8}
-                      className="px-6 py-12 text-center text-gray-400"
-                    >
-                      ยังไม่มีประวัติการทำรายการ
-                    </td>
-                  </tr>
-                ) : (
-                  orders.map((order) => {
-                    const totalValue =
-                      order.filledQty && order.filledAvgPrice
-                        ? order.filledQty * order.filledAvgPrice
-                        : order.notional || 0;
-
-                    const isBuy = order.side === "BUY";
-                    const canCancel = CANCELLABLE_STATUSES.includes(
-                      order.status
-                    );
-
-                    return (
-                      <tr
-                        key={order.id}
-                        className="hover:bg-gray-50 transition-colors duration-150"
-                      >
-                        {/* 1. Date */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-gray-900">
-                            {formatDate(order.submittedAt)}
-                          </div>
-                          {order.filledAt && order.status === "FILLED" && (
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              Filled at{" "}
-                              {new Date(order.filledAt).toLocaleTimeString()}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 2. Symbol */}
-                        <td className="px-6 py-4">
-                          <span className="font-bold text-gray-800 bg-gray-100 px-2 py-1 rounded text-xs tracking-wide">
-                            {order.symbol}
-                          </span>
-                        </td>
-
-                        {/* 3. Side & Type */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col items-start gap-1">
-                            <div className="flex items-center">
-                              <span
-                                className={`font-bold text-xs px-2.5 py-1 rounded-full border ${
-                                  isBuy
-                                    ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                                    : "bg-red-50 text-red-600 border-red-100"
-                                }`}
-                              >
-                                {order.side}
-                              </span>
-                              <span className="text-xs text-gray-500 ml-2 font-semibold uppercase">
-                                {order.orderType}
-                              </span>
-                            </div>
-                            {/* แก้คำผิดจาก Peice -> Price */}
-                            {order.limitPrice && order.limitPrice > 0 && (
-                              <span className="text-xs text-gray-400 ml-1">
-                                Price is {formatCurrency(order.limitPrice)}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* 4. Status */}
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(
-                              order.status
-                            )}`}
-                          >
-                            {/*order.status*/}
-                            {/* ✅ 2. แก้ตรงนี้ เพื่อแสดงผลเป็นภาษาไทย */}
-                            {STATUS_LABELS[order.status] || order.status}
-                          </span>
-                        </td>
-
-                        {/* 5. Quantity */}
-                        <td className="px-6 py-4 text-right font-mono">
-                          {order.filledQty > 0 ? (
-                            <span className="text-gray-900 font-medium">
-                              {new Intl.NumberFormat("en-US", {
-                                maximumFractionDigits: 4,
-                              }).format(order.filledQty)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-
-                        {/* 6. Avg Price */}
-                        <td className="px-6 py-4 text-right font-mono">
-                          {order.filledAvgPrice ? (
-                            <span className="text-gray-900">
-                              {formatCurrency(order.filledAvgPrice)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300">-</span>
-                          )}
-                        </td>
-
-                        {/* 7. Total Value */}
-                        <td className="px-6 py-4 text-right font-mono font-bold text-gray-800">
-                          {totalValue > 0 ? formatCurrency(totalValue) : "-"}
-                        </td>
-
-                        {/* 8. Action (Cancel Button) */}
-                        <td className="px-6 py-4 text-center">
-                          {canCancel && (
-                            <CancelOrderButton
-                              accountId={accountId}
-                              orderId={order.id}
-                            />
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <OrderTableClient orders={orders} accountId={user.alpacaAccountId} onRefresh={fetchOrders} />
       </div>
     </div>
   );

@@ -1,12 +1,13 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest,AccountInfo,Position,StockQuote,UserAccount,getCryptoBars} from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO, UserAnalyticsResult } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
-  
+
   // 1. ซื้อหุ้น (ตรงกับ @PostMapping("/order/user"))
   buyStock: async (data: BuyStockRequest) => {
     const params: any = {
       accountId: data.accountId,
+      email: data.email,
       symbol: data.symbol,
       OrderSide: data.OrderSide,
       OrderType: data.OrderType,
@@ -17,7 +18,7 @@ export const brokerService = {
 
     if (data.notional && data.notional > 0) {
       params.notional = data.notional;
-      params.type = 'MARKET'; 
+      params.type = 'MARKET';
       params.tif = 'DAY';
     } else {
       params.qty = data.qty;
@@ -48,6 +49,14 @@ export const brokerService = {
     return response.data;
   },
 
+  // 1/9. ดึงข้อมูลคำสั่งซื้อแบบระบุ ID (Get Single Order)
+  getSingleOrder: async (accountId: string, orderId: string) => {
+    const response = await apiClient.get(`/broker/order/${orderId}`, {
+      params: { accountId }
+    });
+    return response.data;
+  },
+
   getAccountInfo: async (accountId: string) => {                        //ใช้ตอน get แบบ มี value ตามช่อง url 
     const response = await apiClient.get(`/broker/account/${accountId}`);
     return response.data;
@@ -63,26 +72,26 @@ export const brokerService = {
       exchange: item.exchange,
       assetClass: item.assetClass,
       assetMarginable: item.assetMarginable,
-      
+
       // 1. แปลง String เป็น Number
       qty: parseFloat(item.qty || "0"),
       avgEntryPrice: parseFloat(item.avgEntryPrice || "0"),
-      
+
       side: item.side,
       marketValue: item.marketValue,
       costBasis: item.costBasis,
       unrealizedPl: item.unrealizedPl,
-      
+
       // 2. แปลงทศนิยมเป็น % (คูณ 100) 
       unrealizedPlpc: (item.unrealizedPlpc || 0) * 100,
-      
+
       unrealizedIntradayPl: item.unrealizedIntradayPl,
       unrealizedIntradayPlpc: (item.unrealizedIntradayPlpc || 0) * 100,
-      
+
       currentPrice: item.currentPrice,
       lastdayPrice: item.lastdayPrice,
       changeToday: (item.changeToday || 0) * 100,
-      
+
       swapRate: item.swapRate,
       avgEntrySwapRate: item.avgEntrySwapRate,
       usd: item.usd
@@ -107,6 +116,12 @@ export const brokerService = {
     return response.data;
   },
 
+  // 2/9. ดึงข้อมูลทรัพย์สินของทุกบัญชี (Admin - Get All Users Equity)
+  getAllUsersEquity: async () => {
+    const response = await apiClient.get('/broker/admin/users-equity');
+    return response.data;
+  },
+
   getCryptoBars: async (symbol: string, viewType: string): Promise<StockBar[]> => {
     // ยิงไปที่ Endpoint ใหม่ /crypto-bar
     const response = await apiClient.get('/broker/order/crypto-bar', {
@@ -127,17 +142,17 @@ export const brokerService = {
 
   // ✅ 2. เพิ่มฟังก์ชันส่งคำสั่งซื้อขาย Crypto
   createCryptoOrder: async (
-    accountId: string, 
-    symbol: string, 
-    side: "BUY" | "SELL", 
-    amount: number, 
-    mode: "QTY" | "NOTIONAL", 
+    accountId: string,
+    symbol: string,
+    side: "BUY" | "SELL",
+    amount: number,
+    mode: "QTY" | "NOTIONAL",
     orderType: string,      // เพิ่ม
     timeInForce: string,    // เพิ่ม
     limitPrice?: number,
     stopPrice?: number      // เพิ่ม
   ) => {
-    
+
     const params: any = {
       accountId,
       symbol,
@@ -149,10 +164,10 @@ export const brokerService = {
     if (mode === "NOTIONAL") {
       params.notional = amount;
       // Notional บังคับเป็น Market Order เสมอ
-      params.OrderType = "MARKET"; 
+      params.OrderType = "MARKET";
     } else {
       params.qty = amount;
-      
+
       // ใส่ราคาตามประเภทออเดอร์
       if (limitPrice) params.limitPrice = limitPrice;
       if (stopPrice) params.stopPrice = stopPrice;
@@ -163,4 +178,94 @@ export const brokerService = {
     });
     return response.data;
   },
+
+  // 3/9. สมัครสมาชิก (Create Account) (มีอยู่แล้ว ปรับให้ชัดเจนว่าคือข้อ 3)
+  registerUser: async (payload: RegisterRequest) => {
+    // กำหนด Timeout ครอบไว้ 30 วินาทีตามกรณีที่อาจจะใช้เวลานานเพื่อ Retry ใน Backend
+    const response = await apiClient.post<UserAccount>('/broker/register', payload, {
+      timeout: 30000
+    });
+    return response.data;
+  },
+
+  // 5. ส่งข้อมูล Onboarding
+  submitOnboarding: async (payload: OnboardingRequest) => {
+    // กำหนด URL ส่งไปยัง Backend 
+    const response = await apiClient.post('/broker/user/onboarding', payload);
+    return response.data;
+  },
+
+  // 4/9. เติมเงินเข้าบัญชีบริษัท (Admin - Fund Firm Account)
+  fundFirmAccount: async (amount: number): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/fund-firm', null, {
+      params: { amount }
+    });
+    return response.data;
+  },
+
+  // 5/9. เติมเงินเข้าบัญชีผู้ใช้ (Admin - Fund User Account)
+  fundUserAccount: async (accountId: string, amount: number): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/fund-user', null, {
+      params: { accountId, amount }
+    });
+    return response.data;
+  },
+
+  // 6/9. ดึงสถานะของตลาด (Get Market Status)
+  getMarketStatus: async (): Promise<MarketStatus> => {
+    const response = await apiClient.get('/broker/market/status');
+    return response.data;
+  },
+
+  // 7/9. เปิด/ปิดโหมดปรับปรุงระบบ (Admin - Toggle Maintenance)
+  toggleMaintenance: async (active: boolean, message: string): Promise<AdminActionResponse> => {
+    const response = await apiClient.post('/broker/admin/market/maintenance', null, {
+      params: { active, message }
+    });
+    return response.data;
+  },
+
+  // 8/9. ค้นหาชื่อหุ้น/ทรัพย์สิน (Search Assets)
+  searchAssets: async (keyword: string): Promise<StockSearchDto[]> => {
+    const response = await apiClient.get('/broker/assets/search', {
+      params: { keyword }
+    });
+    return response.data;
+  },
+
+  // 9/9. ข้อมูลรายละเอียดทางสถิติหุ้น (Get Stock Info)
+  getStockInfoDetail: async (symbol: string): Promise<StockInfoDatabaseDTO> => {
+    const response = await apiClient.get('/broker/assets/info', {
+      params: { symbol }
+    });
+    return response.data;
+  },
+
+  // 10. ดึงข้อมูล Profile ของผู้ใช้ (traderType จาก database)
+  getUserProfile: async (userId: number): Promise<{ id: number; traderType: string; riskBehavior: string }> => {
+    const response = await apiClient.get(`/api/analytics/user/${userId}/profile`);
+    return response.data;
+  },
+
+  // 11. ดึงข้อมูล Analytics ของผู้ใช้
+  getUserAnalytics: async (userId: number): Promise<UserAnalyticsResult> => {
+    const response = await apiClient.get(`/api/analytics/user/${userId}`);
+    return response.data;
+  },
+
+  // 12. อัปเดตประเภทนักเทรดของผู้ใช้ (เปลี่ยนสาย) — ใช้ endpoint ของ UserAnalyticsController
+  updateTraderType: async (userId: number, newType: string): Promise<any> => {
+    const response = await apiClient.post(`/api/analytics/user/${userId}/update-type`, null, {
+      params: { newType }
+    });
+    return response.data;
+  },
+
+  // 13. ดึงหุ้นแนะนำตามประเภทนักเทรด (จาก Industry/Category)
+  getRecommendedStocks: async (traderType: string): Promise<string[]> => {
+    const response = await apiClient.get(`/broker/assets/recommended`, {
+      params: { traderType }
+    });
+    return response.data;
+  }
 };

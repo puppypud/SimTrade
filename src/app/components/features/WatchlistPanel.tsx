@@ -3,7 +3,9 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { StockQuote } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 import { Trash2, Plus, TrendingUp, TrendingDown, Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface WatchlistPanelProps {
     onSelectSymbol: (symbol: string) => void;
@@ -11,7 +13,6 @@ interface WatchlistPanelProps {
 }
 
 const SEVEN_ANGELS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
-const LOCAL_STORAGE_KEY = "simtrade_my_favorites";
 
 // Mock Full Names for the layout
 const COMPANY_NAMES: Record<string, string> = {
@@ -25,30 +26,56 @@ const COMPANY_NAMES: Record<string, string> = {
 };
 
 export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: WatchlistPanelProps) {
-    const [favorites, setFavorites] = useState<string[]>([]);
-    const [newFavorite, setNewFavorite] = useState("");
+    const { user } = useAuth();
+    const [recommendedStocks, setRecommendedStocks] = useState<string[]>([]);
     const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
+    const [bars, setBars] = useState<Record<string, number[]>>({}); // Real sparkline data
     const [loading, setLoading] = useState(true);
+    const [expandedSeven, setExpandedSeven] = useState(false);
+    const [expandedRecommended, setExpandedRecommended] = useState(false);
 
-    // Load favorites from local storage on mount
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-            if (stored) {
-                setFavorites(JSON.parse(stored));
+        const fetchIdentityAndStocks = async () => {
+            let currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
+            if (user?.id) {
+                try {
+                    const profile = await brokerService.getUserProfile(user.id);
+                    if (profile.traderType && profile.traderType !== 'Unknown') {
+                        currentIdentity = profile.traderType;
+                        localStorage.setItem('simtrade_identity', currentIdentity);
+                    }
+                } catch (e) {
+                    console.error("Failed to load trader identity", e);
+                }
             }
-        } catch (e) {
-            console.error("Failed to load favorites", e);
-        }
-    }, []);
 
-    // Save favorites whenever it changes
-    useEffect(() => {
-        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(favorites));
-    }, [favorites]);
+            const storedRandoms = localStorage.getItem(`simtrade_random_stocks_${currentIdentity}`);
+            if (storedRandoms) {
+                try {
+                    const parsed = JSON.parse(storedRandoms);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        setRecommendedStocks(parsed);
+                        return;
+                    }
+                } catch (e) { }
+            }
+
+            // Fetch dynamic from API Instead
+            try {
+                const selected = await brokerService.getRecommendedStocks(currentIdentity);
+                if (selected && selected.length > 0) {
+                    setRecommendedStocks(selected);
+                    localStorage.setItem(`simtrade_random_stocks_${currentIdentity}`, JSON.stringify(selected));
+                }
+            } catch (error) {
+                console.error("Failed to fetch recommended stocks from API", error);
+            }
+        };
+        fetchIdentityAndStocks();
+    }, [user]);
 
     const fetchQuotes = useCallback(async () => {
-        const allSymbols = [...new Set([...SEVEN_ANGELS, ...favorites])];
+        const allSymbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
 
         // We fetch one by one concurrently. If backend supported batch, it would be better.
         const promises = allSymbols.map(async (sym) => {
@@ -75,45 +102,39 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         });
         setLoading(false);
 
-    }, [favorites]);
+    }, [recommendedStocks]);
+
+    const fetchBars = useCallback(async () => {
+        const symbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
+        const newBars: Record<string, number[]> = {};
+
+        // Fetch bars for each symbol to generate sparklines
+        await Promise.all(symbols.map(async (sym) => {
+            try {
+                // Requesting 1-day bars (or 15-min bars for the day)
+                const data = await brokerService.getStockBars(sym, '1D');
+                if (data && Array.isArray(data) && data.length > 0) {
+                    newBars[sym] = data.map(b => b.c); // Closing prices
+                }
+            } catch (error) {
+                console.error(`Error fetching bars for ${sym}:`, error);
+            }
+        }));
+
+        setBars(prev => ({ ...prev, ...newBars }));
+    }, [recommendedStocks]);
 
     // Initial fetch and polling
     useEffect(() => {
         fetchQuotes();
-        const intervalId = setInterval(fetchQuotes, 5000); // 5 seconds polling
-        return () => clearInterval(intervalId);
-    }, [fetchQuotes]);
-
-    const handleAddFavorite = (e: React.FormEvent) => {
-        e.preventDefault();
-        const symbol = newFavorite.trim().toUpperCase();
-        if (!symbol) return;
-
-        if (!favorites.includes(symbol) && !SEVEN_ANGELS.includes(symbol)) {
-            setFavorites(prev => [...prev, symbol]);
-            // Instantly trigger a fetch for the new symbol
-            brokerService.getLatestQuote(symbol).then(data => {
-                setQuotes(prev => ({ ...prev, [symbol]: data }));
-            }).catch(err => console.error("Error fetching new favorite:", err));
-        }
-        setNewFavorite("");
-    };
-
-    const handleRemoveFavorite = (e: React.MouseEvent, symbolToRemove: string) => {
-        e.stopPropagation();
-        setFavorites(prev => prev.filter(sym => sym !== symbolToRemove));
-    };
-
-    const handleQuickAdd = (e: React.MouseEvent, symbolToAdd: string) => {
-        e.stopPropagation();
-        if (!favorites.includes(symbolToAdd)) {
-            setFavorites(prev => [...prev, symbolToAdd]);
-            // Instantly trigger a fetch
-            brokerService.getLatestQuote(symbolToAdd).then(data => {
-                setQuotes(prev => ({ ...prev, [symbolToAdd]: data }));
-            }).catch(err => console.error("Error fetching new favorite:", err));
-        }
-    };
+        fetchBars();
+        const quoteInterval = setInterval(fetchQuotes, 5000); // 5s for price
+        const barInterval = setInterval(fetchBars, 60000);   // 1m for charts
+        return () => {
+            clearInterval(quoteInterval);
+            clearInterval(barInterval);
+        };
+    }, [fetchQuotes, fetchBars]);
 
     const renderStockItem = (symbol: string, index: number, isFavoriteList: boolean = false) => {
         const quote = quotes[symbol];
@@ -122,34 +143,64 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
 
         let percentChange = 0;
         if (quote) {
-            if (quote.openPrice) {
-                percentChange = ((quote.price - quote.openPrice) / quote.openPrice) * 100;
-            } else {
-                // Deterministic mock based on symbol and last price
-                const symVal = symbol.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
-                const priceVal = Math.floor(quote.price) || 0;
-                const seed = symVal + priceVal;
-
-                // Generates a mock percentage between -5% and +5%
-                const mockRange = (seed % 1000) / 100;
-                percentChange = seed % 2 === 0 ? mockRange : -mockRange;
+            // Use prevClose for more accurate "Today's Change" relative to market open
+            const basePrice = quote.prevClose || quote.openPrice;
+            if (basePrice) {
+                percentChange = ((quote.price - basePrice) / basePrice) * 100;
             }
         }
 
         const isUp = percentChange >= 0;
 
-        // Mock Sparkline SVG
-        const renderSparkline = (up: boolean) => {
-            const color = up ? "stroke-emerald-500" : "stroke-red-500";
-            const fill = up ? "fill-emerald-500/10" : "fill-red-500/10";
-            const pathUp = "M 0 20 L 5 18 L 10 22 L 20 12 L 25 15 L 35 5 L 45 8 L 55 2 L 60 4";
-            const pathDown = "M 0 4 L 5 2 L 15 12 L 20 8 L 30 18 L 35 15 L 45 22 L 55 18 L 60 20";
+        // Sparkline Component using real data
+        const RealSparkline = ({ data, up }: { data: number[], up: boolean }) => {
+            if (!data || data.length < 2) {
+                // Return a flat line if no data
+                return (
+                    <div className="flex-1 flex justify-center px-4">
+                        <svg width="80" height="32" viewBox="0 0 80 32" className="opacity-30">
+                            <line x1="0" y1="16" x2="80" y2="16" stroke="currentColor" strokeWidth="1" strokeDasharray="4" />
+                        </svg>
+                    </div>
+                );
+            }
+
+            const min = Math.min(...data);
+            const max = Math.max(...data);
+            const range = max - min || 1;
+            const width = 80;
+            const height = 32;
+
+            const points = data.map((val, i) => {
+                const x = (i / (data.length - 1)) * width;
+                const y = height - ((val - min) / range) * height * 0.8 - (height * 0.1);
+                return `${x},${y}`;
+            }).join(' ');
+
+            const color = up ? "#10b981" : "#ef4444";
+            const fillGradientId = `grad-${symbol}-${up ? 'up' : 'down'}`;
 
             return (
-                <div className="flex-1 flex justify-center px-4">
-                    <svg width="60" height="24" viewBox="0 0 60 24" className="opacity-80">
-                        <path d={up ? pathUp : pathDown} className={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-                        <path d={(up ? pathUp : pathDown) + " L 60 24 L 0 24 Z"} className={`${fill} border-0`} />
+                <div className="flex-1 flex justify-center px-2">
+                    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+                        <defs>
+                            <linearGradient id={fillGradientId} x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" style={{ stopColor: color, stopOpacity: 0.2 }} />
+                                <stop offset="100%" style={{ stopColor: color, stopOpacity: 0 }} />
+                            </linearGradient>
+                        </defs>
+                        <path
+                            d={`M 0 ${height} L ${points} L ${width} ${height} Z`}
+                            fill={`url(#${fillGradientId})`}
+                        />
+                        <polyline
+                            points={points}
+                            fill="none"
+                            stroke={color}
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        />
                     </svg>
                 </div>
             );
@@ -181,79 +232,80 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
             <div
                 key={symbol}
                 onClick={() => onSelectSymbol(symbol)}
-                className={`flex items-center justify-between py-2 border-b border-theme-border/50 last:border-0 transition-colors cursor-pointer group relative
-          ${isSelected ? "bg-gold/10" : "hover:bg-background"}`}
+                className={`flex flex-col py-4 px-4 border-b border-theme-border/50 last:border-0 transition-all cursor-pointer group relative hover:bg-gold/5
+          ${isSelected ? "bg-gold/10" : "bg-transparent"}`}
             >
-                {/* 1. Ranking Index */}
-                <span className={`text-xs font-semibold w-6 shrink-0 ${rankColor}`}>
-                    {index + 1}
-                </span>
-
-                {/* 2. Logo Container (Mock) */}
-                <div className="w-6 h-6 rounded-full bg-background text-gold flex items-center justify-center text-[10px] font-bold mr-3 shrink-0">
-                    {symbol.charAt(0)}
-                </div>
-
-                {/* 3. Name & Symbol Stack */}
-                <div className="flex flex-col flex-1 min-w-[120px]">
-                    <span className="text-sm font-bold text-foreground truncate leading-tight group-hover:text-gold transition-colors">
-                        {fullName}
-                    </span>
-                    <span className="text-[11px] font-medium text-muted mt-0.5">
-                        {symbol}
-                    </span>
-                </div>
-
-                {/* 4. Center Sparkline */}
-                {quote ? renderSparkline(isUp) : <div className="flex-1"></div>}
-
-                {/* 5. Last Price & % Change Right-aligned */}
-                <div className="flex flex-col items-end min-w-[80px] shrink-0">
-                    {quote ? (
-                        <>
-                            <span className={`text-sm font-bold ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
-                                {quote.price.toFixed(4)}
+                {/* Top Row: Category and Meta Info */}
+                <div className="flex justify-between items-center mb-2">
+                    <div className="flex gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[9px] font-black uppercase tracking-wider border border-gold/20">
+                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : "หุ้นกลุ่มเดียวกัน"}
+                        </span>
+                        {isUp && percentChange > 5 && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-wider border border-emerald-500/20">
+                                Hot 🔥
                             </span>
-                            <span className={`text-[11px] font-semibold mt-0.5 px-1.5 py-0.5 rounded-sm ${isUp ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                                {isUp ? '+' : ''}{percentChange.toFixed(2)}%
-                            </span>
-                        </>
-                    ) : (
-                        <span className="text-xs text-muted">N/A</span>
-                    )}
+                        )}
+                    </div>
+                    <span className={`text-[10px] font-bold ${rankColor}`}>#{index + 1}</span>
                 </div>
 
-                {/* Hover Actions - Absolute positioned on the right edge so it doesn't shift layout */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-surface via-surface to-transparent pl-6 pr-2 py-2">
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectSymbol(symbol);
-                        }}
-                        className="text-[10px] font-bold text-background bg-gold hover:bg-gold-hover px-3 py-1.5 rounded-full transition-colors uppercase tracking-wider shadow-sm"
-                    >
-                        Trade
-                    </button>
+                {/* Main Content Row */}
+                <div className="flex items-center justify-between gap-4">
+                    {/* Symbol & Name */}
+                    <div className="flex items-center gap-3 min-w-[120px]">
+                        <div className="w-10 h-10 rounded-xl bg-surface border border-theme-border flex items-center justify-center text-gold text-sm font-black shadow-sm group-hover:border-gold/50 transition-colors">
+                            {symbol.charAt(0)}
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-xl font-black text-foreground group-hover:text-gold transition-colors leading-none mb-1">
+                                {symbol}
+                            </span>
+                            <span className="text-[10px] font-medium text-muted truncate max-w-[100px]">
+                                {fullName.split(' ')[0]} {fullName.split(' ')[1] || ''}
+                            </span>
+                        </div>
+                    </div>
 
-                    {!isFavoriteList && !favorites.includes(symbol) && (
-                        <button
-                            onClick={(e) => handleQuickAdd(e, symbol)}
-                            className="p-1.5 text-gold bg-background border border-theme-border hover:bg-theme-border rounded-full transition-colors shadow-sm"
-                            title="Add to favorites"
-                        >
-                            <Plus className="w-3 h-3" />
-                        </button>
-                    )}
+                    {/* Chart Center */}
+                    <div className="flex-1 flex justify-center">
+                        <RealSparkline data={bars[symbol]} up={isUp} />
+                    </div>
 
-                    {isFavoriteList && (
+                    {/* Price and Change */}
+                    <div className="flex flex-col items-end min-w-[90px]">
+                        <div className={`flex items-center gap-1 text-[11px] font-black mb-1 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {isUp ? '↗' : '↘'} {Math.abs(percentChange).toFixed(2)}%
+                        </div>
+                        {quote ? (
+                            <>
+                                <span className="text-xl font-black text-foreground tracking-tight">
+                                    {quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                                </span>
+                                <span className="text-[9px] font-bold text-muted uppercase tracking-[0.2em] mt-0.5">USD</span>
+                            </>
+                        ) : (
+                            <span className="text-xs text-muted">Loading...</span>
+                        )}
+                    </div>
+                </div>
+
+                {/* Hover Quick Actions */}
+                <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
+                    <div className="bg-background/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-gold/30 shadow-2xl scale-90 group-hover:scale-100 transition-transform pointer-events-auto flex gap-2">
                         <button
-                            onClick={(e) => handleRemoveFavorite(e, symbol)}
-                            className="p-1.5 text-red-500 bg-background border border-theme-border hover:bg-theme-border rounded-full transition-colors shadow-sm"
-                            title="Remove from favorites"
+                            onClick={(e) => { e.stopPropagation(); onSelectSymbol(symbol); }}
+                            className="bg-gold text-black text-[10px] font-black px-4 py-2 rounded-xl hover:bg-gold-hover transition-colors uppercase tracking-widest"
                         >
-                            <Trash2 className="w-3 h-3" />
+                            Trade {symbol}
                         </button>
-                    )}
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onSelectSymbol(symbol); }}
+                            className="bg-gold text-black text-[10px] font-black px-4 py-2 rounded-xl hover:bg-gold-hover transition-colors uppercase tracking-widest"
+                        >
+                            Trade {symbol}
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -279,49 +331,61 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 </div>
 
                 <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
-                    <TableHeader />
-                    {SEVEN_ANGELS.map((symbol, index) => renderStockItem(symbol, index, false))}
+                    {SEVEN_ANGELS.slice(0, expandedSeven ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, false))}
                 </div>
+
+                {SEVEN_ANGELS.length > 4 && (
+                    <button
+                        onClick={() => setExpandedSeven(!expandedSeven)}
+                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
+                    >
+                        {expandedSeven ? "ย่อลง" : "ดูเพิ่มเติม"}
+                        <Plus className={`w-3 h-3 transition-transform ${expandedSeven ? 'rotate-45' : ''}`} />
+                    </button>
+                )}
             </div>
 
-            {/* My Favorites Section */}
+            {/* Recommended Stocks Section */}
             <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col h-full max-h-[600px] overflow-hidden">
                 <div className="p-5 border-b border-theme-border flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground">My Favorites</h2>
+                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <Star className="w-5 h-5 text-gold" />
+                        ตัวเลือกหุ้นในกลุ่มเดียวกัน
+                    </h2>
+                    <button
+                        onClick={() => {
+                            const currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
+                            localStorage.removeItem(`simtrade_random_stocks_${currentIdentity}`);
+                            window.location.reload();
+                        }}
+                        className="text-xs font-bold text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
+                    >
+                        สุ่มใหม่
+                    </button>
                 </div>
 
-                <form onSubmit={handleAddFavorite} className="px-5 pt-4 pb-2 relative">
-                    <input
-                        type="text"
-                        value={newFavorite}
-                        onChange={(e) => setNewFavorite(e.target.value)}
-                        placeholder="Add symbol e.g. NFLX"
-                        className="w-full pl-3 pr-10 py-2 bg-background border border-theme-border rounded-xl text-sm font-medium text-foreground focus:ring-2 focus:ring-gold focus:border-transparent outline-none uppercase placeholder-muted placeholder:normal-case shadow-inner"
-                        maxLength={10}
-                    />
-                    <button
-                        type="submit"
-                        disabled={!newFavorite.trim()}
-                        className="absolute right-7 top-1/2 -translate-y-[20%] p-1.5 bg-surface shadow-sm border border-theme-border text-gold rounded-lg hover:border-gold/50 hover:bg-theme-border disabled:opacity-50 transition-all"
-                    >
-                        <Plus className="w-4 h-4" />
-                    </button>
-                </form>
-
-                <div className="flex flex-col flex-1 overflow-y-auto px-5 pb-3">
-                    <TableHeader />
-                    {favorites.length === 0 ? (
+                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
+                    {recommendedStocks.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-2 py-12 text-center">
-                            <Star className="w-8 h-8 text-theme-border" />
-                            <p>Your watchlist is empty.</p>
-                            <p className="text-xs">Add your favorite stocks to track them easily.</p>
+                            <Star className="w-8 h-8 text-theme-border animate-pulse" />
+                            <p>Loading similar stocks...</p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
-                            {favorites.map((symbol, index) => renderStockItem(symbol, index, true))}
+                            {recommendedStocks.slice(0, expandedRecommended ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
                         </div>
                     )}
                 </div>
+
+                {recommendedStocks.length > 4 && (
+                    <button
+                        onClick={() => setExpandedRecommended(!expandedRecommended)}
+                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
+                    >
+                        {expandedRecommended ? "ย่อลง" : "ดูเพิ่มเติม"}
+                        <Plus className={`w-3 h-3 transition-transform ${expandedRecommended ? 'rotate-45' : ''}`} />
+                    </button>
+                )}
             </div>
 
             {/* Quick CSS for scrollbar inside this component */}

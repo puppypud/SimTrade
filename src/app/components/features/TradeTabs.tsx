@@ -7,16 +7,19 @@ import {
   BuyStockRequest,
   AccountInfo,
   StockQuote,
+  Position,
 } from "@/src/app/types/broker";
+import { formatSymbolDisplay } from "@/src/app/utils/formatters";
+import MarketStatusBadge from "@/src/app/components/features/MarketStatusBadge";
 import { Star } from "lucide-react";
+import { useAuth } from "@/src/context/AuthContext";
 
 interface TradeTabsProps {
   symbol: string;
 }
 
-const HARDCODED_ACCOUNT_ID = "9d35fa1a-d10b-484c-abd5-6501dfee1ded";
-
 export default function TradeTabs({ symbol }: TradeTabsProps) {
+  const { user } = useAuth();
   // State หลัก
   const [orderSide, setOrderSide] = useState<"BUY" | "SELL">("BUY");
   const [orderType, setOrderType] = useState<BuyStockRequest["OrderType"]>("MARKET");
@@ -37,6 +40,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   } | null>(null);
 
   const [quote, setQuote] = useState<StockQuote | null>(null);
+  const [position, setPosition] = useState<Position | null>(null);
 
   // Watchlist State
   const [isFavorite, setIsFavorite] = useState(false);
@@ -78,15 +82,16 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
   // ดึงข้อมูล Account
   useEffect(() => {
     const fetchAccount = async () => {
+      if (!user?.alpacaAccountId) return;
       try {
-        const data = await brokerService.getAccountInfo(HARDCODED_ACCOUNT_ID);
+        const data = await brokerService.getAccountInfo(user.alpacaAccountId);
         setAccount(data);
       } catch (error) {
         console.error("Failed to fetch account info", error);
       }
     };
     fetchAccount();
-  }, []);
+  }, [user]);
 
   // ดึงราคา Real-time
   useEffect(() => {
@@ -104,6 +109,21 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     const intervalId = setInterval(fetchPrice, 3000);
     return () => clearInterval(intervalId);
   }, [symbol]);
+
+  // ดึงข้อมูล Position ของหุ้นตัวนี้
+  useEffect(() => {
+    const fetchPosition = async () => {
+      if (!user?.alpacaAccountId || !symbol) return;
+      try {
+        const positions = await brokerService.getOpenPositions(user.alpacaAccountId);
+        const currentPos = positions.find(p => p.symbol === symbol);
+        setPosition(currentPos || null);
+      } catch (error) {
+        console.error("Failed to fetch position:", error);
+      }
+    };
+    fetchPosition();
+  }, [user, symbol, account]); // ดึงใหม่เมื่อ account หรือ symbol เปลี่ยน
 
   // Reset ค่าเมื่อเปลี่ยน Symbol หรือ Input Mode
   useEffect(() => {
@@ -133,12 +153,19 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     setMessage(null);
 
     try {
+      if (!user?.alpacaAccountId) {
+        setMessage({ type: "error", text: "Please log in to trade." });
+        setLoading(false);
+        return;
+      }
+
       // ✅ Logic การ Map ค่า targetPrice ไปใส่ให้ถูก Field ตาม OrderType
       const priceValue = targetPrice === "" ? undefined : Number(targetPrice);
 
       // เตรียม Payload
       const payload: BuyStockRequest = {
-        accountId: HARDCODED_ACCOUNT_ID,
+        accountId: user.alpacaAccountId || "",
+        email: user.email,
         symbol: symbol,
         OrderSide: orderSide,
         OrderType: orderType,
@@ -174,24 +201,39 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
       setAmount("");
       setTargetPrice(""); // Reset ราคาหลังส่ง
 
+      // รอสักครู่เพื่อให้ Alpaca อัปเดตยอดคงเหลือในระบบ
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       const updatedAccount = await brokerService.getAccountInfo(
-        HARDCODED_ACCOUNT_ID
+        user.alpacaAccountId
       );
       setAccount(updatedAccount);
+
+      // ดึงอีกรอบหลังจาก 3 วินาทีเพื่อความชัวร์ (เผื่อระบบประมวลผลช้า)
+      setTimeout(async () => {
+        if (user?.alpacaAccountId) {
+          const finalUpdate = await brokerService.getAccountInfo(user.alpacaAccountId);
+          setAccount(finalUpdate);
+        }
+      }, 3000);
     } catch (error: any) {
       console.error(error);
+      const errorData = error?.response?.data;
+      const errorMsg = typeof errorData === 'string'
+        ? errorData
+        : errorData?.message || "Failed to place order.";
       setMessage({
         type: "error",
-        text: error?.response?.data?.message || "Failed to place order.",
+        text: errorMsg,
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const percentChange = quote && quote.openPrice
-    ? ((quote.price - quote.openPrice) / quote.openPrice) * 100
-    : 0;
+  const baselinePrice = quote?.prevClose || quote?.openPrice || 0;
+  const priceChange = quote ? quote.price - baselinePrice : 0;
+  const percentChange = baselinePrice !== 0 ? (priceChange / baselinePrice) * 100 : 0;
 
   const isBuy = orderSide === "BUY";
 
@@ -205,34 +247,45 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
     return "Limit Price";
   };
 
+  // ฟังก์ชันขายทั้งหมด
+  const handleSellAll = () => {
+    if (!position) return;
+    setOrderSide("SELL");
+    setInputMode("SHARES");
+    setAmount(position.qty);
+  };
+
   return (
     <div className="bg-surface rounded-2xl shadow-sm border border-theme-border overflow-hidden flex flex-col transition-colors duration-300">
       {/* Header: Symbol & Price Info */}
-      <div className="px-6 py-4 border-b border-theme-border bg-surface/50 flex justify-between items-center">
+      <div className="px-5 py-3 border-b border-theme-border bg-surface/50 flex justify-between items-center">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h2 className="text-xl font-bold text-foreground tracking-tight">{symbol}</h2>
+          <div className="flex items-center gap-2 mb-0.5">
+            <h2 className="text-lg font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
             <button
               onClick={toggleFavorite}
               className="p-1 hover:bg-background rounded-full transition-colors"
               title={isFavorite ? "Remove from Watchlist" : "Add to Watchlist"}
             >
               <Star
-                className={`w-5 h-5 ${isFavorite ? "text-gold fill-gold" : "text-muted"}`}
+                className={`w-4 h-4 ${isFavorite ? "text-gold fill-gold" : "text-muted"}`}
               />
             </button>
+            <div className="ml-1">
+              <MarketStatusBadge />
+            </div>
           </div>
 
           <div className="flex flex-col">
             {quote ? (
               <>
                 <div className="flex items-baseline gap-2">
-                  <span className={`text-3xl font-bold tracking-tight font-mono ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'
+                  <span className={`text-2xl font-bold tracking-tight font-mono ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
                     ${quote.price.toFixed(2)}
                   </span>
                   {quote.openPrice && (
-                    <span className={`text-sm font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    <span className={`text-xs font-medium ${percentChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
                     </span>
                   )}
@@ -292,6 +345,26 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
 
       {/* Form Area */}
       <div className="p-6 space-y-5">
+        {/* Simplified Position Info: Show ONLY on SELL side & minimal style */}
+        {!isBuy && position && position.qty > 0 && (
+          <div className="flex items-center justify-between px-3 py-2.5 bg-background rounded-xl border border-theme-border/50 transition-all duration-300">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-muted font-bold uppercase tracking-tight">Available to Sell</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm font-mono font-bold text-foreground">{position.qty}</span>
+                <span className="text-[10px] text-muted font-medium">Shares</span>
+                <span className="text-xs text-muted/60 ml-1">≈ ${((position.qty) * (quote?.price || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleSellAll}
+              className="px-3 py-1.5 text-xs font-bold text-red-500 bg-red-500/5 hover:bg-red-500 hover:text-white border border-red-500/20 rounded-lg transition-all"
+            >
+              Sell All
+            </button>
+          </div>
+        )}
         {/* Toggle: Shares vs Dollars */}
         <div className="flex bg-background p-1 rounded-lg border border-theme-border">
           <button
@@ -479,7 +552,7 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
               "Processing..."
             ) : (
               <>
-                {orderSide} {symbol}
+                {orderSide} {formatSymbolDisplay(symbol)}
                 <span className="opacity-80 font-normal ml-1">
                   (
                   {inputMode === "SHARES"

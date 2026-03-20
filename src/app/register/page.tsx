@@ -4,32 +4,28 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, ArrowRight, CheckCircle2, AlertCircle, User, Phone, MapPin, Calendar, CreditCard, ShieldAlert } from 'lucide-react';
+import { RegisterRequest } from '../types/broker';
+import { brokerService } from '../services/brokerService';
+import { useAuth } from '@/src/context/AuthContext';
+
+interface RegisterFormState extends Omit<RegisterRequest, 'password'> {
+    password?: string;
+    confirmPassword?: string;
+}
+
+const INITIAL_FORM_STATE: RegisterFormState = {
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    phoneNumber: '',
+};
 
 export default function RegisterPage() {
     const router = useRouter();
-    const [formData, setFormData] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        phoneNumber: '',
-        streetAddressLine1: '',
-        streetAddressLine2: '',
-        city: '',
-        state: '',
-        postalCode: '',
-        dateOfBirth: '',
-        taxId: '',
-        taxIdType: 'USA_SSN',
-        countryOfCitizenship: 'USA',
-        countryOfBirth: 'USA',
-        countryOfTaxResidence: 'USA',
-        isControlPerson: false,
-        isAffiliatedExchangeOrFinra: false,
-        isPoliticallyExposed: false,
-        immediateFamilyExposed: false
-    });
+    const { login } = useAuth(); // ดึง login จาก Context มาใช้ตรงๆ เพื่อ Login เลย
+    const [formData, setFormData] = useState<RegisterFormState>(INITIAL_FORM_STATE);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -49,7 +45,7 @@ export default function RegisterPage() {
         setIsLoading(true);
         setError('');
 
-        if (formData.password !== formData.confirmPassword) {
+        if (!formData.password || formData.password !== formData.confirmPassword) {
             setError('Passwords do not match');
             setIsLoading(false);
             return;
@@ -61,34 +57,39 @@ export default function RegisterPage() {
             return;
         }
 
-        const payload = {
+        const payload: RegisterRequest = {
             email: formData.email,
             password: formData.password,
             firstName: formData.firstName,
             lastName: formData.lastName,
-            phoneNumber: formData.phoneNumber,
-            streetAddress: [formData.streetAddressLine1, formData.streetAddressLine2].filter(Boolean),
-            city: formData.city,
-            state: formData.state,
-            postalCode: formData.postalCode,
-            dateOfBirth: formData.dateOfBirth,
-            taxId: formData.taxId,
-            taxIdType: formData.taxIdType,
-            countryOfCitizenship: formData.countryOfCitizenship,
-            countryOfBirth: formData.countryOfBirth,
-            countryOfTaxResidence: formData.countryOfTaxResidence,
-            isControlPerson: formData.isControlPerson,
-            isAffiliatedExchangeOrFinra: formData.isAffiliatedExchangeOrFinra,
-            isPoliticallyExposed: formData.isPoliticallyExposed,
-            immediateFamilyExposed: formData.immediateFamilyExposed
+            phoneNumber: formData.phoneNumber
         };
 
         console.log('Register payload:', payload);
 
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        try {
+            const data = await brokerService.registerUser(payload);
+            console.log('Registration success:', data);
 
-        router.push('/onboarding');
+            // เมื่อสมัครเสร็จเราได้ UserAccount เต็มๆ มา ให้จับ Login อัตโนมัติทันที
+            const completeData = data as any;
+            login({
+                id: completeData.id || 0,
+                email: completeData.email || formData.email,
+                firstName: completeData.firstName || formData.firstName,
+                lastName: completeData.lastName || formData.lastName,
+                alpacaAccountId: completeData.alpacaAccountId,
+                name: completeData.firstName || formData.firstName, // backup
+            });
+
+            // พาเข้าตรงไปที่ Onboarding เลย แทนที่จะไปนั่งรอตรง Dashboard
+            router.push('/onboarding');
+        } catch (err: any) {
+            console.error('Registration failed:', err);
+            setError(err.response?.data?.message || err.response?.data || 'Failed to create account. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -118,10 +119,6 @@ export default function RegisterPage() {
                                     <label className="block text-sm font-medium text-muted mb-1">Last Name</label>
                                     <input name="lastName" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.lastName} onChange={handleChange} />
                                 </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Date of Birth</label>
-                                    <input name="dateOfBirth" type="date" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.dateOfBirth} onChange={handleChange} />
-                                </div>
                             </div>
                         </div>
 
@@ -150,100 +147,7 @@ export default function RegisterPage() {
                             </div>
                         </div>
 
-                        <hr className="border-theme-border my-6" />
 
-                        {/* Section 3: Address */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-gold" /> Address</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Street Address Line 1</label>
-                                    <input name="streetAddressLine1" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.streetAddressLine1} onChange={handleChange} />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-muted mb-1">Street Address Line 2 (Apt, Suite, etc.)</label>
-                                    <input name="streetAddressLine2" type="text" className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.streetAddressLine2} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">City</label>
-                                    <input name="city" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.city} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">State</label>
-                                    <input name="state" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.state} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Postal Code</label>
-                                    <input name="postalCode" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.postalCode} onChange={handleChange} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-theme-border my-6" />
-
-                        {/* Section 4: Tax & Citizenship */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5 text-gold" /> Tax & Identity</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Tax ID Type</label>
-                                    <select name="taxIdType" className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.taxIdType} onChange={handleChange}>
-                                        <option value="USA_SSN">USA SSN</option>
-                                        <option value="USA_ITIN">USA ITIN</option>
-                                        <option value="FOREIGN_TAX_ID">Foreign Tax ID</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Tax ID</label>
-                                    <input name="taxId" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" placeholder="XXX-XX-XXXX" value={formData.taxId} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Citizenship</label>
-                                    <input name="countryOfCitizenship" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfCitizenship} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Birth</label>
-                                    <input name="countryOfBirth" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfBirth} onChange={handleChange} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-muted mb-1">Country of Tax Residence</label>
-                                    <input name="countryOfTaxResidence" type="text" required className="w-full p-3 border border-theme-border rounded-xl bg-background outline-none focus:ring-2 focus:ring-gold" value={formData.countryOfTaxResidence} onChange={handleChange} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-theme-border my-6" />
-
-                        {/* Section 5: Regulatory Questions (Boolean) */}
-                        <div>
-                            <h3 className="text-lg font-medium leading-6 mb-4 flex items-center gap-2"><ShieldAlert className="w-5 h-5 text-gold" /> Regulatory Information</h3>
-                            <div className="space-y-4">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isControlPerson" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isControlPerson} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you a control person or affiliate of a public company?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isAffiliatedExchangeOrFinra" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isAffiliatedExchangeOrFinra} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you affiliated with an exchange or FINRA?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="isPoliticallyExposed" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.isPoliticallyExposed} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Are you a politically exposed person?</span>
-                                </label>
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <div className="flex items-center h-5">
-                                        <input type="checkbox" name="immediateFamilyExposed" className="w-4 h-4 text-gold border-theme-border rounded focus:ring-gold bg-background" checked={formData.immediateFamilyExposed} onChange={handleChange} />
-                                    </div>
-                                    <span className="text-sm text-foreground">Is your immediate family a politically exposed person?</span>
-                                </label>
-                            </div>
-                        </div>
 
                         {error && (
                             <div className="rounded-md bg-red-900/30 border border-red-500/50 p-4">
@@ -272,6 +176,13 @@ export default function RegisterPage() {
                                 ) : 'Create Account'}
                                 {!isLoading && <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />}
                             </button>
+
+                            {/* แสดงข้อความเพิ่มเติมระหว่างที่ปุ่ม Loading เพื่อให้ผู้ใช้ทราบว่าอาจใช้เวลานาน */}
+                            {isLoading && (
+                                <p className="mt-3 text-center text-sm text-gold animate-pulse">
+                                    ระบบกำลังสร้างบัญชีและจัดสรรเงินทุน (อาจใช้เวลาสูงสุดถึง 30 วินาที)
+                                </p>
+                            )}
                         </div>
                     </form>
 
