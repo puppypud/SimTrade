@@ -74,19 +74,22 @@ export default function Navbar() {
         {/* เมนูตรงกลาง (Navigation) */}
         {/* --------------------------- */}
         <nav className="flex items-center space-x-1 flex-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`text-sm font-medium px-4 py-2 rounded-lg transition-all ${
-                pathname === link.href
-                  ? 'text-gold bg-gold/10'
-                  : 'text-muted hover:text-foreground hover:bg-background'
-              }`}
-            >
-              {link.name}
-            </Link>
-          ))}
+          {navLinks.map((link) => {
+            if (!user && ['History', 'Portfolio', 'Analytics', 'Admin'].includes(link.name)) return null;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all ${
+                  pathname === link.href
+                    ? 'text-gold bg-gold/10'
+                    : 'text-muted hover:text-foreground hover:bg-background'
+                }`}
+              >
+                {link.name}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* --------------------------- */}
@@ -150,7 +153,7 @@ export default function Navbar() {
                         onClick={() => {
                           setIsDropdownOpen(false);
                           logout();
-                          window.location.href = '/login';
+                          window.location.href = '/';
                         }}
                         className="w-full text-left px-4 py-2 hover:bg-background text-foreground transition-colors"
                       >
@@ -164,10 +167,10 @@ export default function Navbar() {
               /* ปุ่มล็อกอิน / สมัครสมาชิก (สำหรับยังไม่ได้ล็อกอิน) */
               <div className="flex items-center gap-2">
                 <Link href="/login" className="text-sm text-muted hover:text-foreground font-medium px-3 py-2 transition-colors">
-                  Login
+                  Log In
                 </Link>
-                <Link href="/register" className="px-4 py-1.5 bg-gold text-[#1A1A1A] rounded-lg text-sm font-bold hover:bg-gold-hover transition-colors shadow-sm">
-                  Sign up
+                <Link href="/register" className="px-4 py-1.5 bg-yellow-400 text-[#1A1A1A] rounded-lg text-sm font-bold hover:bg-yellow-500 transition-colors shadow-sm">
+                  Sign Up
                 </Link>
               </div>
             )}

@@ -6,6 +6,7 @@ import WatchlistPanel from '@/src/app/components/features/WatchlistPanel';
 import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
 import ImageBannerCarousel from '@/src/app/components/features/ImageBannerCarousel';
 import RecommendedStocksPanel from '@/src/app/components/features/RecommendedStocksPanel';
+import LandingPage from '@/src/app/components/features/LandingPage';
 import { useAuth } from '@/src/context/AuthContext';
 import { brokerService } from '@/src/app/services/brokerService';
 import { useState, useEffect } from 'react';
@@ -45,6 +46,11 @@ function DashboardContent() {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
     };
 
+    // If guest, show full Landing Page instead of Dashboard
+    if (!user) {
+        return <LandingPage />;
+    }
+
     return (
         <div className="min-h-[calc(100vh-64px)] bg-background text-foreground font-sans p-4 md:p-8 transition-colors duration-300">
             <div className="max-w-[1600px] mx-auto">
@@ -55,7 +61,7 @@ function DashboardContent() {
                         <h1 className="text-3xl font-bold text-foreground tracking-tight">Market Overview</h1>
                     </div>
 
-                    {/* Mock Portfolio Summary Widget */}
+                    {/* Portfolio Widget */}
                     <div className="bg-surface px-6 py-3 rounded-2xl shadow-sm border border-theme-border flex items-center gap-8 transition-colors duration-300">
                         <div>
                             <p className="text-xs text-muted font-medium mb-1 uppercase tracking-wider">Portfolio Value</p>
