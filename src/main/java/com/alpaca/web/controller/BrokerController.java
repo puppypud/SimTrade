@@ -1,10 +1,7 @@
 package com.alpaca.web.controller;
 
 import com.alpaca.web.Repository.OrderHistoryRepository;
-import com.alpaca.web.Service.BrokerService;
-import com.alpaca.web.Service.MarketDataService;
-import com.alpaca.web.Service.StockAnalysisService;
-import com.alpaca.web.Service.UserAnalyticsService;
+import com.alpaca.web.Service.*;
 import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
@@ -33,17 +30,18 @@ public class BrokerController {
     private final AccountRepository accountRepository;
     private final StockAnalysisService stockAnalysisService;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final StockImportService stockImportService;
 
     // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
-            AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
-            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository) {
+                            AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
+                            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository, StockImportService stockImportService) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
         this.stockAnalysisService = stockAnalysisService1;
         this.orderHistoryRepository = orderHistoryRepository;
-
+        this.stockImportService = stockImportService;
     }
 
     @PostMapping("/order/user") // รับได้2แบบ1.accountId(แก้ไข) หรือ 2. email แต่รับด้วย email
@@ -561,5 +559,19 @@ public class BrokerController {
             log.error("❌ Error updating trader type: {}", e.getMessage());
             return ResponseEntity.internalServerError().body(Map.of("message", "เกิดข้อผิดพลาดในการเปลี่ยนสายเทรด"));
         }
+    }
+
+    //ADmin ดึงตัวหุ้นมาคำนวณเพื่อเพิ่มลง database
+    @PostMapping("/import-stocks")
+    public ResponseEntity<?> importStocks() {
+
+        // 1. สั่งให้ Service ทำงานแบบ Async (รันเงียบๆ หลังบ้าน)
+        stockImportService.importStocksToDatabase();
+
+        // 2. ตอบกลับ Postman ทันที โดยไม่ต้องรอ 30 นาทีให้เสร็จ
+        return ResponseEntity.ok(Map.of(
+                "status", "Processing",
+                "message", "🚀 เริ่มกระบวนการนำเข้าหุ้นจาก CSV แล้ว กรุณาตรวจสอบความคืบหน้าได้ที่หน้าจอ Console Log ของ Spring Boot"
+        ));
     }
 }

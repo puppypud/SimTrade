@@ -1086,7 +1086,7 @@ public class UserAnalyticsService {
             }
 
             // ค้นหาจาก Database โดยตรง จะเร็วมาก
-            return stockAssetRepository.findTop3ByCategoryAndIndustry(category, industry, symbol)
+            return stockAssetRepository.findTop3ByCategoryAndIndustryAndSymbolNot(category, industry, symbol)
                     .stream()
                     .map(StockAsset::getSymbol)
                     .collect(Collectors.toList());

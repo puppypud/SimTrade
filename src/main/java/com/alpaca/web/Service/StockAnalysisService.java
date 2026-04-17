@@ -579,4 +579,60 @@ public class StockAnalysisService {
             return null;
         }
     }
+            //ใช้ดึงข้อมูลของไฟล์ csv มาคำนวณต่อแบบสดๆ และไปบันทึกลง database
+    public void fetchAndSaveStock(String cleanSymbol) {
+        try {
+            RestTemplate restTemplate = new RestTemplate();
+            String apiKey = apiKeystock;
+
+            // 1. ยิง API 3 เส้นเพื่อดึงข้อมูลดิบ (เหมือนที่คุณเคยเขียนไว้)
+            String quoteUrl = "https://finnhub.io/api/v1/quote?symbol=" + cleanSymbol + "&token=" + apiKey;
+            FinnhubStockDTO quote = restTemplate.getForObject(quoteUrl, FinnhubStockDTO.class);
+
+            String metricUrl = "https://finnhub.io/api/v1/stock/metric?symbol=" + cleanSymbol + "&metric=all&token=" + apiKey;
+            FinnhubFinancials financials = restTemplate.getForObject(metricUrl, FinnhubFinancials.class);
+
+            String profileUrl = "https://finnhub.io/api/v1/stock/profile2?symbol=" + cleanSymbol + "&token=" + apiKey;
+            FinnhubProfileDTO profile = restTemplate.getForObject(profileUrl, FinnhubProfileDTO.class);
+
+            if (quote == null || financials == null || financials.getMetric() == null) {
+                log.warn("❌ API ไม่พบข้อมูลหุ้น {}", cleanSymbol);
+                return;
+            }
+
+            // 2. สกัดข้อมูลออกมาเตรียมคำนวณ
+            FinnhubFinancials.Metric m = financials.getMetric();
+            String industry = (profile != null && profile.getIndustry() != null) ? profile.getIndustry() : "Unknown";
+            String fullName = (profile != null && profile.getName() != null) ? profile.getName() : cleanSymbol;
+
+            BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000")) : BigDecimal.ZERO;
+            Long volumeLong = (quote.getVolume() != null) ? quote.getVolume().longValue() : 0L;
+            BigDecimal pe = m.getPe();
+            BigDecimal finalBeta = (m.getBeta() != null) ? m.getBeta() : new BigDecimal("1.0");
+
+            // 3. เข้าสูตรคำนวณหา Category (ใช้ฟังก์ชัน calculateCategory ที่คุณมีอยู่แล้ว)
+            String category = calculateCategory(finalBeta, marketCapFull, volumeLong, pe, industry, m.getYearHigh(), m.getYearLow(), quote.getCurrentPrice());
+
+            // 👉 4. ขั้นตอนสำคัญ: ประกอบร่างข้อมูลและบันทึกลง Database
+            StockAsset newStock = new StockAsset();
+            newStock.setSymbol(cleanSymbol);
+            newStock.setName(fullName);
+            newStock.setAssetClass("US_EQUITY");
+            newStock.setBeta(finalBeta);
+            newStock.setMarketCap(marketCapFull.longValue());
+            newStock.setAvgVolume(volumeLong);
+            newStock.setCategory(category);    // ใส่กลุ่มที่คำนวณได้ เช่น "เก็งกำไร", "มั่นคง"
+            newStock.setIndustry(industry);    // อุตสาหกรรม
+            newStock.setTradable(true);
+
+            // บันทึกลงฐานข้อมูล (JPA จะทำหน้าที่แปลง Object เป็น SQL Insert ให้เอง)
+            stockAssetRepository.save(newStock);
+
+            log.info("✅ บันทึกหุ้น {} เข้า Database แล้วในหมวดหมู่: {}", cleanSymbol, category);
+
+        } catch (Exception e) {
+            log.error("❌ การประมวลผลล้มเหลวสำหรับหุ้น {}: {}", cleanSymbol, e.getMessage());
+            throw new RuntimeException("API/Database error", e);
+        }
+    }
 }
