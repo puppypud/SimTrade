@@ -444,15 +444,15 @@ public class MarketDataService {
     @Cacheable("allTradableAssets")
     public List<StockSearchDto> getTradableAssets() {
         try {
-            // ดึงข้อมูลหุ้นทั้งหมดที่มีสถานะ ACTIVE และเป็นหุ้น US
-            // ลองเปลี่ยนเป็นแบบนี้ดูครับ
-            List<Assets> assets = alpacaAPI.trader().assets().getV2Assets("active", "us_equity", null, null);
+            // ดึงข้อมูลหุ้นสหรัฐและคริปโตมารวมกัน
+            List<Assets> usAssets = alpacaAPI.trader().assets().getV2Assets("active", "us_equity", null, null);
+            List<Assets> cryptoAssets = alpacaAPI.trader().assets().getV2Assets("active", "crypto", null, null);
 
-            // แมปข้อมูลเป็น DTO เพื่อส่งเฉพาะสิ่งที่หน้าบ้านต้องใช้
-            // นำข้อมูล List<Assets> มาแปลงเป็น DTO
-            return assets.stream()
-                    // เช็กก่อนว่าหุ้นตัวนี้ยอมให้เทรดบน Alpaca จริงๆ (getTradable มักคืนค่าเป็น
-                    // Boolean)
+            List<Assets> combined = new ArrayList<>();
+            if (usAssets != null) combined.addAll(usAssets);
+            if (cryptoAssets != null) combined.addAll(cryptoAssets);
+
+            return combined.stream()
                     .filter(asset -> Boolean.TRUE.equals(asset.getTradable()))
                     .map(asset -> new StockSearchDto(
                             asset.getSymbol(),
@@ -461,7 +461,7 @@ public class MarketDataService {
                     .collect(Collectors.toList());
 
         } catch (Exception e) {
-            throw new RuntimeException("ไม่สามารถดึงข้อมูลรายชื่อหุ้นจาก Alpaca API ได้: " + e.getMessage());
+            throw new RuntimeException("ไม่สามารถดึงข้อมูลรายชื่อสินทรัพย์จาก Alpaca API ได้: " + e.getMessage());
         }
     }
 
