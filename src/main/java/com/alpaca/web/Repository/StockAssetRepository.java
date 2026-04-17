@@ -10,4 +10,6 @@ public interface StockAssetRepository extends JpaRepository<StockAsset, String> 
     List<StockAsset> findByIsTradableTrue();
     // หาหุ้นตามหมวดหมู่
     List<StockAsset> findByCategory(String category);
+    // ดึงหุ้น 3 ตัวที่ตรงกลุ่มหุ้นและตรงอุสหกรรม
+    List<StockAsset> findTop3ByCategoryAndIndustry(String category , String industry ,String symbol);
 }

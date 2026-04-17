@@ -428,9 +428,28 @@ public class UserAnalyticsService {
     // 1. ถูกสาย - กำไร
     private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat) {
         result.setPrimaryFeedback("ยอดเยี่ยม! คุณคือนักเทรดที่มีวินัย (Perfect Alignment)");
-        result.setRecommendation(String.format(
-                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้ และพยายาม Scale Up พอร์ตการลงทุน",
-                statedType, stockCat));
+        // ดึงตัวหุ้นที่เหมาะสมหรือที่ได้กำไรมากสุดใน port
+        String bestStock = result.getBestPerformingStock();
+        String recommendationText = String.format(
+                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้",
+                statedType, stockCat);
+        // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
+        if (bestStock != null && !bestStock.equals("-")) {
+            List<String> similarStocks = findSimilarStocks(bestStock, stockCat);
+
+            if (!similarStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", similarStocks);
+                recommendationText += String.format(
+                        "\n\n💡 หุ้นที่คุณทำกำไรได้ดีที่สุดคือ %s ระบบขอแนะนำให้คุณลองศึกษาหุ้นในอุตสาหกรรมเดียวกันที่มีพฤติกรรมคล้ายกัน เช่น %s ดูเพิ่มเติม เพราะจริตของคุณเข้ากับหุ้นกลุ่มนี้มาก",
+                        bestStock, suggestedSymbols);
+
+                result.setRecommendedSimilarStocks(similarStocks);
+            }
+        } else {
+            recommendationText += " และพยายาม Scale Up พอร์ตการลงทุน";
+        }
+
+        result.setRecommendation(recommendationText);
     }
 
     // 2. ถูกสาย - ขาดทุน (ไฮไลท์ที่คุณต้องการ: 2 ทางเลือก)
@@ -464,7 +483,7 @@ public class UserAnalyticsService {
         result.setSuggestedTraderType(actualType); // แนะนำให้เปลี่ยน Type
     }
 
-    // 4. ผิดสาย - ขาดทุน
+    // 4. ผิดสาย - ขาดทุน ผิดทุก
     private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType,
             String stockCat) {
         result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
@@ -490,80 +509,6 @@ public class UserAnalyticsService {
         return "Unknown";
     }
 
-    /*
-     * private void applyRecommendationMatrix(UserAnalyticsResult result, boolean
-     * isStyleMatched, boolean isProfitable,
-     * String category) {
-     * String type = result.getTraderType();
-     * double rrRatio = result.getRiskRewardRatio();
-     * 
-     * // Matrix Case 1: เล่นหุ้นถูกสาย + กำไร (True, True) -> ไปต่อ
-     * if (isStyleMatched && isProfitable) {
-     * result.setPrimaryFeedback("ยอดเยี่ยม! (Perfect Alignment)");
-     * result.setRecommendation(String.format(
-     * "พฤติกรรมของคุณคือ %s และคุณเลือกหุ้นกลุ่ม %s ซึ่ง 'ถูกต้องและเหมาะสม' ผลลัพธ์ของคุณคือกำไร "
-     * +
-     * "คำแนะนำ: ให้คุณรักษาวินัยนี้ไว้ (Keep going) " +
-     * "และอาจพิจารณาเพิ่มขนาดการลงทุน (Position Sizing) ในจังหวะที่มั่นใจ",
-     * type, category));
-     * }
-     * 
-     * // Matrix Case 2: เล่นหุ้นถูกสาย + ขาดทุน (True, False) ->
-     * // ไปต่อสายนี้แต่ฝึกฝีมือ
-     * else if (isStyleMatched && !isProfitable) {
-     * result.
-     * setPrimaryFeedback("มาถูกทาง แต่ขาดจังหวะเข้าทำ (Right Style, Poor Execution)"
-     * );
-     * 
-     * // วิเคราะห์ย่อยเพื่อเจาะจงปัญหา
-     * String deeperAdvice = "";
-     * if (rrRatio < 1.0) {
-     * deeperAdvice =
-     * "ปัญหาหลักของคุณคือเวลาได้กำไรได้น้อย แต่เวลาเสียเสียหนัก แนะนำให้ฝึกตั้ง Stop-Loss ให้เข้มงวดขึ้น"
-     * ;
-     * } else {
-     * deeperAdvice =
-     * "คุณอาจจะเข้าซื้อถูกตัว แต่เข้าผิดจังหวะ (ไล่ราคา) ลองศึกษาแนวรับ-แนวต้านเพิ่มเติม"
-     * ;
-     * }
-     * 
-     * result.setRecommendation(String.format(
-     * "คุณเลือกหุ้น %s ซึ่งเหมาะกับความเป็น %s ของคุณแล้ว ไม่ต้องเปลี่ยนกลุ่มหุ้น! "
-     * +
-     * "แต่ที่ขาดทุนเกิดจากทักษะการเทรด คำแนะนำ: %s",
-     * category, type, deeperAdvice));
-     * }
-     * 
-     * // Matrix Case 3: เล่นหุ้นผิดสาย + กำไร (False, True) -> อันตรายในระยะยาว
-     * else if (!isStyleMatched && isProfitable) {
-     * result.
-     * setPrimaryFeedback("ดวงดี หรือ พฤติกรรมเริ่มเบี่ยงเบน (Style Drift Warning)"
-     * );
-     * 
-     * String suggestedCat = getSuggestedCategory(type);
-     * result.setRecommendation(String.format(
-     * "คุณมีพฤติกรรมเป็น %s แต่ระยะหลังคุณไปทำกำไรในหุ้นกลุ่ม %s ซึ่งถือว่ามีความเสี่ยง (Mismatch) "
-     * +
-     * "แม้ตอนนี้จะได้กำไร แต่มันอาจเป็นเพียงรอบสั้นๆ ของตลาด คำแนะนำ: ลองพิจารณากลับมาเทรดหุ้นกลุ่ม %s "
-     * +
-     * "เพื่อความสม่ำเสมอในระยะยาว",
-     * type, category, suggestedCat));
-     * }
-     * 
-     * // Matrix Case 4: เล่นหุ้นผิดสาย + ขาดทุน (False, False) -> ต้องปรับปรุงด่วน
-     * else {
-     * result.setPrimaryFeedback("วิกฤต! เล่นผิดประเภทและขาดทุน (Total Mismatch)");
-     * 
-     * String suggestedCat = getSuggestedCategory(type);
-     * result.setRecommendation(String.format(
-     * "ผลขาดทุนของคุณเกิดจากการฝืนธรรมชาติ คุณเป็นคนสไตล์ %s ซึ่งไม่ควรไปเล่นหุ้นกลุ่ม %s "
-     * +
-     * "คำแนะนำ: หยุดเทรดชั่วคราว ทบทวนตัวเอง และเมื่อพร้อมให้กลับมาเริ่มใหม่กับหุ้นกลุ่ม %s เท่านั้น"
-     * ,
-     * type, category, suggestedCat));
-     * }
-     * }
-     */
     // วิเคราะห์พฤติกรมมเสี่ยง
     private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades,
             List<OrderHistory> allOrders, String dbRiskBehavior) {
@@ -1131,4 +1076,20 @@ public class UserAnalyticsService {
         return ((currentPrice - prevPrice) / prevPrice) * 100.0;
     }
 
+    private List<String> findSimilarStocks(String symbol, String category){
+        if (symbol == null || symbol.equals("-")) return new ArrayList<>();
+
+        return stockAssetRepository.findById(symbol).map(asset -> {
+            String industry = asset.getIndustry();
+            if (industry == null || industry.isEmpty()) {
+                return new ArrayList<String>(); // ถ้าไม่มีข้อมูลอุตสาหกรรม ให้คืนค่าว่าง
+            }
+
+            // ค้นหาจาก Database โดยตรง จะเร็วมาก
+            return stockAssetRepository.findTop3ByCategoryAndIndustry(category, industry, symbol)
+                    .stream()
+                    .map(StockAsset::getSymbol)
+                    .collect(Collectors.toList());
+        }).orElse(new ArrayList<>());
+    }
 }

@@ -2,6 +2,7 @@ package com.alpaca.web.dto;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.util.List;
 
 @Data
 public class UserAnalyticsResult {
@@ -61,4 +62,6 @@ public class UserAnalyticsResult {
     private int maxConsecutiveLosses;     // แพ้ติดกันสูงสุด
     private String streakFeedback;        // เช่น "ระวัง! คุณแพ้ติดกัน 5 ไม้แล้ว หยุดพักก่อนไหม (Cool-down required)"
 
+    //แนะนำหุ้น ที่หรงกับผู้เทรด
+    private List<String> recommendedSimilarStocks;   //รายชื่อหุ้นที่แนะนำ
 }
