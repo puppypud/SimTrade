@@ -94,7 +94,7 @@ public class StockAnalysisService {
     }
 
     public String calculateCategory(BigDecimal beta, BigDecimal marketCap, Long volume, BigDecimal pe, String industry,
-            BigDecimal yearHigh, BigDecimal yearLow, BigDecimal currentPrice) {
+                                    BigDecimal yearHigh, BigDecimal yearLow, BigDecimal currentPrice) {
         double absBeta = (beta != null) ? Math.abs(beta.doubleValue()) : 1.0;
         double capBillion = (marketCap != null) ? marketCap.doubleValue() / 1_000_000_000.0 : 0.0;
         long vol = (volume != null) ? volume : 0L;
@@ -148,7 +148,7 @@ public class StockAnalysisService {
             stableScore += 3; // Defensive แท้จริง
         else if (absBeta <= 1.0)
             stableScore += 1; // นิ่งกว่าตลาดนิดหน่อย
-        // 1.0 < Beta <= 1.6: Swing Zone (DIS=1.46, NKE=1.30 ไม่ใช่ Trending)
+            // 1.0 < Beta <= 1.6: Swing Zone (DIS=1.46, NKE=1.30 ไม่ใช่ Trending)
         else if (absBeta <= 1.6) {
             if (capBillion >= 10.0)
                 swingScore += 2;
@@ -364,6 +364,7 @@ public class StockAnalysisService {
             BigDecimal yearLow = m.getYearLow();
             BigDecimal currentPrice = quote.getCurrentPrice();
             Long volumeLong = 0L;
+            //ใช้การดึง ค่าเฉลี่ย 10วันล่าสุดที่มีการเทรดมา เพื่อหา volume แทนที่จะเอาแค่ 1 วัน เพราะมันจะไม่คงที่
             if (m.getAvgVolume10Day() != null && m.getAvgVolume10Day().compareTo(BigDecimal.ZERO) > 0) {
                 // 🌟 หัวใจสำคัญ: คูณ 1,000,000 เพราะ Finnhub ส่งค่าเฉลี่ยมาเป็นหน่วย "ล้าน"
                 volumeLong = m.getAvgVolume10Day().multiply(new BigDecimal("1000000")).longValue();
@@ -418,7 +419,7 @@ public class StockAnalysisService {
     // รวมปัจจัย Market Cap, P/E Ratio และ 52-Week Price Volatility
 
     private BigDecimal estimateBeta(BigDecimal marketCap, Long volume, BigDecimal pe,
-            BigDecimal yearHigh, BigDecimal yearLow, BigDecimal price) {
+                                    BigDecimal yearHigh, BigDecimal yearLow, BigDecimal price) {
 
         // 1. จัดการค่าเบื้องต้น
         double capBillion = (marketCap != null) ? marketCap.doubleValue() / 1_000_000_000.0 : 0.0;
@@ -579,7 +580,8 @@ public class StockAnalysisService {
             return null;
         }
     }
-            //ใช้ดึงข้อมูลของไฟล์ csv มาคำนวณต่อแบบสดๆ และไปบันทึกลง database
+
+    //ใช้ดึงข้อมูลของไฟล์ csv มาคำนวณต่อแบบสดๆ และไปบันทึกลง database
     public void fetchAndSaveStock(String cleanSymbol) {
         try {
             RestTemplate restTemplate = new RestTemplate();
@@ -606,7 +608,25 @@ public class StockAnalysisService {
             String fullName = (profile != null && profile.getName() != null) ? profile.getName() : cleanSymbol;
 
             BigDecimal marketCapFull = (m.getMarketCap() != null) ? m.getMarketCap().multiply(new BigDecimal("1000000")) : BigDecimal.ZERO;
-            Long volumeLong = (quote.getVolume() != null) ? quote.getVolume().longValue() : 0L;
+            Long volumeLong = 0L;
+
+            //  อันดับ 1: ใช้ 10-Day Average เหมือนโค้ดเก่าเป๊ะๆ
+                if (m.getAvgVolume10Day() != null && m.getAvgVolume10Day().compareTo(BigDecimal.ZERO) > 0) {
+                    volumeLong = m.getAvgVolume10Day().multiply(new BigDecimal("1000000")).longValue();
+                }
+            //  อันดับ 2: สำรองด้วย Volume จาก Metric
+                else if (m.getVolume() != null && m.getVolume().compareTo(BigDecimal.ZERO) > 0) {
+                    volumeLong = m.getVolume().multiply(new BigDecimal("1000000")).longValue();
+                }
+            //  อันดับ 3: สำรองสุดท้ายด้วย Quote
+                else if (quote.getVolume() != null) {
+                    volumeLong = quote.getVolume().longValue();
+                }
+
+            //  พิเศษ: ดักจับความผิดปกติ (ก๊อปปี้ของเดิมมาเลย)
+                if (volumeLong < 100 && m.getMarketCap() != null) {
+                    log.warn("⚠️ พบวอลลุ่มผิดปกติ ({}) สำหรับหุ้น {}", volumeLong, cleanSymbol);
+                }
             BigDecimal pe = m.getPe();
             BigDecimal finalBeta = (m.getBeta() != null) ? m.getBeta() : new BigDecimal("1.0");
 
