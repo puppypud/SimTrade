@@ -455,42 +455,61 @@ public class UserAnalyticsService {
     // 2. ถูกสาย - ขาดทุน (ไฮไลท์ที่คุณต้องการ: 2 ทางเลือก)
     private void handleRightStyleUnprofitable(UserAnalyticsResult result, String statedType) {
         result.setPrimaryFeedback("วินัยดีเยี่ยม แต่ผลลัพธ์ยังไม่ตอบโจทย์ (Discipline with Loss)");
-        result.setRecommendation(String.format(
-                "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย' \n" +
-                        "คุณมี 2 ทางเลือกในการไปต่อ:\n" +
-                        "1. [ไปต่อ (Persist)]: หากคุณมั่นใจในสไตล์นี้ ปัญหาอาจอยู่ที่จุดเข้า-ออก (Timing) ให้ Backtest ระบบเทรดของคุณใหม่ ปรับปรุง Technical Analysis\n"
-                        +
-                        "2. [เปลี่ยนสาย (Pivot)]: หากสไตล์ %s สร้างความเครียดหรือ Drawdown สูงเกินรับไหว ให้ลองเปลี่ยนไปใช้สไตล์ที่ถือครองสั้นลงหรือยาวขึ้นดู",
-                statedType, statedType));
+
+        String baseRec = String.format(
+                "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย'",
+                statedType);
+
+        // เรียกใช้การวินิจฉัยเชิงลึก
+        String deepDiagnostic = diagnoseLossReason(result);
+        result.setRecommendation(baseRec + deepDiagnostic);
     }
 
-    // 3. ผิดสาย - กำไร
+    // 3. ผิดสาย - กำไร  //เพิ่มชอบหุ้นแอบแฝงเข้าไปให้มี มิติขึ้น
     private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType,
-            String stockCat, boolean stockMatch) {
+                                            String stockCat, boolean stockMatch) {
         result.setPrimaryFeedback("ค้นพบพรสวรรค์ใหม่? (New Strength Discovered)");
 
-        // แยกแยะสาเหตุนิดหน่อยเพื่อให้คำแนะนำฉลาดขึ้น
+        StringBuilder rec = new StringBuilder();
         if (!stockMatch) {
             String suitableType = getTraderTypeFromCategory(stockCat);
-            result.setRecommendation(String.format(
-                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งปกติเหมาะกับสาย %s มากกว่า ระวังกับดักกำไรระยะสั้นจากหุ้นที่ไม่ถนัด",
+            rec.append(String.format(
+                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งปกติเหมาะกับสาย %s มากกว่า\n",
                     statedType, stockCat, suitableType));
         } else {
-            result.setRecommendation(String.format(
-                    "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า",
+            rec.append(String.format(
+                    "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า\n",
                     actualType, statedType));
         }
-        result.setSuggestedTraderType(actualType); // แนะนำให้เปลี่ยน Type
+
+        // --- ส่วนที่เพิ่มเข้ามา: แนะนำหุ้นตามความชอบแอบแฝง ---
+        String bestStock = result.getBestPerformingStock();
+        if (bestStock != null && !bestStock.equals("-")) {
+            List<String> similarStocks = findSimilarStocks(bestStock, stockCat);
+            if (!similarStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", similarStocks);
+                rec.append(String.format(
+                        "\n จากความสำเร็จแบบไม่ได้ตั้งใจนี้ หุ้นทำเงินของคุณคือ %s เราขอแนะนำให้คุณลองศึกษาหุ้นอุตสาหกรรมเดียวกันที่มีลักษณะคล้ายกัน เช่น %s เพราะนี่อาจเป็น 'ทางถนัดที่แท้จริง' ของคุณ",
+                        bestStock, suggestedSymbols));
+                result.setRecommendedSimilarStocks(similarStocks);
+            }
+        }
+
+        result.setRecommendation(rec.toString());
+        result.setSuggestedTraderType(actualType);
     }
 
-    // 4. ผิดสาย - ขาดทุน ผิดทุก
-    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType,
-            String stockCat) {
+    // 4. ผิดสาย - ขาดทุน ผิดทุกอย่าง
+    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat) {
         result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
-        result.setRecommendation(String.format(
-                "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน \n" +
-                        "คำแนะนำ: หยุดเทรดชั่วคราว (Stop Trading) กลับมาทบทวนว่าคุณถนัดอะไรกันแน่ ก่อนเงินต้นจะหมด",
-                statedType, stockCat, actualType));
+
+        String baseRec = String.format(
+                "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน",
+                statedType, stockCat, actualType);
+
+        // เรียกใช้การวินิจฉัยเชิงลึก
+        String deepDiagnostic = diagnoseLossReason(result);
+        result.setRecommendation(baseRec + deepDiagnostic);
     }
 
     private String getTraderTypeFromCategory(String category) {
@@ -1091,5 +1110,96 @@ public class UserAnalyticsService {
                     .map(StockAsset::getSymbol)
                     .collect(Collectors.toList());
         }).orElse(new ArrayList<>());
+    }
+
+    // เพิ่มฟังก์ชันสำหรับคำนวณจำนวนไม้ขั้นต่ำแบบ Dynamic ตามประเภทนักเทรด
+    private int getRequiredTradeCount(String traderType) {
+        if (traderType == null) return 20; // ค่ามาตรฐาน
+        return switch (traderType) {
+            case "Scalper" -> 50;         // เทรดบ่อยมาก ต้องใช้จำนวนไม้สูงเพื่อตัด Noise
+            case "Day Trader" -> 30;      // จบในวัน ใช้จำนวนระดับปานกลาง
+            case "Swing Trader" -> 20;    // ถือข้ามวัน/ข้ามสัปดาห์
+            case "Position Trader" -> 10; // ถือยาวมาก รอบคัดกรองสูง 10 ไม้ก็เพียงพอ
+            default -> 20;
+        };
+    }
+
+    // ฟังก์ชัน: เจาะลึกสาเหตุการขาดทุนด้วย Win Rate, Risk/Reward, Money Management และ Risk Behaviors (Dynamic Threshold)
+    private String diagnoseLossReason(UserAnalyticsResult result) {
+        StringBuilder diag = new StringBuilder("\n\nวิเคราะห์สาเหตุการขาดทุนเชิงลึก (Trading Diagnostics):\n");
+
+        int totalTrades = result.getTotalClosedTrades();
+        String traderType = result.getTraderType() != null ? result.getTraderType() : "Unknown";
+
+        // ดึงค่าจำนวนไม้ขั้นต่ำแบบ Dynamic
+        int requiredTrades = getRequiredTradeCount(traderType);
+
+        // PHASE 1: Data Gathering Phase (ช่วงเก็บข้อมูล ยังไม่ถึงเกณฑ์)
+        if (totalTrades < requiredTrades) {
+            diag.append(String.format("้อมูลยังไม่เพียงพอ: สำหรับนักเทรดสาย %s เพิ่งเทรดจบไปเพียง %d ไม้ (ระบบต้องการอย่างน้อย %d ไม้เพื่อกรอง 'โชค' ออกจาก 'ฝีมือ')\n", traderType, totalTrades, requiredTrades));
+            diag.append("   - คำแนะนำช่วงเริ่มต้น: ในช่วงนี้อย่าเพิ่งกังวลกับ Win Rate หรือ Profit Factor ให้โฟกัสไปที่ 'การทำตามระบบ' และ 'การรักษาเงินทุน' เป็นหลัก\n");
+            // แม้ข้อมูลน้อย แต่ถ้าทำผิดพลาดเรื่อง Money Management ร้ายแรง ต้องเตือนทันที
+            boolean hasCriticalError = false;
+            if (result.getDiversificationFeedback() != null && result.getDiversificationFeedback().contains("กระจุกตัวสูง")) {
+                diag.append("\nคำเตือนเร่งด่วน (Critical Warning):\n");
+                diag.append("- ตรวจพบการลงเงินกระจุกตัว (Over-betting): คุณกำลังทุ่มเงินกับหุ้นบางตัวมากเกินไป ไม่ว่าระบบเทรดจะดีแค่ไหน การไม่กระจายความเสี่ยงจะทำให้พอร์ตพังในไม้เดียว\n");
+                hasCriticalError = true;
+            }
+            if (result.getWorstPerformingStockPnL() <= -20.0) {
+                if (!hasCriticalError) diag.append("\nคำเตือนเร่งด่วน (Critical Warning):\n");
+                diag.append(String.format("- ตรวจพบการปล่อยขาดทุนหนัก: หุ้น %s ติดลบถึง %.2f%% คุณต้องหัดใช้ Stop Loss ทันที อย่าปล่อยให้ขาดทุนบานปลาย\n", result.getWorstPerformingStock(), result.getWorstPerformingStockPnL()));
+            }
+
+            return diag.toString();
+        }
+
+        // PHASE 2: Deep Analytics Phase (เทรดผ่านเกณฑ์ขั้นต่ำแล้ว)
+        // 1. ตรวจสอบสมการความสำเร็จ (Win Rate vs Risk/Reward)
+        if (result.getWinRate() >= 50.0 && result.getRiskRewardRatio() < 1.0) {
+            diag.append("- ความแม่นยำ (Win Rate) ดี แต่ Risk/Reward ต่ำ: คุณมีจุดเข้าที่ดี แต่มักจะ 'ตัดกำไรไว แต่ทนถือขาดทุน' (ได้น้อย เสียมาก)\n");
+        } else if (result.getWinRate() < 50.0 && result.getRiskRewardRatio() >= 1.5) {
+            diag.append("- จุดคุ้มทุน (R:R) ดี แต่ความแม่นยำต่ำ: ปัญหาอยู่ที่ 'จุดเข้าซื้อ' (Entry Point) ควรใช้ Technical Analysis คัดกรองสัญญาณให้แม่นยำขึ้น\n");
+        } else if (result.getWinRate() < 50.0 && result.getRiskRewardRatio() < 1.0) {
+            diag.append("- ระบบเทรดพังทั้งความแม่นยำและจุดคุ้มทุน: แนะนำให้หยุดเทรดเงินจริง และกลับไป Backtest กลยุทธ์ใหม่ทั้งหมด\n");
+        }
+
+        // 2. ตรวจสอบประสิทธิภาพรวม (Profit Factor)
+        if (result.getProfitFactor() < 1.0 && result.getProfitFactor() > 0.0) {
+            diag.append(String.format("- Profit Factor ต่ำ (%.2f): ระบบเทรดโดยรวมยังเป็นลบ (Gross Loss สูงกว่า Gross Profit) บ่งบอกว่ากลยุทธ์ปัจจุบันยังไม่สามารถทำกำไรในระยะยาวได้\n", result.getProfitFactor()));
+        }
+
+        // 3. ตรวจสอบภาวะอารมณ์ (Losing Streak / Tilt)
+        if (result.getMaxConsecutiveLosses() >= 4) {
+            diag.append(String.format("-  อาการหัวร้อน (Revenge Trading): คุณมีการเทรดเสียติดต่อกันถึง %d ไม้ บ่งบอกถึงการฝืนเทรดเพื่อเอาคืน ควรมีกฎ Daily Loss Limit (แพ้ครบจำนวนต้องหยุดเทรดทันที)\n", result.getMaxConsecutiveLosses()));
+        }
+
+        // 4. ตรวจสอบการบริหารหน้าตัก (Position Sizing)
+        if (result.getDiversificationFeedback() != null && result.getDiversificationFeedback().contains("กระจุกตัวสูง")) {
+            diag.append("-  การจัดการเงินทุน (Position Sizing) ผิดพลาด: คุณลงเงินกระจุกตัวในหุ้นบางตัวมากเกินไป (Over-betting) เมื่อผิดทางจึงส่งผลให้พอร์ตเสียหายหนัก\n");
+        }
+        // 5. วิเคราะห์หา "ตัวสูบเงิน" (Worst Performing Stock)
+        if (result.getWorstPerformingStock() != null && !result.getWorstPerformingStock().equals("-")) {
+            diag.append(String.format("- หุ้นตัวร้าย (Capital Drainer): หุ้นที่ดึงเงินจากพอร์ตคุณมากที่สุดคือ %s (ขาดทุนรวม %.2f%%) ระวังการฝืนเล่นหุ้นตัวนี้ด้วยความหวัง (Hope) หรือความดื้อรั้น\n",
+                    result.getWorstPerformingStock(), result.getWorstPerformingStockPnL()));
+        }
+        // 6. เอาพฤติกรรมเสี่ยง (Risk Behaviors) เข้ามาผสม
+        boolean hasBehavioralIssue = false;
+        if ("พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
+            diag.append("-  อาการ FOMO: คุณมักไล่ซื้อหุ้นตอนที่ราคาวิ่งไปไกลแล้ว (Buy High) ทำให้ดอยง่าย\n");
+            hasBehavioralIssue = true;
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
+            diag.append("-  ขาดวินัย Stop Loss: คุณทนถือหุ้นขาดทุน (Holding Losers) หวังให้มันกลับมา ซึ่งกัดกินพอร์ตอย่างรุนแรง\n");
+            hasBehavioralIssue = true;
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
+            diag.append("-  ขายหมูบ่อย (Selling Winners Too Early): รีบขายทำกำไรเกินไป ทำให้เวลาได้กำไรไม่พอชดเชยกับเวลาที่เสียไป\n");
+            hasBehavioralIssue = true;
+        }
+
+        if (hasBehavioralIssue || result.getMaxConsecutiveLosses() >= 4) {
+            diag.append("\nคำแนะนำจากมืออาชีพ: ปัญหาหลักของคุณตอนนี้ไม่ใช่ 'ความรู้ทางเทคนิค' แต่เป็น 'วินัยและอารมณ์' จงจำกัดความเสี่ยงต่อไม้ (Risk per trade) ไม่เกิน 1-2% ของพอร์ต และตั้ง Stop Loss เสมอ");
+        }
+        return diag.toString();
     }
 }
