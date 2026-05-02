@@ -87,7 +87,7 @@ public class MarketDataService {
         switch (viewType.toUpperCase()) {
 
             case "1D":
-                timeframe = "1Min";
+                timeframe = "2Min";
                 // แก้ให้รองรับวันหยุด: ถอยไปหาวันทำการล่าสุด (จันทร์-ศุกร์)
                 DayOfWeek dow = nowNY.getDayOfWeek();
                 if (dow == DayOfWeek.SATURDAY) {
@@ -119,7 +119,7 @@ public class MarketDataService {
                 break;
 
             case "1M":
-                timeframe = "1Day";
+                timeframe = "30Min";
                 startTime = targetOpen.minusMonths(1).minusDays(3); // เผื่อ buffer 3 วัน
                 break;
 
@@ -150,7 +150,7 @@ public class MarketDataService {
         // cleanSymbol, viewType, timeframe, rawDate);
         // 1. สร้าง URL แบบเดียวกับ cURL เป๊ะๆ
         String urlString = String.format(
-                "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&limit=%d",
+                "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&limit=%d&adjustment=split",
                 cleanSymbol, timeframe, rawDate, limit);
         // แปลงเป็น URI Object เพื่อบังคับใช้ URL นี้เป๊ะๆ
         URI uri = URI.create(urlString);
@@ -514,7 +514,7 @@ public class MarketDataService {
         int actualLimit = (limit != null && limit > 0) ? limit : 1000;
 
         String urlString = String.format(
-                "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&end=%s&limit=%d",
+                "https://data.alpaca.markets/v2/stocks/%s/bars?timeframe=%s&feed=iex&start=%s&end=%s&limit=%d&adjustment=split",
                 cleanSymbol, timeframe, startStr, endStr, actualLimit);
 
         return fetchBarsFromApi(urlString);
