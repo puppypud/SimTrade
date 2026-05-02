@@ -69,8 +69,8 @@ const SearchBar = ({ type = 'stock', placeholder }: SearchBarProps) => {
                 return;
             }
         } else {
-            // โหมดปกติ (หุ้น): บล็อกอักขระพิเศษทุกอย่าง
-            refinedValue = rawValue.replace(/[^a-zA-Z0-9\s]/g, '').toUpperCase();
+            // โหมดปกติ แต่เมื่อรวมคริปโตแล้ว ต้องอนุญาตให้พิมพ์สแลช (/) ได้ด้วยเช่นกัน
+            refinedValue = rawValue.replace(/[^a-zA-Z0-9\s/]/g, '').toUpperCase();
         }
 
         setSearchInput(refinedValue);
