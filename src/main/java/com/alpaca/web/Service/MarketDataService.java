@@ -1,18 +1,15 @@
 package com.alpaca.web.Service;
 
 import com.alpaca.web.dto.StockSearchDto;
+import com.alpaca.web.dto.StockSearchResultDTO;
 import net.jacobpeterson.alpaca.AlpacaAPI;
 import net.jacobpeterson.alpaca.model.util.apitype.MarketDataWebsocketSourceType;
 import net.jacobpeterson.alpaca.model.util.apitype.TraderAPIEndpointType;
 import net.jacobpeterson.alpaca.openapi.broker.model.Clock;
-import net.jacobpeterson.alpaca.openapi.brokerapi.model.Asset;
-import net.jacobpeterson.alpaca.openapi.marketdata.model.CryptoLatestLoc;
 import net.jacobpeterson.alpaca.openapi.trader.model.Assets;
+import org.apache.commons.text.similarity.JaroWinklerDistance;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
-import net.jacobpeterson.alpaca.AlpacaAPI; // Import เพิ่ม
-import net.jacobpeterson.alpaca.model.util.apitype.BrokerAPIEndpointType; // Import เพิ่ม
 import jakarta.annotation.PostConstruct; // Import เพิ่ม
-import net.jacobpeterson.alpaca.openapi.tradingapi.model.AssetClass;
 import org.slf4j.Logger;
 import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.LoggerFactory;
@@ -24,26 +21,23 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.util.UriComponentsBuilder;
-import jakarta.annotation.PostConstruct;
-import java.math.BigDecimal;
+
 import java.time.format.DateTimeFormatter;
 import java.time.*;
 import java.net.URI;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.stream.Collectors;
 
-import net.jacobpeterson.alpaca.openapi.trader.ApiException;
+import com.alpaca.web.Repository.StockAssetRepository;
+import java.util.stream.Collectors;
+import java.time.OffsetDateTime;
+import java.util.*;
 
 @Service
 public class MarketDataService {
     private static final Logger log = LoggerFactory.getLogger(MarketDataService.class);
     private final RestTemplate restTemplate = new RestTemplate();
+    private final StockAnalysisService stockAnalysisService;
+    private final StockAssetRepository stockAssetRepository;
+    private final JaroWinklerDistance distanceCalculator = new JaroWinklerDistance();  // ไว้ทำSearch แบบใส่คำผิดได้
     private BrokerService brokerService;
     private AlpacaAPI alpacaAPI;
     private boolean isMaintenanceActive = false; // ตั้งค่าเริ่มต้นเป็น false
@@ -76,7 +70,9 @@ public class MarketDataService {
         }
     }
 
-    public MarketDataService(BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
+    public MarketDataService(StockAnalysisService stockAssetRepository, StockAnalysisService stockAnalysisService, StockAssetRepository stockAssetRepository1, BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
+        this.stockAnalysisService = stockAnalysisService;
+        this.stockAssetRepository = stockAssetRepository1;
         this.brokerService = brokerService;
     }
 
@@ -216,7 +212,7 @@ public class MarketDataService {
             if (response.getBody() != null) {
                 Map<String, Object> body = response.getBody();
 
-                Map<String, Object> result = new java.util.HashMap<>();
+                Map<String, Object> result = new HashMap<>();
                 result.put("symbol", body.get("symbol"));
 
                 if (body.containsKey("latestTrade")) {
@@ -442,7 +438,7 @@ public class MarketDataService {
 
     /// code ไว้ดึงข้อมูลตัวหุ้น มา และเก็บใน menony
     @Cacheable("allTradableAssets")
-    public List<StockSearchDto> getTradableAssets() {
+    public List<StockSearchResultDTO> getTradableAssets() {
         try {
             // ดึงข้อมูลหุ้นสหรัฐและคริปโตมารวมกัน
             List<Assets> usAssets = alpacaAPI.trader().assets().getV2Assets("active", "us_equity", null, null);
@@ -454,18 +450,22 @@ public class MarketDataService {
 
             return combined.stream()
                     .filter(asset -> Boolean.TRUE.equals(asset.getTradable()))
-                    .map(asset -> new StockSearchDto(
-                            asset.getSymbol(),
-                            asset.getName(),
-                            asset.getExchange().toString()))
+                    .map(asset -> {
+                        StockSearchResultDTO dto = new StockSearchResultDTO();
+                        dto.setSymbol(asset.getSymbol());
+                        dto.setName(asset.getName());
+                        dto.setExchange(asset.getExchange() != null ? asset.getExchange().toString() : "CRYPTO");
+                        dto.setStatus(asset.getStatus() != null ? asset.getStatus().toString() : "ACTIVE");
+                        dto.setStatus(asset.getStatus().toString());
+                        return dto;
+                    })
                     .collect(Collectors.toList());
-
         } catch (Exception e) {
-            throw new RuntimeException("ไม่สามารถดึงข้อมูลรายชื่อสินทรัพย์จาก Alpaca API ได้: " + e.getMessage());
+            throw new RuntimeException("Error fetching Alpaca assets: " + e.getMessage());
         }
     }
 
-    /// code Search Function หุ้น คือรับค่า keyword แต่รับมาจากหน้าบ้าน
+   /* /// code Search Function หุ้น คือรับค่า keyword แต่รับมาจากหน้าบ้าน  *** code นี้พังเพราะแก้ เดียวกลับมาใช้ถ้าอันใหม่ พัง
     public List<StockSearchDto> searchAssets(String keyword) {
         List<StockSearchDto> allAssets = getTradableAssets();
 
@@ -481,10 +481,10 @@ public class MarketDataService {
                         (asset.getName() != null && asset.getName().toLowerCase().contains(searchString)))
                 .limit(20)
                 .collect(Collectors.toList());
-    }
+    }*/
 
     /**
-     * 🟢 ฟังก์ชันใหม่: ดึงข้อมูลกราฟย้อนหลังเพื่อการวิเคราะห์ (Analytics)
+     *  ฟังก์ชันใหม่: ดึงข้อมูลกราฟย้อนหลังเพื่อการวิเคราะห์ (Analytics)
      * ต่างจาก getStockBars ปกติตรงที่ระบุ start/end ได้อิสระ
      */
     public List<StockBar> getHistoricalBars(String symbol, ZonedDateTime start, ZonedDateTime end, String timeframe,
@@ -570,5 +570,130 @@ public class MarketDataService {
             log.error("❌ Error fetching historical bars: {}", e.getMessage());
         }
         return Collections.emptyList();
+    }
+
+    public List<StockSearchResultDTO> hybridSearchAndFilter(
+            String keyword, String category, String industry, String sortBy, String direction) {
+
+        List<StockSearchResultDTO> results = new ArrayList<>();
+
+        // Logic เลือกแหล่งข้อมูล
+        if (category != null || industry != null) {
+            // ดึงจาก DB
+
+            results = stockAssetRepository.hybridSearchDb(keyword, category, industry)
+                    .stream().map(asset -> {
+                        // ✅ แนะนำให้ใช้ Setter (หรือ Builder) แทน Constructor ยาวๆ เพื่อป้องกันการใส่ค่าผิดตำแหน่ง
+                        StockSearchResultDTO dto = new StockSearchResultDTO();
+                        dto.setSymbol(asset.getSymbol());
+                        dto.setName(asset.getName());
+                        dto.setExchange(asset.getAssetClass());
+                        dto.setAssetClass(asset.getAssetClass());
+                        dto.setStatus("ACTIVE");
+                        dto.setCategory(asset.getCategory());
+                        dto.setIndustry(asset.getIndustry());
+
+                        // ✅ ดึงข้อมูลการเงินจาก DB ใส่ DTO
+                        dto.setMarketcap(asset.getMarketCap());
+                        dto.setBata(asset.getBeta());
+                        dto.setVolume(asset.getAvgVolume()); // ใน Entity ของคุณใช้ชื่อ avgVolume
+
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            // ดึงจาก API (Search ทั่วโลก)
+            List<StockSearchResultDTO> allAssets = getTradableAssets();
+            String searchStr = keyword != null ? keyword.trim().toLowerCase() : "";
+
+            if (searchStr.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            results = allAssets.stream()
+                    // ✅ 2. คัดกรองข้อมูลก่อน
+                    .filter(a -> {
+                        String sym = a.getSymbol() != null ? a.getSymbol().toLowerCase() : "";
+                        String name = a.getName() != null ? a.getName().toLowerCase() : "";
+
+                        // กฎพิเศษ: ถ้าพิมพ์ตัวเดียว บังคับหาแค่ Symbol ที่ขึ้นต้นด้วยตัวนั้นเท่านั้น (กันหุ้น B, C, D โผล่มา)
+                        if (searchStr.length() == 1) {
+                            return sym.startsWith(searchStr);
+                        }
+
+                        // ถ้าพิมพ์ 2 ตัวขึ้นไป เอาตัวที่เกี่ยวข้องกัน (คะแนน > 0)
+                        return getSearchScore(sym, name, searchStr) > 0;
+                    })
+                    // ✅ 3. เรียงลำดับ (Symbol ต้องมาก่อน Name เสมอ)
+                    .sorted((a, b) -> {
+                        String symA = a.getSymbol().toLowerCase();
+                        String nameA = a.getName() != null ? a.getName().toLowerCase() : "";
+                        String symB = b.getSymbol().toLowerCase();
+                        String nameB = b.getName() != null ? b.getName().toLowerCase() : "";
+
+                        int scoreA = getSearchScore(symA, nameA, searchStr);
+                        int scoreB = getSearchScore(symB, nameB, searchStr);
+
+                        // กฎที่ 1: เรียงตามคะแนนความแม่นยำ (คะแนนมากอยู่บน)
+                        if (scoreA != scoreB) {
+                            return Integer.compare(scoreB, scoreA);
+                        }
+
+                        // กฎที่ 2: ถ้าคะแนนเท่ากัน ให้ตัวย่อที่ "สั้นกว่า" อยู่บน (เช่น A มาก่อน AA)
+                        if (symA.length() != symB.length()) {
+                            return Integer.compare(symA.length(), symB.length());
+                        }
+
+                        // กฎที่ 3: นอกเหนือจากนั้นเรียงตามตัวอักษร A-Z
+                        return symA.compareTo(symB);
+                    })
+                    .limit(50)
+                    .collect(Collectors.toList());
+        }
+
+        // ===== ระบบเรียงลำดับ (Sorting) ขั้นสูง =====
+        if (sortBy != null) {
+            Comparator<StockSearchResultDTO> comparator;
+            switch (sortBy.toLowerCase()) {
+                case "name":
+                    comparator = Comparator.comparing(StockSearchResultDTO::getName, Comparator.nullsLast(Comparator.naturalOrder()));
+                    break;
+                case "marketcap": // ✅ เพิ่มการเรียงตามมูลค่าตลาด
+                    comparator = Comparator.comparing(StockSearchResultDTO::getMarketcap, Comparator.nullsLast(Comparator.naturalOrder()));
+                    break;
+                case "volume":    // ✅ เพิ่มการเรียงตามปริมาณซื้อขาย
+                    comparator = Comparator.comparing(StockSearchResultDTO::getVolume, Comparator.nullsLast(Comparator.naturalOrder()));
+                    break;
+                case "beta":      // ✅ เพิ่มการเรียงตามความผันผวน
+                    comparator = Comparator.comparing(StockSearchResultDTO::getBata, Comparator.nullsLast(Comparator.naturalOrder()));
+                    break;
+                case "symbol":
+                default:
+                    comparator = Comparator.comparing(StockSearchResultDTO::getSymbol, Comparator.nullsLast(Comparator.naturalOrder()));
+                    break;
+            }
+
+            if ("desc".equalsIgnoreCase(direction)) {
+                comparator = comparator.reversed();
+            }
+            results.sort(comparator);
+        }
+
+        return results;
+    }
+    //งก์ชันกำหนดลำดับความสำคัญ (Symbol ต้องมาก่อน Name)
+    private int getSearchScore(String symbol, String name, String searchStr) {
+
+        // 🏆 กลุ่มที่ 1: พิจารณา รหัสหุ้น (Symbol) ก่อน - คะแนน 60-100
+        if (symbol.equals(searchStr)) return 100;       // 1.1 รหัสตรงเป๊ะ
+        if (symbol.startsWith(searchStr)) return 80;    // 1.2 รหัสขึ้นต้นด้วย (เช่น AAPL)
+        if (symbol.contains(searchStr)) return 60;      // 1.3 รหัสมีคำซ่อนอยู่
+
+        // 🥈 กลุ่มที่ 2: พิจารณา ชื่อบริษัท (Name) ไว้ทีหลัง - คะแนน 10-40
+        if (name.equals(searchStr)) return 40;          // 2.1 ชื่อตรงเป๊ะ
+        if (name.startsWith(searchStr)) return 20;      // 2.2 ชื่อบริษัทขึ้นต้นด้วย
+        if (name.contains(searchStr)) return 10;        // 2.3 ชื่อบริษัทมีคำซ่อนอยู่
+
+        return 0; // ไม่เกี่ยวข้องกันเลย ตัดทิ้ง
     }
 }

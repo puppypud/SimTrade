@@ -427,16 +427,32 @@ public class BrokerController {
 
     @GetMapping("/assets/search")
     public ResponseEntity<?> searchAssets(
-            @RequestParam("keyword") String keyword) {
-        try {
-            // เรียกใช้ Service ที่คุณเพิ่งเขียน
-            List<StockSearchDto> results = marketDataService.searchAssets(keyword);
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "industry", required = false) String industry,
+            @RequestParam(value = "sortBy", defaultValue = "symbol") String sortBy,
+            @RequestParam(value = "direction", defaultValue = "asc") String direction) {
 
-            // ส่งผลลัพธ์กลับไปให้หน้าบ้าน
+        log.info("Search Request: keyword={}, category={}, industry={}, sortBy={}, direction={}",
+                keyword, category, industry, sortBy, direction);
+
+        try {
+            // ✅ เรียกใช้ระบบ Hybrid ที่เราทำไว้ใน MarketDataService
+            List<StockSearchResultDTO> results = marketDataService.hybridSearchAndFilter(
+                    keyword, category, industry, sortBy, direction
+            );
+
+            // ถ้าไม่เจอข้อมูลเลย
+            if (results.isEmpty()) {
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+
             return ResponseEntity.ok(results);
+
         } catch (Exception e) {
-            log.error("Failed to search assets with keyword: {}", keyword, e);
-            return ResponseEntity.internalServerError().body("❌ Error searching assets: " + e.getMessage());
+            log.error("❌ Failed to search assets: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error during search: " + e.getMessage());
         }
     }
 
