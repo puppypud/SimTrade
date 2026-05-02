@@ -42,10 +42,30 @@ const StockLWChart = ({ symbol }: StockLWChartProps) => {
     try {
       if (chartData.length === 0) setIsLoading(true);
 
-      const [bars, quote]: [any[], any] = await Promise.all([
-        brokerService.getStockBars(sym, vType),
-        brokerService.getLatestQuote(sym)
+      // Detect if symbol is crypto (contains "/") and use appropriate endpoints
+      const isCrypto = sym.includes('/');
+
+      // Use Promise.allSettled so a failed quote doesn't prevent chart from rendering
+      const results = await Promise.allSettled([
+        isCrypto ? brokerService.getCryptoBars(sym, vType) : brokerService.getStockBars(sym, vType),
+        isCrypto ? brokerService.getLatestCryptoQuote(sym) : brokerService.getLatestQuote(sym)
       ]);
+
+      let bars: any[] = results[0].status === 'fulfilled' ? results[0].value : [];
+      const quote: any = results[1].status === 'fulfilled' ? results[1].value : null;
+
+      // Fallback: ถ้า 1D ไม่มีข้อมูล (เช่น ตลาดปิด/วันหยุด) ลอง 5D แล้ว 1M
+      if (bars.length === 0 && vType === "1D") {
+        const fallbackViews = ["5D", "1M"];
+        for (const fb of fallbackViews) {
+          try {
+            bars = isCrypto
+              ? await brokerService.getCryptoBars(sym, fb)
+              : await brokerService.getStockBars(sym, fb);
+            if (bars.length > 0) break;
+          } catch { /* continue to next fallback */ }
+        }
+      }
 
       bars.sort(
         (a: any, b: any) => new Date(a.t).getTime() - new Date(b.t).getTime()

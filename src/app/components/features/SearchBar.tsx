@@ -58,17 +58,27 @@ const SearchBar = () => {
         }, 300); // 300ms debounce
     };
 
+    const isCryptoSymbol = (symbol: string, exchange?: string) => {
+        // Crypto symbols typically contain "/" (e.g., BTC/USD)
+        // or come from crypto exchanges
+        const cryptoExchanges = ['FTXU', 'CBSE', 'ERSX', 'CRYPTO'];
+        return symbol.includes('/') || (exchange && cryptoExchanges.includes(exchange.toUpperCase()));
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter' && searchInput.trim()) {
             setIsDropdownOpen(false);
-            router.push(`/trade?symbol=${searchInput.toUpperCase()}`);
+            const sym = searchInput.toUpperCase();
+            const path = isCryptoSymbol(sym) ? '/tradecrypto' : '/trade';
+            router.push(`${path}?symbol=${sym}`);
         }
     };
 
-    const handleSelectSymbol = (symbol: string) => {
+    const handleSelectSymbol = (symbol: string, exchange?: string) => {
         setSearchInput(symbol);
         setIsDropdownOpen(false);
-        router.push(`/trade?symbol=${symbol.toUpperCase()}`);
+        const path = isCryptoSymbol(symbol, exchange) ? '/tradecrypto' : '/trade';
+        router.push(`${path}?symbol=${symbol.toUpperCase()}`);
     };
 
     return (
@@ -104,7 +114,7 @@ const SearchBar = () => {
                         {results.map((result) => (
                             <li
                                 key={result.symbol}
-                                onClick={() => handleSelectSymbol(result.symbol)}
+                                onClick={() => handleSelectSymbol(result.symbol, result.exchange)}
                                 className="px-4 py-2 hover:bg-background cursor-pointer flex justify-between items-center transition-colors"
                             >
                                 <div className="flex flex-col">
