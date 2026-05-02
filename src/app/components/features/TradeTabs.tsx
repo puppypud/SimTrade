@@ -535,34 +535,44 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
             </div>
           )}
 
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={loading || !symbol}
-            className={`w-full text-white font-bold rounded-xl text-sm px-5 py-3.5 text-center shadow-md transition-all transform active:scale-[0.98] duration-200
-              ${loading
-                ? "bg-gray-400 cursor-not-allowed"
-                : isBuy
-                  ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
-                  : "bg-red-600 hover:bg-red-700 shadow-red-200"
-              }
-            `}
-          >
-            {loading ? (
-              "Processing..."
-            ) : (
-              <>
-                {orderSide} {formatSymbolDisplay(symbol)}
-                <span className="opacity-80 font-normal ml-1">
-                  (
-                  {inputMode === "SHARES"
-                    ? `${amount || 0} Shares`
-                    : `$${amount || 0}`}
-                  )
-                </span>
-              </>
-            )}
-          </button>
+          {!user ? (
+            <button
+              type="button"
+              onClick={() => window.location.href = '/login'}
+              className="w-full text-[#1A1A1A] font-extrabold rounded-xl text-sm px-5 py-3.5 text-center shadow-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] duration-200 bg-gold hover:bg-yellow-400"
+            >
+               Log in to Trade {formatSymbolDisplay(symbol)}
+            </button>
+          ) : (
+            <button
+              type="submit"
+              onClick={handleSubmit}
+              disabled={loading || !symbol}
+              className={`w-full text-white font-bold rounded-xl text-sm px-5 py-3.5 text-center shadow-md transition-all transform active:scale-[0.98] duration-200
+                ${loading
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : isBuy
+                    ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200"
+                    : "bg-red-600 hover:bg-red-700 shadow-red-200"
+                }
+              `}
+            >
+              {loading ? (
+                "Processing..."
+              ) : (
+                <>
+                  {orderSide} {formatSymbolDisplay(symbol)}
+                  <span className="opacity-80 font-normal ml-1">
+                    (
+                    {inputMode === "SHARES"
+                      ? `${amount || 0} Shares`
+                      : `$${amount || 0}`}
+                    )
+                  </span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

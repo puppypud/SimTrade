@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { StockQuote } from "@/src/app/types/broker";
 import { formatSymbolDisplay } from "@/src/app/utils/formatters";
-import { Trash2, Plus, TrendingUp, TrendingDown, Star } from "lucide-react";
+import { Trash2, Plus, TrendingUp, TrendingDown, Star, Lock } from "lucide-react";
 import { useAuth } from "@/src/context/AuthContext";
 
 interface WatchlistPanelProps {
@@ -33,6 +33,24 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
     const [loading, setLoading] = useState(true);
     const [expandedSeven, setExpandedSeven] = useState(false);
     const [expandedRecommended, setExpandedRecommended] = useState(false);
+    const [showGuestModal, setShowGuestModal] = useState(false);
+
+    const handleTradeClick = (e: React.MouseEvent, symbol: string) => {
+        e.stopPropagation();
+        if (!user) {
+            setShowGuestModal(true);
+        } else {
+            onSelectSymbol(symbol);
+        }
+    };
+
+    const handleRowClick = (symbol: string) => {
+        if (!user) {
+            setShowGuestModal(true);
+        } else {
+            onSelectSymbol(symbol);
+        }
+    };
 
     useEffect(() => {
         const fetchIdentityAndStocks = async () => {
@@ -231,7 +249,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         return (
             <div
                 key={symbol}
-                onClick={() => onSelectSymbol(symbol)}
+                onClick={() => handleRowClick(symbol)}
                 className={`flex flex-col py-4 px-4 border-b border-theme-border/50 last:border-0 transition-all cursor-pointer group relative hover:bg-gold/5
           ${isSelected ? "bg-gold/10" : "bg-transparent"}`}
             >
@@ -239,7 +257,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[9px] font-black uppercase tracking-wider border border-gold/20">
-                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : "หุ้นกลุ่มเดียวกัน"}
+                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : (user ? "หุ้นกลุ่มเดียวกัน" : "Trending")}
                         </span>
                         {isUp && percentChange > 5 && (
                             <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-wider border border-emerald-500/20">
@@ -289,24 +307,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         )}
                     </div>
                 </div>
-
-                {/* Hover Quick Actions */}
-                <div className="absolute inset-0 bg-gold/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none flex items-center justify-center">
-                    <div className="bg-background/90 backdrop-blur-md px-4 py-2 rounded-2xl border border-gold/30 shadow-2xl scale-90 group-hover:scale-100 transition-transform pointer-events-auto flex gap-2">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onSelectSymbol(symbol); }}
-                            className="bg-gold text-black text-[10px] font-black px-4 py-2 rounded-xl hover:bg-gold-hover transition-colors uppercase tracking-widest"
-                        >
-                            Trade {symbol}
-                        </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onSelectSymbol(symbol); }}
-                            className="bg-gold text-black text-[10px] font-black px-4 py-2 rounded-xl hover:bg-gold-hover transition-colors uppercase tracking-widest"
-                        >
-                            Trade {symbol}
-                        </button>
-                    </div>
-                </div>
             </div>
         );
     };
@@ -350,7 +350,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 <div className="p-5 border-b border-theme-border flex items-center justify-between">
                     <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                         <Star className="w-5 h-5 text-gold" />
-                        ตัวเลือกหุ้นในกลุ่มเดียวกัน
+                        {user ? "ตัวเลือกหุ้นในกลุ่มเดียวกัน" : "Trending Stocks"}
                     </h2>
                     <button
                         onClick={() => {
@@ -405,6 +405,40 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
           background-color: #d1d5db;
         }
       `}} />
+
+            {/* Guest Modal Overlay */}
+            {showGuestModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+                    onClick={() => setShowGuestModal(false)}
+                >
+                    <div 
+                        className="bg-surface border border-theme-border rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-16 h-16 bg-yellow-400/10 rounded-full flex items-center justify-center mb-5">
+                            <Lock className="w-8 h-8 text-yellow-500" />
+                        </div>
+                        <h3 className="text-2xl font-bold text-foreground mb-3">เฉพาะสมาชิกเท่านั้น</h3>
+                        <p className="text-muted text-sm mb-8 leading-relaxed">
+                            กรุณาเข้าสู่ระบบ หรือสมัครสมาชิกเพื่อเริ่มต้นจำลองการเทรดและเข้าถึงฟีเจอร์อย่างเต็มรูปแบบ
+                        </p>
+                        <div className="flex gap-3 w-full">
+                            <button 
+                                onClick={() => setShowGuestModal(false)} 
+                                className="flex-1 py-3 rounded-xl border-2 border-theme-border text-foreground font-bold hover:bg-background transition-colors"
+                            >
+                                ยกเลิก
+                            </button>
+                            <button 
+                                onClick={() => window.location.href = '/register'} 
+                                className="flex-1 py-3 rounded-xl bg-yellow-400 text-[#1A1A1A] font-extrabold hover:bg-yellow-500 transition-colors"
+                            >
+                                สมัครสมาชิก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

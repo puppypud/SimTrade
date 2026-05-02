@@ -2,7 +2,9 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-// Define the shape of our user
+// ----------------------------------------------------------------------
+// 1. กำหนดรูปแบบข้อมูล (User Interface & Context Type)
+// ----------------------------------------------------------------------
 export interface User {
     id: number;
     email: string;
@@ -13,7 +15,6 @@ export interface User {
     name?: string; // keeping name for backwards compatibility
 }
 
-// Define the context shape
 interface AuthContextType {
     user: User | null;
     login: (userData: User) => void;
@@ -22,14 +23,20 @@ interface AuthContextType {
     isLoading: boolean;
 }
 
+// ----------------------------------------------------------------------
+// 2. สร้าง Context ของผู้ใช้
+// ----------------------------------------------------------------------
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ----------------------------------------------------------------------
+// 3. Provider Component สำหรับจัดการข้อมูล Auth
+// ----------------------------------------------------------------------
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
+    // โหลดข้อมูลผู้ใช้จาก localStorage เมื่อเปิดเว็บ
     useEffect(() => {
-        // Check for existing session in localStorage on mount
         const storedUser = localStorage.getItem('simtrade_user');
         if (storedUser) {
             try {
@@ -42,16 +49,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
     }, []);
 
+    // ฟังก์ชันเข้าสู่ระบบ
     const login = (userData: User) => {
         setUser(userData);
         localStorage.setItem('simtrade_user', JSON.stringify(userData));
     };
 
+    // ฟังก์ชันออกจากระบบ
     const logout = () => {
         setUser(null);
-        localStorage.removeItem('simtrade_user');
+        // เก็บธีมไว้ ไม่ลบตอน logout
+        const theme = localStorage.getItem('theme');
+        localStorage.clear();
+        if (theme) {
+            localStorage.setItem('theme', theme);
+        }
     };
 
+    // ฟังก์ชันอัปเดตข้อมูลบางส่วน
     const updateUser = (updates: Partial<User>) => {
         setUser(prev => {
             if (!prev) return prev;
@@ -68,7 +83,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 }
 
-// Custom hook to use the auth context
+// ----------------------------------------------------------------------
+// 4. Custom Hook สำหรับเรียกใช้ Auth 
+// ----------------------------------------------------------------------
 export function useAuth() {
     const context = useContext(AuthContext);
     if (context === undefined) {

@@ -6,12 +6,18 @@ import { brokerService } from '@/src/app/services/brokerService';
 import { StockSearchDto } from '@/src/app/types/broker';
 import { formatSymbolDisplay } from "@/src/app/utils/formatters";
 
-const SearchBar = () => {
+interface SearchBarProps {
+    type?: 'stock' | 'crypto';
+    placeholder?: string;
+}
+
+const SearchBar = ({ type = 'stock', placeholder }: SearchBarProps) => {
     const router = useRouter();
     const [searchInput, setSearchInput] = useState('');
     const [results, setResults] = useState<StockSearchDto[]>([]);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -26,19 +32,18 @@ const SearchBar = () => {
     }, []);
 
     const fetchSearchResults = async (keyword: string) => {
-        if (!keyword.trim()) {
+        const trimmedKeyword = keyword.trim();
+        if (!trimmedKeyword) {
             setResults([]);
             setIsDropdownOpen(false);
+            setIsLoading(false);
             return;
         }
 
-        setIsLoading(true);
         try {
-            const data = await brokerService.searchAssets(keyword);
-            // Backend returns a generic response, ensure to extract array
+            const data = await brokerService.searchAssets(trimmedKeyword);
             const searchResults = Array.isArray(data) ? data : ((data as any).data || []);
             setResults(searchResults);
-            setIsDropdownOpen(searchResults.length > 0);
         } catch (error) {
             console.error('Failed to search assets:', error);
             setResults([]);
@@ -48,14 +53,43 @@ const SearchBar = () => {
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setSearchInput(value);
+        let rawValue = e.target.value;
+        let refinedValue = '';
+        setSearchError(null);
+
+        if (type === 'crypto') {
+            // โหมด Crypto: อนุญาตให้พิมพ์สแลชได้ และแปลงเป็นตัวใหญ่
+            refinedValue = rawValue.replace(/[^a-zA-Z0-9\s/]/g, '').toUpperCase();
+            
+            // ดักจับ Contract Address (ขึ้นต้นด้วย 0X)
+            if (refinedValue.startsWith('0X') && refinedValue.length > 2) {
+                setSearchError('กรุณาพิมพ์ชื่อเหรียญ (เช่น BTC) แทนการใช้ Contract Address ครับ');
+                setSearchInput(refinedValue);
+                setIsDropdownOpen(true);
+                return;
+            }
+        } else {
+            // โหมดปกติ (หุ้น): บล็อกอักขระพิเศษทุกอย่าง
+            refinedValue = rawValue.replace(/[^a-zA-Z0-9\s]/g, '').toUpperCase();
+        }
+
+        setSearchInput(refinedValue);
 
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
 
+        if (!refinedValue.trim()) {
+            setResults([]);
+            setIsDropdownOpen(false);
+            setIsLoading(false);
+            return;
+        }
+
+        setIsDropdownOpen(true);
+        setIsLoading(true);
+
         debounceTimeout.current = setTimeout(() => {
-            fetchSearchResults(value);
-        }, 300); // 300ms debounce
+            fetchSearchResults(refinedValue);
+        }, 500); // 500ms debounce
     };
 
     const isCryptoSymbol = (symbol: string, exchange?: string) => {
@@ -98,7 +132,7 @@ const SearchBar = () => {
             <input
                 type="text"
                 className="w-full bg-background border border-theme-border text-foreground text-sm rounded-4xl focus:ring-2 focus:ring-gold focus:border-gold block pl-10 p-2.5 outline-none transition-all placeholder-muted"
-                placeholder="Search symbol (e.g. AAPL)..."
+                placeholder={placeholder || (type === 'crypto' ? "ค้นหาเหรียญ (เช่น BTC, ETH)..." : "Search symbol (e.g. AAPL)...")}
                 value={searchInput}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}

@@ -4,7 +4,6 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import StockLWChart from '@/src/app/components/ui/Chart';
 import TradeTabs from '@/src/app/components/features/TradeTabs';
-import MarketNewsBanner from '@/src/app/components/features/MarketNewsBanner';
 import StockInfoPanel from '@/src/app/components/features/StockInfoPanel';
 import { ArrowLeft } from 'lucide-react';
 
@@ -56,11 +55,6 @@ function TradeStockContent() {
 
                     {/* Left Column: Chart Area & Banners */}
                     <div className="flex-1 w-full lg:w-auto min-w-0 flex flex-col">
-                        {/* News Banner */}
-                        <div className="mb-6 w-full">
-                            <MarketNewsBanner />
-                        </div>
-
                         {/* Chart */}
                         {currentSymbol ? (
                             <>
