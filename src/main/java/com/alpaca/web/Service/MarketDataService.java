@@ -88,11 +88,22 @@ public class MarketDataService {
 
             case "1D":
                 timeframe = "1Min";
-                // แก้ให้เริ่มที่เวลาเปิดตลาดของ "วันนี้" (หรือวันล่าสุดที่เปิด)
-                startTime = targetOpen;
-                // หากปัจจุบันยังไม่ถึงเวลาเปิดวันนี้ ให้ถอยไป 1 วันเพื่อให้มีข้อมูลโชว์
-                if (nowNY.isBefore(targetOpen)) {
-                    startTime = targetOpen.minusDays(1);
+                // แก้ให้รองรับวันหยุด: ถอยไปหาวันทำการล่าสุด (จันทร์-ศุกร์)
+                DayOfWeek dow = nowNY.getDayOfWeek();
+                if (dow == DayOfWeek.SATURDAY) {
+                    // เสาร์ → ถอยไปศุกร์ (1 วัน)
+                    startTime = nowNY.toLocalDate().minusDays(1).atTime(9, 30).atZone(NY_ZONE);
+                } else if (dow == DayOfWeek.SUNDAY) {
+                    // อาทิตย์ → ถอยไปศุกร์ (2 วัน)
+                    startTime = nowNY.toLocalDate().minusDays(2).atTime(9, 30).atZone(NY_ZONE);
+                } else if (dow == DayOfWeek.MONDAY && nowNY.isBefore(targetOpen)) {
+                    // จันทร์ก่อนตลาดเปิด → ถอยไปศุกร์ (3 วัน)
+                    startTime = nowNY.toLocalDate().minusDays(3).atTime(9, 30).atZone(NY_ZONE);
+                } else {
+                    startTime = targetOpen;
+                    if (nowNY.isBefore(targetOpen)) {
+                        startTime = targetOpen.minusDays(1);
+                    }
                 }
                 break;
 
