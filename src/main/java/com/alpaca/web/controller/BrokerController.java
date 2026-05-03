@@ -456,6 +456,24 @@ public class BrokerController {
         }
     }
 
+    // ===== Advanced Filter Endpoint (ระบบกรองขั้นสูง) =====
+    @PostMapping("/assets/filter")
+    public ResponseEntity<?> filterStocks(@RequestBody StockSearchDto filterRequest) {
+        log.info("📥 Filter Request received: {}", filterRequest);
+        try {
+            List<StockSearchResultDTO> results = marketDataService.filterStocks(filterRequest);
+
+            if (results.isEmpty()) {
+                return ResponseEntity.ok(Collections.emptyList());
+            }
+            return ResponseEntity.ok(results);
+        } catch (Exception e) {
+            log.error("❌ Failed to filter stocks: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Error during filter: " + e.getMessage());
+        }
+    }
+
     @GetMapping("/assets/info")
     public ResponseEntity<?> getStockInfoDetail(@RequestParam("symbol") String symbol) {
         try {

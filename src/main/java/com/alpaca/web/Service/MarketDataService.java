@@ -27,6 +27,11 @@ import java.time.*;
 import java.net.URI;
 
 import com.alpaca.web.Repository.StockAssetRepository;
+import com.alpaca.web.Repository.StockAssetSpecification;
+import com.alpaca.web.entity.StockAsset;
+import org.springframework.data.jpa.domain.Specification;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.stream.Collectors;
 import java.time.OffsetDateTime;
 import java.util.*;
@@ -693,6 +698,102 @@ public class MarketDataService {
         return results;
     }
     //งก์ชันกำหนดลำดับความสำคัญ (Symbol ต้องมาก่อน Name)
+
+    /**
+     * ฟังก์ชัน Filter หุ้นแบบ Advanced
+     * ใช้ JPA Specification สร้าง Dynamic Query แล้วเสริมข้อมูลราคาจาก Alpaca API
+     */
+    public List<StockSearchResultDTO> filterStocks(StockSearchDto filter) {
+        log.info("🔍 Filter Request: sectors={}, marketCapTiers={}, priceMin={}, priceMax={}, assetTypes={}, categories={}",
+                filter.getSectors(), filter.getMarketCapTiers(), filter.getPriceMin(), filter.getPriceMax(),
+                filter.getAssetTypes(), filter.getCategories());
+
+        // 1. สร้าง Specification จาก Filter แล้ว Query ลง PostgreSQL
+        Specification<StockAsset> spec = StockAssetSpecification.fromFilter(filter);
+        List<StockAsset> dbResults = stockAssetRepository.findAll(spec);
+
+        log.info("📊 Found {} stocks from DB filter", dbResults.size());
+
+        // 2. จำกัดผลลัพธ์ไม่เกิน 50 ตัว (เพื่อไม่ให้ยิง API เยอะเกินไป)
+        List<StockAsset> limitedResults = dbResults.stream().limit(50).collect(Collectors.toList());
+
+        // 3. แปลงเป็น DTO และเสริมข้อมูลราคา + 1Y Return
+        List<StockSearchResultDTO> enrichedResults = new ArrayList<>();
+        for (StockAsset asset : limitedResults) {
+            StockSearchResultDTO dto = new StockSearchResultDTO();
+            dto.setSymbol(asset.getSymbol());
+            dto.setName(asset.getName());
+            dto.setExchange(asset.getAssetClass());
+            dto.setAssetClass(asset.getAssetClass());
+            dto.setStatus("ACTIVE");
+            dto.setCategory(asset.getCategory());
+            dto.setIndustry(asset.getIndustry());
+            dto.setMarketcap(asset.getMarketCap());
+            dto.setBata(asset.getBeta());
+            dto.setVolume(asset.getAvgVolume());
+
+            // กำหนด Market Cap Tier
+            dto.setMarketCapTier(calculateMarketCapTier(asset.getMarketCap()));
+
+            // ดึงราคาปัจจุบันจาก Alpaca API
+            try {
+                Map<String, Object> quoteData = getLatestQuote(asset.getSymbol());
+                if (quoteData != null && quoteData.containsKey("price") && quoteData.get("price") != null) {
+                    double price = ((Number) quoteData.get("price")).doubleValue();
+                    dto.setCurrentPrice(BigDecimal.valueOf(price).setScale(2, RoundingMode.HALF_UP));
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Could not fetch price for {}: {}", asset.getSymbol(), e.getMessage());
+            }
+
+            // คำนวณ 1-Year Return จาก Alpaca Historical Bars
+            try {
+                ZonedDateTime now = ZonedDateTime.now(NY_ZONE);
+                ZonedDateTime oneYearAgo = now.minusYears(1);
+                List<StockBar> historicalBars = getHistoricalBars(asset.getSymbol(), oneYearAgo, now, "1Month", 15);
+                if (historicalBars != null && historicalBars.size() >= 2) {
+                    double oldPrice = historicalBars.get(0).getC();  // ราคาเปิดปีที่แล้ว
+                    double newPrice = historicalBars.get(historicalBars.size() - 1).getC();  // ราคาปัจจุบัน
+                    if (oldPrice > 0) {
+                        double returnPct = ((newPrice - oldPrice) / oldPrice) * 100.0;
+                        dto.setOneYearReturnPct(BigDecimal.valueOf(returnPct).setScale(2, RoundingMode.HALF_UP));
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Could not calculate 1Y return for {}: {}", asset.getSymbol(), e.getMessage());
+            }
+
+            enrichedResults.add(dto);
+        }
+
+        // 4. กรองตามราคา (Post-filter เพราะราคาดึงมาจาก API)
+        if (filter.getPriceMin() != null || filter.getPriceMax() != null) {
+            enrichedResults = enrichedResults.stream()
+                    .filter(dto -> {
+                        if (dto.getCurrentPrice() == null) return false;
+                        if (filter.getPriceMin() != null && dto.getCurrentPrice().compareTo(filter.getPriceMin()) < 0) return false;
+                        if (filter.getPriceMax() != null && dto.getCurrentPrice().compareTo(filter.getPriceMax()) > 0) return false;
+                        return true;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        log.info("✅ Filter complete. Returning {} enriched results", enrichedResults.size());
+        return enrichedResults;
+    }
+
+    /**
+     * คำนวณ Market Cap Tier จากมูลค่าตลาด
+     */
+    private String calculateMarketCapTier(Long marketCap) {
+        if (marketCap == null) return "UNKNOWN";
+        if (marketCap >= 200_000_000_000L) return "MEGA";
+        if (marketCap >= 10_000_000_000L) return "LARGE";
+        if (marketCap >= 2_000_000_000L) return "MID";
+        if (marketCap >= 300_000_000L) return "SMALL";
+        return "MICRO";
+    }
+
     private int getSearchScore(String symbol, String name, String searchStr) {
 
         // 🏆 กลุ่มที่ 1: พิจารณา รหัสหุ้น (Symbol) ก่อน - คะแนน 60-100

@@ -25,4 +25,9 @@ public class StockSearchResultDTO {
     private Long marketcap;
     private BigDecimal bata;
     private Long volume;
+
+    // --- Filter Result Fields (ข้อมูลเพิ่มเติมสำหรับหน้าผลลัพธ์) ---
+    private BigDecimal currentPrice;        // ราคาปัจจุบัน
+    private BigDecimal oneYearReturnPct;    // ผลตอบแทน 1 ปี (%)
+    private String marketCapTier;           // ระดับ Market Cap เช่น MEGA, LARGE, MID
 }
