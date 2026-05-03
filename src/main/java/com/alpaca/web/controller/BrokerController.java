@@ -582,7 +582,7 @@ public class BrokerController {
                 return ResponseEntity.badRequest().body(Map.of("message", "ไม่พบผู้ใช้ในระบบ"));
             }
             UserAccount user = userOpt.get();
-            String oldType = user.getTraderType();
+            String oldType = String.valueOf(user.getTraderType());
             user.setTraderType(traderType);
             accountRepository.save(user);
             log.info("🔄 เปลี่ยนสายเทรด: {} จาก '{}' เป็น '{}'", email, oldType, traderType);

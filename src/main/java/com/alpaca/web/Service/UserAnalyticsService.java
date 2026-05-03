@@ -1191,7 +1191,7 @@ public class UserAnalyticsService {
 
         // PHASE 1: Data Gathering Phase (ช่วงเก็บข้อมูล ยังไม่ถึงเกณฑ์)
         if (totalTrades < requiredTrades) {
-            diag.append(String.format("้อมูลยังไม่เพียงพอ: สำหรับนักเทรดสาย %s เพิ่งเทรดจบไปเพียง %d ไม้ (ระบบต้องการอย่างน้อย %d ไม้เพื่อกรอง 'โชค' ออกจาก 'ฝีมือ')\n", traderType, totalTrades, requiredTrades));
+            diag.append(String.format("ข้อมูลยังไม่เพียงพอ: สำหรับนักเทรดสาย %s เพิ่งเทรดจบไปเพียง %d ไม้ (ระบบต้องการอย่างน้อย %d ไม้เพื่อกรอง 'โชค' ออกจาก 'ฝีมือ')\n", traderType, totalTrades, requiredTrades));
             diag.append("   - คำแนะนำช่วงเริ่มต้น: ในช่วงนี้อย่าเพิ่งกังวลกับ Win Rate หรือ Profit Factor ให้โฟกัสไปที่ 'การทำตามระบบ' และ 'การรักษาเงินทุน' เป็นหลัก\n");
             // แม้ข้อมูลน้อย แต่ถ้าทำผิดพลาดเรื่อง Money Management ร้ายแรง ต้องเตือนทันที
             boolean hasCriticalError = false;
