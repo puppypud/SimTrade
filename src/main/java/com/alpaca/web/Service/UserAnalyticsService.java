@@ -84,14 +84,17 @@ public class UserAnalyticsService {
 
         String actualBehaviorType = classifyTraderType(closedTrades);
 
-        // คำนวณ Analytics หลัก
+        // คำนวณ Analytics หลัก (Win Rate, PnL, R:R, Highlights)
         UserAnalyticsResult result = performDeepAnalytics(statedType, actualBehaviorType, closedTrades);
 
-        // คำนวณ Advanced Metrics (Profit Factor, Streaks, etc.) ที่ขาดหายไป
+        // คำนวณ Advanced Metrics (Profit Factor, Streaks, Sizing, Diversification)
         calculateAdvancedMetrics(result, closedTrades);
 
-        // วิเคราะห์ความเสี่ยง (ส่งค่า riskBehavior จาก DB ไปด้วย)
+        // วิเคราะห์ความเสี่ยง (FOMO, Panic, etc. — ส่งค่า riskBehavior จาก DB ไปด้วย)
         analyzeRiskBehaviors(result, closedTrades, orders, user.getRiskBehavior());
+
+        // ★ สร้างคำแนะนำเชิงลึก — ต้องทำ "หลังสุด" เพราะ diagnoseLossReason() ต้องอ่านค่าจากทุก Module ข้างบน
+        generateFinalRecommendation(result, statedType, actualBehaviorType, closedTrades);
 
         return result;
     }
@@ -385,17 +388,39 @@ public class UserAnalyticsService {
         result.setStyleMatched(isStockMatched && isBehaviorMatched);
         result.setProfitable(isProfitable);
 
-        generateDetailedRecommendation(result, statedType, actualBehaviorType, predominantCategory, isStockMatched,
-                isBehaviorMatched, isProfitable);
+        // ★ ไม่สร้างคำแนะนำที่นี่แล้ว — ย้ายไปทำใน generateFinalRecommendation() หลังคำนวณ Metrics ทุกตัวเสร็จ
+        return result;
 
-        String badHabitWarnings = checkBadHabits(trades, actualBehaviorType);
+    }
+
+    // ★ Orchestrator Method: สร้างคำแนะนำหลังจาก Metrics ทุกตัวถูกคำนวณเสร็จแล้ว
+    // เรียกใช้ generateDetailedRecommendation (ซึ่งภายในจะเรียก diagnoseLossReason, findSimilarStocks ฯลฯ)
+    // ตอนนี้ diagnoseLossReason() จะอ่านค่า profitFactor, maxConsecutiveLosses, fomoStatus ฯลฯ ได้ถูกต้อง
+    private void generateFinalRecommendation(UserAnalyticsResult result, String statedType,
+            String actualBehaviorType, List<TradeExecutionRecord> closedTrades) {
+        if (closedTrades.isEmpty()) return;
+
+        // คำนวณ predominant category ใหม่ (เหมือนที่เคยทำใน performDeepAnalytics)
+        Map<String, Long> categoryCount = closedTrades.stream()
+                .collect(Collectors.groupingBy(TradeExecutionRecord::getCategory, Collectors.counting()));
+        String predominantCategory = categoryCount.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey).orElse("UNKNOWN");
+
+        boolean isStockMatched = checkStyleMatch(statedType, predominantCategory);
+        boolean isBehaviorMatched = statedType.equalsIgnoreCase(actualBehaviorType);
+        boolean isProfitable = result.isProfitable();
+
+        // เรียก generateDetailedRecommendation (ภายในจะ branch ไป diagnoseLossReason, findSimilarStocks ฯลฯ)
+        generateDetailedRecommendation(result, statedType, actualBehaviorType, predominantCategory,
+                isStockMatched, isBehaviorMatched, isProfitable);
+
+        // เพิ่มคำเตือน Bad Habits
+        String badHabitWarnings = checkBadHabits(closedTrades, actualBehaviorType);
         if (!badHabitWarnings.isEmpty()) {
             String currentRec = result.getRecommendation();
             result.setRecommendation(currentRec + "\n\nคำเตือนเพิ่มเติม:" + badHabitWarnings);
         }
-
-        return result;
-
     }
 
     private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType,
@@ -462,6 +487,24 @@ public class UserAnalyticsService {
 
         // เรียกใช้การวินิจฉัยเชิงลึก
         String deepDiagnostic = diagnoseLossReason(result);
+
+        // ★ แนะนำหุ้นที่เหมาะกับสายของ User แม้จะขาดทุน (ช่วยให้มีทิศทาง)
+        String mostTraded = result.getMostTradedStock();
+        List<String> suggestedStocks = new ArrayList<>();
+        if (mostTraded != null && !mostTraded.equals("-")) {
+            suggestedStocks = findSimilarStocks(mostTraded, null);
+        }
+        if (suggestedStocks.isEmpty()) {
+            suggestedStocks = findStocksForTraderType(statedType);
+        }
+        if (!suggestedStocks.isEmpty()) {
+            String symbols = String.join(", ", suggestedStocks);
+            deepDiagnostic += String.format(
+                    "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
+                    symbols, statedType);
+            result.setRecommendedSimilarStocks(suggestedStocks);
+        }
+
         result.setRecommendation(baseRec + deepDiagnostic);
     }
 
@@ -509,6 +552,19 @@ public class UserAnalyticsService {
 
         // เรียกใช้การวินิจฉัยเชิงลึก
         String deepDiagnostic = diagnoseLossReason(result);
+
+        // ★ แนะนำหุ้นที่ถูกสายสำหรับ statedType (ช่วยชี้ทางกลับมาถูกทาง)
+        List<String> suggestedStocks = findStocksForTraderType(statedType);
+        if (!suggestedStocks.isEmpty()) {
+            String symbols = String.join(", ", suggestedStocks);
+            deepDiagnostic += String.format(
+                    "\n\n📌 ถ้าต้องการกลับมาเป็นสาย %s ลองศึกษาหุ้นเหล่านี้: %s — เหมาะกับสไตล์ที่คุณตั้งเป้าไว้",
+                    statedType, symbols);
+            result.setRecommendedSimilarStocks(suggestedStocks);
+        }
+        // ★ แนะนำให้ลองเปลี่ยนสายตามพฤติกรรมจริง
+        result.setSuggestedTraderType(actualType);
+
         result.setRecommendation(baseRec + deepDiagnostic);
     }
 
@@ -1155,16 +1211,51 @@ public class UserAnalyticsService {
 
         return stockAssetRepository.findById(symbol).map(asset -> {
             String industry = asset.getIndustry();
-            if (industry == null || industry.isEmpty()) {
-                return new ArrayList<String>(); // ถ้าไม่มีข้อมูลอุตสาหกรรม ให้คืนค่าว่าง
+            String cat = (category != null) ? category : asset.getCategory();
+
+            // ลอง 1: หาตาม Category + Industry (เจาะจงที่สุด)
+            if (industry != null && !industry.isEmpty() && cat != null) {
+                List<String> results = stockAssetRepository
+                        .findTop3ByCategoryAndIndustryAndSymbolNot(cat, industry, symbol)
+                        .stream().map(StockAsset::getSymbol).collect(Collectors.toList());
+                if (!results.isEmpty()) return results;
             }
 
-            // ค้นหาจาก Database โดยตรง จะเร็วมาก
-            return stockAssetRepository.findTop3ByCategoryAndIndustryAndSymbolNot(category, industry, symbol)
+            // ลอง 2 (Fallback): หาตาม Category อย่างเดียว (กว้างขึ้น)
+            if (cat != null) {
+                return stockAssetRepository.findTop5ByCategoryAndIsTradableTrue(cat)
+                        .stream()
+                        .map(StockAsset::getSymbol)
+                        .filter(s -> !s.equals(symbol))
+                        .limit(3)
+                        .collect(Collectors.toList());
+            }
+
+            return new ArrayList<String>();
+        }).orElse(new ArrayList<>());
+    }
+
+    // ★ หาหุ้นแนะนำตามประเภทนักเทรด (ใช้เมื่อไม่มี bestPerformingStock)
+    private List<String> findStocksForTraderType(String traderType) {
+        String dbCategory = switch (traderType != null ? traderType : "Unknown") {
+            case "Scalper" -> "SPECULATIVE";
+            case "Day Trader" -> "TRENDING";
+            case "Swing Trader" -> "SWING";
+            case "Position Trader" -> "STABLE";
+            default -> null;
+        };
+        if (dbCategory == null) return new ArrayList<>();
+
+        try {
+            return stockAssetRepository.findTop5ByCategoryAndIsTradableTrue(dbCategory)
                     .stream()
                     .map(StockAsset::getSymbol)
+                    .limit(5)
                     .collect(Collectors.toList());
-        }).orElse(new ArrayList<>());
+        } catch (Exception e) {
+            System.err.println("Failed to find stocks for trader type: " + traderType);
+            return new ArrayList<>();
+        }
     }
 
     // เพิ่มฟังก์ชันสำหรับคำนวณจำนวนไม้ขั้นต่ำแบบ Dynamic ตามประเภทนักเทรด
