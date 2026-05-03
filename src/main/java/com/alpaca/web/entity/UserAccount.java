@@ -41,7 +41,8 @@ public class UserAccount {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "trader_type")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "trader_type", length = 20)
     private String traderType;
 
 
