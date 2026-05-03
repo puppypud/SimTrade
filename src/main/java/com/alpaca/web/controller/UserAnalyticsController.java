@@ -1,10 +1,13 @@
 package com.alpaca.web.controller;
 
 import com.alpaca.web.Repository.AccountRepository;
+import com.alpaca.web.Service.BehavioralAnalyticsService;
 import com.alpaca.web.Service.UserAnalyticsService;
+import com.alpaca.web.dto.TradeRequestDTO;
 import com.alpaca.web.dto.UserAnalyticsResult;
 import com.alpaca.web.dto.TradeExecutionRecord;
 import com.alpaca.web.entity.UserAccount;
+import com.alpaca.web.enums.TraderType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,10 +20,12 @@ import java.util.Map;
 public class UserAnalyticsController {
     private final UserAnalyticsService userAnalyticsService;
     private final AccountRepository accountRepository;
+    private final BehavioralAnalyticsService behavioralAnalyticsService;
 
-    public UserAnalyticsController(UserAnalyticsService userAnalyticsService, AccountRepository accountRepository) {
+    public UserAnalyticsController(UserAnalyticsService userAnalyticsService, AccountRepository accountRepository, BehavioralAnalyticsService behavioralAnalyticsService) {
         this.userAnalyticsService = userAnalyticsService;
         this.accountRepository = accountRepository;
+        this.behavioralAnalyticsService = behavioralAnalyticsService;
     }
 
     // ดึง traderType ล่าสุดจากฐานข้อมูล (ผลจากการทำ Quiz/Onboarding)
@@ -74,5 +79,41 @@ public class UserAnalyticsController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", "Failed to update trader type"));
         }
+    }
+
+    @PostMapping("/execute")
+    public ResponseEntity<String> executeTrade(@RequestBody TradeRequestDTO request) {
+
+        // ---------------------------------------------------------
+        // 1. (ส่วนของการเทรดจริง) บันทึก Order ลง DB หรือส่งไป Alpaca
+        // ---------------------------------------------------------
+        // alpacaTradingService.placeOrder(request.getSymbol(), request.getSide(), ...);
+        // orderHistoryRepository.save(newOrder);
+
+        // ---------------------------------------------------------
+        // 2. 🚀 (ส่วนของเรา) เรียกใช้ Rule Engine วิเคราะห์พฤติกรรมทันที!
+        // ---------------------------------------------------------
+
+        // ถ้าหน้าบ้านไม่ได้ส่ง TraderType มา เราก็ดึงจาก DB ของ User คนนั้น
+        TraderType typeToUse = request.getTraderType();
+        if (typeToUse == null) {
+            UserAccount user = accountRepository.findById(request.getUserId())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            typeToUse = TraderType.valueOf(user.getTraderType());
+        }
+
+        // โยนข้อมูลเข้า Service ที่เราเขียนไว้
+        behavioralAnalyticsService.evaluateOrderEvent(
+                request.getUserId(),
+                request.getSymbol(),
+                request.getSide(),
+                request.getCurrentProfitPercent(),
+                request.getPriceChangePercent(),
+                request.getVolumeSoldPercent(),
+                typeToUse
+        );
+
+        // 3. ตอบกลับหน้าบ้านว่ารับออเดอร์สำเร็จ (ส่วน Notification จะวิ่งไปทาง WebSocket เอง)
+        return ResponseEntity.ok("Order executed and analyzed successfully!");
     }
 }
