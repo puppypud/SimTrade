@@ -169,6 +169,33 @@ export interface StockSearchDto {
   exchange: string;
 }
 
+// --- Filter System Types ---
+export interface StockFilterRequest {
+  keyword?: string;
+  sectors?: string[];
+  marketCapTiers?: string[];
+  priceMin?: number;
+  priceMax?: number;
+  assetTypes?: string[];
+  categories?: string[];
+}
+
+export interface FilteredStockResult {
+  symbol: string;
+  name: string;
+  exchange: string;
+  assetClass: string;
+  status: string;
+  category: string;
+  industry: string;
+  marketcap: number;
+  bata: number;
+  volume: number;
+  currentPrice: number | null;
+  oneYearReturnPct: number | null;
+  marketCapTier: string;
+}
+
 export interface StockInfoDatabaseDTO {
   symbol: string;
   name: string;

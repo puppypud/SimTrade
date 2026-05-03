@@ -1,5 +1,5 @@
 import apiClient from '@/src/app/libs/apiClient'; // import จากข้อ 2.4
-import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO, UserAnalyticsResult } from '@/src/app/types/broker'; // import จากข้อ 2.3
+import { StockBar, BuyStockRequest, AccountInfo, Position, StockQuote, UserAccount, getCryptoBars, RegisterRequest, OnboardingRequest, AdminActionResponse, MarketStatus, StockSearchDto, StockInfoDatabaseDTO, UserAnalyticsResult, StockFilterRequest, FilteredStockResult } from '@/src/app/types/broker'; // import จากข้อ 2.3
 
 export const brokerService = {
 
@@ -266,6 +266,12 @@ export const brokerService = {
     const response = await apiClient.get(`/broker/assets/recommended`, {
       params: { traderType }
     });
+    return response.data;
+  },
+
+  // 14. กรองหุ้นขั้นสูง (Advanced Filter) — ส่ง POST Body ไปยัง Backend
+  filterStocks: async (filter: StockFilterRequest): Promise<FilteredStockResult[]> => {
+    const response = await apiClient.post('/broker/assets/filter', filter);
     return response.data;
   }
 };

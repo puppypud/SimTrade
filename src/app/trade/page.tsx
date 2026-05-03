@@ -5,7 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import StockLWChart from '@/src/app/components/ui/Chart';
 import TradeTabs from '@/src/app/components/features/TradeTabs';
 import StockInfoPanel from '@/src/app/components/features/StockInfoPanel';
-import { ArrowLeft } from 'lucide-react';
+import FilterSheet from '@/src/app/components/features/FilterSheet';
+import { ArrowLeft, SlidersHorizontal } from 'lucide-react';
 
 export default function TradeStockPage() {
     return (
@@ -20,6 +21,7 @@ function TradeStockContent() {
     const router = useRouter();
     const symbolFromUrl = searchParams.get('symbol');
     const [currentSymbol, setCurrentSymbol] = useState('');
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
 
     useEffect(() => {
         if (symbolFromUrl) {
@@ -39,13 +41,22 @@ function TradeStockContent() {
             <div className="max-w-[1600px] mx-auto">
 
                 {/* Top Nav & Header Section */}
-                <div className="mb-2 px-2">
+                <div className="mb-2 px-2 flex items-center justify-between">
                     <button
                         onClick={() => router.push('/')}
                         className="flex items-center gap-2 text-sm font-bold text-muted hover:text-foreground transition-colors inline-block pb-4"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         Back to Home
+                    </button>
+
+                    {/* Filter Button */}
+                    <button
+                        onClick={() => setIsFilterOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 mb-4 bg-gold/10 border border-gold/20 text-gold text-sm font-semibold rounded-xl hover:bg-gold/20 hover:border-gold/40 transition-all duration-200 active:scale-[0.97]"
+                    >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        Filter Stocks
                     </button>
                 </div>
 
@@ -83,6 +94,9 @@ function TradeStockContent() {
                 </div>
 
             </div>
+
+            {/* Filter Sheet (Slide-in Panel) */}
+            <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
         </div>
     );
 }
