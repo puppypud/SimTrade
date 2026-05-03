@@ -1039,6 +1039,61 @@ public class UserAnalyticsService {
                 result.setDiversificationFeedback("กระจายความเสี่ยงได้ดี (Well Diversified)");
             }
         }
+
+        // 3. Position Sizing Analysis (วิเคราะห์ขนาดไม้: เทียบเงินที่ลงในไม้ชนะ vs ไม้แพ้)
+        BigDecimal totalWinSize = BigDecimal.ZERO;
+        BigDecimal totalLossSize = BigDecimal.ZERO;
+        int winSizeCount = 0;
+        int lossSizeCount = 0;
+        BigDecimal maxPositionSize = BigDecimal.ZERO;
+        BigDecimal minPositionSize = null;
+
+        for (TradeExecutionRecord t : trades) {
+            BigDecimal size = t.getPositionSize();
+            if (size == null || size.compareTo(BigDecimal.ZERO) <= 0) continue;
+
+            if (maxPositionSize.compareTo(size) < 0) maxPositionSize = size;
+            if (minPositionSize == null || minPositionSize.compareTo(size) > 0) minPositionSize = size;
+
+            if (t.getRealizedProfitAmount().compareTo(BigDecimal.ZERO) > 0) {
+                totalWinSize = totalWinSize.add(size);
+                winSizeCount++;
+            } else if (t.getRealizedProfitAmount().compareTo(BigDecimal.ZERO) < 0) {
+                totalLossSize = totalLossSize.add(size);
+                lossSizeCount++;
+            }
+        }
+
+        if (winSizeCount > 0 && lossSizeCount > 0) {
+            BigDecimal avgWinSize = totalWinSize.divide(BigDecimal.valueOf(winSizeCount), 2, RoundingMode.HALF_UP);
+            BigDecimal avgLossSize = totalLossSize.divide(BigDecimal.valueOf(lossSizeCount), 2, RoundingMode.HALF_UP);
+
+            if (avgWinSize.compareTo(BigDecimal.ZERO) > 0) {
+                double sizeRatio = avgLossSize.doubleValue() / avgWinSize.doubleValue();
+
+                if (sizeRatio > 1.5) {
+                    result.setSizingFeedback(String.format(
+                            "อันตราย! คุณมักลงเงินหนักในไม้ที่ขาดทุน (%.1fx ของไม้ชนะ) ควรลงเงินเท่ากันทุกไม้ หรือลงน้อยลงเมื่อไม่มั่นใจ (Over-betting on Losers)",
+                            sizeRatio));
+                } else if (sizeRatio < 0.7) {
+                    result.setSizingFeedback(
+                            "ดี! คุณลงเงินน้อยในไม้ที่ขาดทุน แสดงว่ามีวินัยในการบริหารขนาดไม้ (Smart Sizing)");
+                } else {
+                    result.setSizingFeedback(
+                            "ขนาดไม้สม่ำเสมอ (Consistent Sizing) ถือว่าควบคุมได้ดี ไม่มีพฤติกรรม Over-bet");
+                }
+            }
+        } else if (minPositionSize != null && maxPositionSize.compareTo(BigDecimal.ZERO) > 0
+                && minPositionSize.compareTo(BigDecimal.ZERO) > 0) {
+            double variance = maxPositionSize.divide(minPositionSize, 2, RoundingMode.HALF_UP).doubleValue();
+            if (variance > 5.0) {
+                result.setSizingFeedback(String.format(
+                        "ขนาดไม้ผันผวนมาก (ใหญ่สุด/เล็กสุด = %.1fx) ควรกำหนดขนาดไม้ให้สม่ำเสมอเพื่อลดความเสี่ยง",
+                        variance));
+            } else {
+                result.setSizingFeedback("ขนาดไม้อยู่ในเกณฑ์ปกติ ยังไม่มีข้อมูลเพียงพอวิเคราะห์เชิงลึก");
+            }
+        }
     }
 
     private double calculateRsiFromCache(List<StockBar> bars, Instant tradeTimeInstant) {
