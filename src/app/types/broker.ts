@@ -286,4 +286,5 @@ export interface UserAnalyticsResult {
   maxConsecutiveWins: number;
   maxConsecutiveLosses: number;
   streakFeedback: string;
+  recommendedSimilarStocks?: string[];
 }

@@ -361,7 +361,7 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* Secondary Metrics */}
-                        <div className="grid grid-cols-2 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <InfoCard
                                 icon={<ArrowUpRight className="w-4 h-4 text-emerald-500" />}
                                 label="กำไรเฉลี่ย (Avg Win)"
@@ -373,6 +373,12 @@ export default function AnalyticsPage() {
                                 label="ขาดทุนเฉลี่ย (Avg Loss)"
                                 value={`${analytics.averageLossPct.toFixed(2)}%`}
                                 valueColor="text-red-500"
+                            />
+                            <InfoCard
+                                icon={<PieChart className="w-4 h-4 text-gold" />}
+                                label="Profit Factor"
+                                value={analytics.profitFactor >= 999 ? "∞ (ไร้พ่าย)" : analytics.profitFactor?.toFixed(2) || '0.00'}
+                                valueColor={analytics.profitFactor >= 1.5 ? "text-emerald-500" : analytics.profitFactor >= 1.0 ? "text-amber-500" : "text-red-500"}
                             />
                         </div>
 
@@ -428,6 +434,39 @@ export default function AnalyticsPage() {
                                             bgColor="bg-purple-500/10"
                                         />
                                     )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ======= AI RECOMMENDED STOCKS ======= */}
+                        {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-3 px-2">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-amber-500/10 flex items-center justify-center">
+                                        <Award className="w-5 h-5 text-gold" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black tracking-tight">AI Recommended Stocks</h2>
+                                        <p className="text-xs text-muted">หุ้นในอุตสาหกรรมเดียวกันที่เข้ากับจริตของคุณ</p>
+                                    </div>
+                                </div>
+                                <div className="bg-surface rounded-2xl p-6 border border-theme-border shadow-soft">
+                                    <p className="text-xs text-muted mb-4">ระบบแนะนำหุ้นเหล่านี้จากหุ้นทำเงินของคุณ — คลิกเพื่อดูข้อมูลเพิ่มเติม</p>
+                                    <div className="flex flex-wrap gap-3">
+                                        {analytics.recommendedSimilarStocks.map((stock, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={`/trade?symbol=${stock}`}
+                                                className="group relative px-5 py-3.5 rounded-xl bg-gradient-to-br from-gold/5 to-amber-500/5 border border-gold/20 hover:border-gold/50 hover:from-gold/10 hover:to-amber-500/10 transition-all duration-300 hover:shadow-[0_0_20px_-5px_rgba(255,215,0,0.3)] hover:scale-105 active:scale-95"
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <TrendingUp className="w-3.5 h-3.5 text-gold opacity-60 group-hover:opacity-100 transition-opacity" />
+                                                    <span className="font-black text-sm tracking-tight text-foreground">{stock}</span>
+                                                </div>
+                                                <p className="text-[9px] text-muted mt-1 group-hover:text-gold/70 transition-colors">คลิกเพื่อดูกราฟ →</p>
+                                            </a>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -566,6 +605,15 @@ export default function AnalyticsPage() {
                                         <div className="p-3 rounded-xl bg-background/50">
                                             <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">Diversification</p>
                                             <p className="text-sm text-foreground">{analytics.diversificationFeedback}</p>
+                                        </div>
+                                    )}
+                                    {analytics.profitFactorFeedback && (
+                                        <div className="p-3 rounded-xl bg-background/50">
+                                            <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">Profit Factor Rating</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`w-2 h-2 rounded-full ${analytics.profitFactor >= 1.5 ? 'bg-emerald-500' : analytics.profitFactor >= 1.0 ? 'bg-amber-500' : 'bg-red-500'}`} />
+                                                <p className="text-sm text-foreground font-medium">{analytics.profitFactorFeedback}</p>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
