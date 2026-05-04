@@ -35,22 +35,29 @@ import {
     Play,
     MessageCircle,
     Bot,
-    Sparkles
+    Sparkles,
+    Sun,
+    Mountain,
+    HelpCircle,
+    Scale,
+    Database,
+    ShieldCheck,
+    Binary
 } from 'lucide-react';
 
-const TRADER_INFO: Record<string, { label: string; desc: string; emoji: string }> = {
-    'Scalper': { label: 'Scalper', desc: 'ทำกำไรสั้นๆ ถือไม่เกิน 30 นาที', emoji: '⚡' },
-    'Day Trader': { label: 'Day Trader', desc: 'จบงานภายในวัน ไม่ห่อข้ามคืน', emoji: '☀️' },
-    'Swing Trader': { label: 'Swing Trader', desc: 'รันเทรดเป็นรอบ ถือ 2-5 วัน', emoji: '🌊' },
-    'Position Trader': { label: 'Position Trader', desc: 'ลงทุนระยะยาว เน้นพื้นฐาน', emoji: '🏔️' },
-    'Unknown': { label: 'ยังไม่ได้ทำแบบทดสอบ', desc: 'กรุณาทำ Quiz ก่อน', emoji: '❓' },
+const TRADER_INFO: Record<string, { label: string; desc: string; icon: React.ReactNode }> = {
+    'Scalper': { label: 'Scalper', desc: 'ทำกำไรสั้นๆ ถือไม่เกิน 30 นาที', icon: <Zap className="w-5 h-5" /> },
+    'Day Trader': { label: 'Day Trader', desc: 'จบงานภายในวัน ไม่ห่อข้ามคืน', icon: <Sun className="w-5 h-5" /> },
+    'Swing Trader': { label: 'Swing Trader', desc: 'รันเทรดเป็นรอบ ถือ 2-5 วัน', icon: <TrendingUp className="w-5 h-5" /> },
+    'Position Trader': { label: 'Position Trader', desc: 'ลงทุนระยะยาว เน้นพื้นฐาน', icon: <Mountain className="w-5 h-5" /> },
+    'Unknown': { label: 'ยังไม่ได้ทำแบบทดสอบ', desc: 'กรุณาทำ Quiz ก่อน', icon: <HelpCircle className="w-5 h-5" /> },
 };
 
-const RISK_INFO: Record<string, { label: string; desc: string; emoji: string; color: string }> = {
-    'Conservative': { label: 'Conservative', desc: 'รับความเสี่ยงได้น้อย เน้นผลปลอดภัย', emoji: '🛡️', color: 'text-emerald-500' },
-    'Moderate': { label: 'Moderate', desc: 'ยอมรับความเสี่ยงได้ระดับปานกลาง', emoji: '⚖️', color: 'text-amber-500' },
-    'Aggressive': { label: 'Aggressive', desc: 'รับความเสี่ยงได้สูง เน้นผลตอบแทน', emoji: '🔥', color: 'text-red-500' },
-    'Unknown': { label: 'Unknown', desc: 'ยังไม่ได้ประเมินความเสี่ยง', emoji: '❓', color: 'text-muted' },
+const RISK_INFO: Record<string, { label: string; desc: string; icon: React.ReactNode; color: string }> = {
+    'Conservative': { label: 'Conservative', desc: 'รับความเสี่ยงได้น้อย เน้นผลปลอดภัย', icon: <Shield className="w-5 h-5" />, color: 'text-emerald-500' },
+    'Moderate': { label: 'Moderate', desc: 'ยอมรับความเสี่ยงได้ระดับปานกลาง', icon: <Scale className="w-5 h-5" />, color: 'text-amber-500' },
+    'Aggressive': { label: 'Aggressive', desc: 'รับความเสี่ยงได้สูง เน้นผลตอบแทน', icon: <Flame className="w-5 h-5" />, color: 'text-red-500' },
+    'Unknown': { label: 'Unknown', desc: 'ยังไม่ได้ประเมินความเสี่ยง', icon: <HelpCircle className="w-5 h-5" />, color: 'text-muted' },
 };
 
 export default function AnalyticsPage() {
@@ -148,318 +155,218 @@ export default function AnalyticsPage() {
             <div className="max-w-7xl mx-auto space-y-10">
 
                 {/* ======= HEADER ======= */}
-                <div className="text-center space-y-3 pt-6">
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-gold/10 border border-gold/20 rounded-full text-xs font-black text-gold uppercase tracking-widest mb-2">
-                        <LineChart className="w-3.5 h-3.5" />
-                        AI-Powered Analysis
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-black text-foreground tracking-tight">
-                        TRADER REALITY CHECK
+                <div className="space-y-2 pt-6 pb-2">
+                    <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight">
+                        Performance Analytics
                     </h1>
-                    <p className="text-muted font-medium max-w-2xl mx-auto text-sm md:text-base">
-                        เปรียบเทียบ &quot;สิ่งที่คุณคิดว่าตัวเองเป็น&quot; กับ &quot;พฤติกรรมจริงจากการเทรด&quot;
+                    <p className="text-muted font-medium text-sm md:text-base max-w-2xl">
+                        Comprehensive assessment of your trading behavior, statistical edge, and risk profile based on actual trade data.
                     </p>
                 </div>
 
-                {/* ======= VS BATTLE ======= */}
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 lg:gap-8 items-stretch">
-
-                    {/* Left: Profile from Database (Quiz Result) */}
-                    <div className="bg-surface rounded-[2rem] p-8 border border-theme-border shadow-soft flex flex-col items-center text-center relative overflow-hidden group hover:shadow-lg transition-shadow duration-500">
-                        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent transition-all group-hover:from-blue-500/10" />
-                        <div className="relative z-10 w-full flex flex-col items-center">
-                            <div className="flex items-center justify-center gap-2 mb-8">
-                                <UserCircle className="w-5 h-5 text-blue-500" />
-                                <span className="text-xs font-black uppercase tracking-widest text-muted">ผลจากแบบทดสอบ (Quiz)</span>
-                            </div>
-
-                            {profileLoading ? (
-                                <div className="flex flex-col items-center py-8">
-                                    <RefreshCw className="w-8 h-8 text-muted animate-spin mb-3" />
-                                    <p className="text-sm text-muted">กำลังโหลดข้อมูล...</p>
-                                </div>
-                            ) : (
-                                <>
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500/10 to-blue-500/5 flex items-center justify-center mx-auto mb-6 border-2 border-blue-500/10">
-                                        <span className="text-5xl">{preTestInfo.emoji}</span>
-                                    </div>
-                                    <h2 className="text-3xl font-black text-foreground mb-2 tracking-tight">{preTestInfo.label}</h2>
-                                    <p className="text-sm text-muted mb-6">{preTestInfo.desc}</p>
-
-
-
-                                    <div className="h-px w-16 bg-theme-border mx-auto mb-4" />
-                                    <p className="text-xs text-muted">ข้อมูลจากฐานข้อมูล (Onboarding Quiz)</p>
-                                </>
-                            )}
+                {/* ======= PROFILE ASSESSMENT ======= */}
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch">
+                    {/* Left: Declared Profile */}
+                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden">
+                        <div className="flex items-center gap-2 mb-6">
+                            <UserCircle className="w-5 h-5 text-muted" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Declared Profile</span>
                         </div>
+
+                        {profileLoading ? (
+                            <div className="flex flex-col items-center justify-center w-full py-8">
+                                <RefreshCw className="w-6 h-6 text-muted animate-spin mb-3" />
+                            </div>
+                        ) : (
+                            <div className="flex flex-col h-full w-full">
+                                <div className="w-16 h-16 rounded-2xl bg-background flex items-center justify-center mx-auto mb-4 border border-theme-border shadow-sm text-gold">
+                                    {preTestInfo.icon}
+                                </div>
+                                <h2 className="text-2xl font-bold text-foreground mb-2">{preTestInfo.label}</h2>
+                                <p className="text-sm text-muted flex-1 leading-relaxed px-4">{preTestInfo.desc}</p>
+                                <div className="mt-6 pt-4 border-t border-theme-border w-full">
+                                    <p className="text-[10px] text-muted uppercase tracking-wider">Verified Profile</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
-                    {/* Center: Analysis Button */}
-                    <div className="flex items-center justify-center">
+                    {/* Center: Analysis Trigger */}
+                    <div className="flex flex-col items-center justify-center gap-4 px-4">
+                        <div className="h-px w-8 bg-theme-border hidden md:block" />
+                        
                         {analyzing ? (
                             <div className="flex flex-col items-center gap-3">
-                                <div className="relative">
-                                    <div className="w-20 h-20 rounded-full border-4 border-gold/20 border-t-gold animate-spin" />
-                                    <LineChart className="w-8 h-8 text-gold absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                                <div className="w-12 h-12 rounded-xl border border-gold/30 flex items-center justify-center bg-gold/5 relative overflow-hidden">
+                                    <div className="absolute inset-0 border-2 border-t-gold border-r-transparent border-b-transparent border-l-transparent animate-spin rounded-xl" />
+                                    <Activity className="w-5 h-5 text-gold animate-pulse" />
                                 </div>
-                                <p className="text-xs text-muted font-bold whitespace-nowrap">กำลังวิเคราะห์...</p>
+                                <span className="text-[10px] font-bold text-gold uppercase tracking-widest">Processing</span>
                             </div>
                         ) : analytics ? (
                             <div className="flex flex-col items-center gap-3">
-                                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center border-2 border-emerald-500/20">
-                                    <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+                                <div className="w-12 h-12 rounded-xl border border-emerald-500/20 bg-emerald-500/5 flex items-center justify-center text-emerald-500">
+                                    <ShieldCheck className="w-5 h-5" />
                                 </div>
                                 <button
                                     onClick={handleStartAnalysis}
-                                    className="text-xs text-muted hover:text-gold transition-colors font-bold underline underline-offset-4"
+                                    className="px-4 py-1.5 rounded-lg border border-theme-border text-[10px] font-bold uppercase tracking-widest text-muted hover:text-foreground hover:bg-background transition-all"
                                 >
-                                    วิเคราะห์ใหม่
+                                    Refresh
                                 </button>
                             </div>
                         ) : (
                             <button
                                 onClick={handleStartAnalysis}
                                 disabled={profileLoading}
-                                className="group flex flex-col items-center gap-3 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="group flex flex-col items-center gap-3 disabled:opacity-50"
                             >
-                                <div className="w-20 h-20 bg-gold/10 hover:bg-gold/20 rounded-full flex items-center justify-center border-2 border-gold/30 hover:border-gold/60 transition-all group-hover:scale-110 group-hover:shadow-[0_0_30px_-5px_rgba(255,215,0,0.4)] group-active:scale-95">
-                                    <Play className="w-8 h-8 text-gold ml-1" />
+                                <div className="w-14 h-14 bg-background border border-theme-border rounded-2xl flex items-center justify-center transition-all group-hover:border-gold/50 group-hover:shadow-[0_0_15px_rgba(212,175,55,0.1)] group-active:scale-95">
+                                    <Database className="w-6 h-6 text-muted group-hover:text-gold transition-colors" />
                                 </div>
-                                <span className="text-xs font-black text-gold uppercase tracking-widest whitespace-nowrap">เริ่มวิเคราะห์</span>
-                                <span className="text-[10px] text-muted">กดเพื่อให้ AI วิเคราะห์พฤติกรรม</span>
+                                <span className="text-[10px] font-bold text-muted group-hover:text-gold uppercase tracking-widest transition-colors">Run Analysis</span>
                             </button>
                         )}
+
+                        <div className="h-px w-8 bg-theme-border hidden md:block" />
                     </div>
 
-                    {/* Right: AI Analysis Result */}
-                    <div className={`bg-surface rounded-[2rem] p-8 shadow-2xl flex flex-col items-center text-center relative overflow-hidden border border-theme-border transition-all duration-700 ${analytics ? 'hover:shadow-lg' : ''}`}>
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-
-                        <div className="relative z-10 w-full flex-1 flex flex-col items-center">
-                            <div className="flex items-center justify-center gap-2 mb-8">
-                                <LineChart className={`w-5 h-5 text-gold ${analyzing ? 'animate-pulse' : ''}`} />
-                                <span className="text-xs font-black uppercase tracking-widest text-muted">AI Analysis</span>
-                            </div>
-
-                            {!analytics && !analyzing && !error && (
-                                <div className="flex-1 flex flex-col items-center justify-center py-8">
-                                    <div className="w-24 h-24 rounded-full bg-background/50 flex items-center justify-center mx-auto mb-6 border-2 border-dashed border-theme-border">
-                                        <BarChart2 className="w-10 h-10 text-muted/30" />
-                                    </div>
-                                    <h2 className="text-xl font-black text-foreground/40 mb-2 tracking-tight">รอการวิเคราะห์</h2>
-                                    <p className="text-sm text-muted/40">กดปุ่ม &quot;เริ่มวิเคราะห์&quot; เพื่อดูผลลัพธ์</p>
-                                </div>
-                            )}
-
-                            {analyzing && (
-                                <div className="flex-1 flex flex-col items-center justify-center py-8">
-                                    <div className="w-24 h-24 rounded-full border-4 border-gold/20 border-t-gold animate-spin mx-auto mb-6" />
-                                    <h2 className="text-xl font-black text-foreground/70 mb-2">AI กำลังประมวลผล...</h2>
-                                    <p className="text-sm text-muted/60">วิเคราะห์ประวัติการเทรดทั้งหมด</p>
-                                    <div className="mt-4 flex gap-1">
-                                        {[0, 1, 2].map(i => (
-                                            <div key={i} className="w-2 h-2 rounded-full bg-gold animate-pulse" style={{ animationDelay: `${i * 300}ms` }} />
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {error && !analytics && (
-                                <div className="flex-1 flex flex-col items-center justify-center py-8">
-                                    <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border-2 border-red-500/20">
-                                        <AlertCircle className="w-10 h-10 text-red-400" />
-                                    </div>
-                                    <h2 className="text-xl font-black text-foreground/70 mb-2">ข้อมูลไม่เพียงพอ</h2>
-                                    <p className="text-sm text-muted/60 max-w-xs">{error}</p>
-                                    <a href="/trade" className="mt-4 group px-6 py-2.5 bg-gold text-[#1A1A1A] font-black rounded-xl hover:scale-105 transition-all inline-flex items-center gap-2 text-sm">
-                                        ไปหน้าเทรด
-                                        <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                    </a>
-                                </div>
-                            )}
-
-                            {analytics && aiTypeInfo && (
-                                <>
-                                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-gold/20 to-gold/5 flex items-center justify-center mx-auto mb-6 border-2 border-gold/20 shadow-[0_0_30px_-8px_rgba(255,215,0,0.3)]">
-                                        <span className="text-5xl drop-shadow-2xl">{aiTypeInfo.emoji}</span>
-                                    </div>
-                                    <h2 className="text-3xl font-black text-foreground mb-2 tracking-tight">{aiTypeInfo.label}</h2>
-                                    <p className="text-sm text-muted font-medium mb-6">{aiTypeInfo.desc}</p>
-
-                                    {/* Match Status */}
-                                    {/* Match Status - Removed */}
-
-                                    {/* Always show Suggested type + Change Button if analysis exists */}
-                                    <div className="mb-6 p-4 rounded-xl bg-background border border-theme-border w-full">
-                                        <p className="text-[10px] text-muted font-bold uppercase tracking-widest mb-1">
-                                            {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown' ? "AI แนะนำให้เปลี่ยนเป็น" : "ประเภทนักเทรดของคุณ"}
-                                        </p>
-                                        <p className="text-sm font-black text-gold">
-                                            {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown'
-                                                ? `${suggestedInfo?.emoji || ''} ${suggestedInfo?.label || analytics.suggestedTraderType}`
-                                                : `${aiTypeInfo.emoji} ${aiTypeInfo.label}`}
-                                        </p>
-                                    </div>
-
-                                    <button
-                                        onClick={() => setShowConfirmModal(true)}
-                                        className="w-full py-3.5 bg-gold hover:bg-gold-hover text-[#1A1A1A] font-black rounded-xl transition-all shadow-lg active:scale-95 text-sm hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.5)]"
-                                    >
-                                        อัปเดตสายเทรด (Change Profile)
-                                    </button>
-                                </>
-                            )}
+                    {/* Right: Observed Behavior */}
+                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center relative overflow-hidden shadow-sm">
+                        <div className="flex items-center gap-2 mb-6 relative z-10">
+                            <Activity className="w-5 h-5 text-gold" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Observed Behavior</span>
                         </div>
+
+                        {!analytics && !analyzing && !error && (
+                            <div className="flex-1 flex flex-col items-center justify-center w-full py-8 relative z-10">
+                                <div className="w-16 h-16 rounded-2xl bg-background/50 flex items-center justify-center mx-auto mb-4 border border-dashed border-theme-border">
+                                    <Binary className="w-6 h-6 text-muted/20" />
+                                </div>
+                                <p className="text-sm text-muted">Awaiting Data</p>
+                            </div>
+                        )}
+
+                        {analyzing && (
+                            <div className="flex-1 flex flex-col items-center justify-center w-full py-8 relative z-10">
+                                <div className="w-12 h-12 border-2 border-gold/10 border-t-gold rounded-xl animate-spin mx-auto mb-4" />
+                                <p className="text-sm text-muted">Scanning history...</p>
+                            </div>
+                        )}
+
+                        {error && !analytics && (
+                            <div className="flex-1 flex flex-col items-center justify-center w-full py-8 relative z-10">
+                                <div className="w-12 h-12 bg-red-500/5 rounded-xl flex items-center justify-center mx-auto mb-4 border border-red-500/10">
+                                    <AlertCircle className="w-6 h-6 text-red-500/30" />
+                                </div>
+                                <p className="text-sm text-red-400 text-center max-w-xs">{error}</p>
+                            </div>
+                        )}
+
+                        {analytics && aiTypeInfo && (
+                            <div className="flex flex-col h-full w-full relative z-10">
+                                <div className="w-16 h-16 rounded-2xl bg-gold/5 flex items-center justify-center mx-auto mb-4 border border-gold/10 text-gold">
+                                    {aiTypeInfo.icon}
+                                </div>
+                                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">{aiTypeInfo.label}</h2>
+                                <p className="text-sm text-muted flex-1 leading-relaxed">{aiTypeInfo.desc}</p>
+                                
+                                {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown' && analytics.suggestedTraderType !== dbTraderType && (
+                                    <div className="mt-6 pt-4 border-t border-theme-border w-full flex flex-col items-center gap-3">
+                                        <div>
+                                            <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Recommended</p>
+                                            <p className="text-sm font-semibold text-gold">{suggestedInfo?.label || analytics.suggestedTraderType}</p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowConfirmModal(true)}
+                                            className="px-4 py-2 bg-gold text-[#1A1A1A] text-xs font-bold rounded-lg hover:bg-gold-hover transition-colors shadow-sm w-full"
+                                        >
+                                            Update Profile
+                                        </button>
+                                    </div>
+                                )}
+                                {(!analytics.suggestedTraderType || analytics.suggestedTraderType === 'Unknown' || analytics.suggestedTraderType === dbTraderType) && (
+                                    <div className="mt-6 pt-4 border-t border-theme-border w-full">
+                                        <p className="text-[10px] text-emerald-500 uppercase tracking-wider font-semibold">Matched</p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* ======= PERFORMANCE SECTION — only shows after analysis ======= */}
+                {/* ======= PERFORMANCE SECTION ======= */}
                 {analytics && (
-                    <div className="space-y-8 pt-8 border-t border-theme-border animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="space-y-6 pt-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                        {/* Section Header */}
-                        <div className="flex items-center gap-3 px-2">
-                            <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
-                                <Trophy className="w-5 h-5 text-gold" />
+                        {/* Executive Summary */}
+                        <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
+                            <div className="flex items-center gap-2 mb-6">
+                                <LineChart className="w-5 h-5 text-gold" />
+                                <h3 className="font-bold text-lg text-foreground tracking-tight">Executive Summary</h3>
                             </div>
-                            <div>
-                                <h2 className="text-2xl font-black tracking-tight">Performance Breakdown</h2>
-                                <p className="text-xs text-muted">ผลวิเคราะห์เชิงลึกจาก AI</p>
-                            </div>
-                        </div>
 
-                        {/* AI Chat-style Q&A Analysis */}
-                        <div className="bg-surface rounded-3xl p-6 md:p-8 border border-theme-border shadow-soft overflow-hidden relative">
-                            <div className="absolute top-0 right-0 w-40 h-40 bg-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-                            <div className="flex items-center gap-3 mb-6 relative z-10">
-                                <div className="w-9 h-9 rounded-xl bg-gold/10 flex items-center justify-center">
-                                    <MessageCircle className="w-4.5 h-4.5 text-gold" />
-                                </div>
+                            <div className="space-y-6">
                                 <div>
-                                    <h3 className="font-black text-sm tracking-tight">AI Trading Advisor</h3>
-                                    <p className="text-[10px] text-muted">วิเคราะห์พฤติกรรมและแนะนำกลยุทธ์</p>
-                                </div>
-                                <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Online</span>
-                                </div>
-                            </div>
-
-                            <div className="space-y-4 relative z-10">
-                                {/* User Question Bubble */}
-                                <div className="flex justify-end">
-                                    <div className="max-w-[80%] bg-gold/10 border border-gold/20 rounded-2xl rounded-tr-md px-5 py-3.5">
-                                        <p className="text-sm font-bold text-foreground">ช่วยวิเคราะห์ผลการเทรดของฉันหน่อย</p>
-                                        <p className="text-[10px] text-muted mt-1">ข้อมูลจาก {analytics.totalClosedTrades} ไม้ที่เทรดจบ</p>
-                                    </div>
+                                    <h4 className="text-sm font-semibold text-foreground mb-2">Primary Diagnosis</h4>
+                                    <p className="text-sm text-muted leading-relaxed">{analytics.primaryFeedback}</p>
                                 </div>
 
-                                {/* AI Response: Primary Feedback */}
-                                <div className="flex gap-3 items-start">
-                                    <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${analytics.profitable ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
-                                        <Bot className={`w-5 h-5 ${analytics.profitable ? 'text-emerald-500' : 'text-red-500'}`} />
-                                    </div>
-                                    <div className="flex-1 bg-background/60 border border-theme-border rounded-2xl rounded-tl-md px-5 py-4 space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <Sparkles className="w-3.5 h-3.5 text-gold" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-gold">AI Diagnosis</span>
-                                        </div>
-                                        <h4 className="text-base font-black text-foreground leading-snug">{analytics.primaryFeedback}</h4>
-
-                                        {/* Parse recommendation into styled sections */}
-                                        {analytics.recommendation && analytics.recommendation.split('\n\n').map((section, idx) => {
-                                            const trimmed = section.trim();
-                                            if (!trimmed) return null;
-
-                                            const isDiagnostic = trimmed.includes('วิเคราะห์สาเหตุ') || trimmed.includes('Trading Diagnostics');
-                                            const isWarning = trimmed.includes('คำเตือน') || trimmed.includes('Critical Warning') || trimmed.includes('⚠️');
-                                            const isTip = trimmed.includes('💡') || trimmed.includes('แนะนำ') || trimmed.includes('📌');
-                                            const isPro = trimmed.includes('คำแนะนำจากมืออาชีพ');
-
-                                            let borderColor = 'border-theme-border';
-                                            let bgColor = 'bg-background/30';
-                                            let icon = null;
-
-                                            if (isDiagnostic) { borderColor = 'border-blue-500/30'; bgColor = 'bg-blue-500/5'; icon = <Activity className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />; }
-                                            else if (isWarning) { borderColor = 'border-red-500/30'; bgColor = 'bg-red-500/5'; icon = <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />; }
-                                            else if (isPro) { borderColor = 'border-gold/30'; bgColor = 'bg-gold/5'; icon = <Shield className="w-3.5 h-3.5 text-gold flex-shrink-0 mt-0.5" />; }
-                                            else if (isTip) { borderColor = 'border-emerald-500/30'; bgColor = 'bg-emerald-500/5'; icon = <Sparkles className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />; }
-
-                                            return (
-                                                <div key={idx} className={`${bgColor} border ${borderColor} rounded-xl p-3.5 mt-2`}>
-                                                    <div className="flex gap-2 items-start">
-                                                        {icon}
-                                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{trimmed}</p>
+                                {analytics.recommendation && (
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-foreground mb-3">Key Observations</h4>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            {analytics.recommendation.split('\n\n').map((section, idx) => {
+                                                const trimmed = section.trim();
+                                                if (!trimmed) return null;
+                                                return (
+                                                    <div key={idx} className="bg-background rounded-xl p-4 border border-theme-border text-sm text-muted leading-relaxed whitespace-pre-line flex items-start gap-3">
+                                                        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+                                                        <span>{trimmed.replace(/^[🔥⚠️💡📌]\s*/g, '')}</span>
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
-                                {/* Behavioral Summary as AI follow-up */}
                                 {analytics.behavioralFeedback && (
-                                    <div className="flex gap-3 items-start">
-                                        <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center bg-purple-500/10">
-                                            <Bot className="w-5 h-5 text-purple-500" />
-                                        </div>
-                                        <div className="flex-1 bg-background/60 border border-theme-border rounded-2xl rounded-tl-md px-5 py-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Shield className="w-3.5 h-3.5 text-purple-500" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-purple-500">Behavioral Analysis</span>
-                                            </div>
-                                            <p className="text-sm text-foreground leading-relaxed">{analytics.behavioralFeedback}</p>
-                                        </div>
+                                    <div>
+                                        <h4 className="text-sm font-semibold text-foreground mb-2">Behavioral Insights</h4>
+                                        <p className="text-sm text-muted leading-relaxed bg-background/50 p-4 rounded-xl border border-theme-border/50">{analytics.behavioralFeedback}</p>
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* ======= AI RECOMMENDED STOCKS (Prominent) ======= */}
+                        {/* ======= SUGGESTED ASSETS ======= */}
                         {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
-                            <div className="bg-gradient-to-br from-gold/5 via-surface to-amber-500/5 rounded-3xl p-6 md:p-8 border border-gold/20 shadow-soft relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
-                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
-                                <div className="relative z-10">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="w-10 h-10 rounded-xl bg-gold/15 flex items-center justify-center border border-gold/20">
-                                            <Award className="w-5 h-5 text-gold" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-black tracking-tight">🔥 หุ้นแนะนำสำหรับคุณ</h2>
-                                            <p className="text-xs text-muted">AI เลือกจากอุตสาหกรรมที่คุณทำกำไรได้ดีที่สุด — คลิกเพื่อเทรดต่อ</p>
-                                        </div>
-                                    </div>
+                            <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Target className="w-5 h-5 text-gold" />
+                                    <h3 className="font-bold text-lg text-foreground tracking-tight">Correlated Opportunities</h3>
+                                </div>
 
-                                    {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' && (
-                                        <div className="mt-4 mb-5 flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
-                                            <TrendingUp className="w-4 h-4 text-emerald-500" />
-                                            <p className="text-sm text-foreground">
-                                                <span className="font-bold">หุ้นทำเงินของคุณ:</span>{' '}
-                                                <span className="font-black text-emerald-500">{analytics.bestPerformingStock}</span>
-                                                <span className="text-muted ml-1">(+{analytics.bestPerformingStockPnL?.toFixed(2)}%)</span>
-                                                <span className="text-muted"> — ระบบแนะนำหุ้นกลุ่มเดียวกัน:</span>
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                                        {analytics.recommendedSimilarStocks.map((stock, idx) => (
-                                            <a
-                                                key={idx}
-                                                href={`/trade?symbol=${stock}`}
-                                                className="group relative flex flex-col items-center gap-2 px-4 py-5 rounded-2xl bg-surface/80 backdrop-blur border border-gold/15 hover:border-gold/50 transition-all duration-300 hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.3)] hover:scale-105 active:scale-95"
-                                            >
-                                                <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
-                                                    <TrendingUp className="w-5 h-5 text-gold" />
-                                                </div>
-                                                <span className="font-black text-base tracking-tight text-foreground">{stock}</span>
-                                                <span className="text-[9px] text-muted group-hover:text-gold/70 transition-colors font-bold uppercase tracking-wider">คลิกเพื่อเทรด →</span>
-                                            </a>
-                                        ))}
+                                {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' && (
+                                    <div className="mb-6">
+                                        <p className="text-sm text-muted">
+                                            Based on your success with <span className="font-bold text-foreground">{analytics.bestPerformingStock}</span>, 
+                                            you might also consider these correlated assets:
+                                        </p>
                                     </div>
+                                )}
+
+                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                    {analytics.recommendedSimilarStocks.map((stock, idx) => (
+                                        <a
+                                            key={idx}
+                                            href={`/trade?symbol=${stock}`}
+                                            className="flex flex-col items-center justify-center p-4 rounded-xl bg-background border border-theme-border hover:border-gold/50 transition-colors group"
+                                        >
+                                            <span className="font-bold text-foreground group-hover:text-gold transition-colors">{stock}</span>
+                                            <span className="text-[10px] text-muted mt-1 uppercase tracking-wider">Trade</span>
+                                        </a>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -793,14 +700,14 @@ function StockHighlightCard({ icon, label, symbol, detail, iconColor, bgColor }:
     bgColor: string;
 }) {
     return (
-        <div className="bg-surface p-5 rounded-2xl border border-theme-border hover:shadow-md transition-shadow duration-300">
-            <div className="flex items-center gap-3 mb-3">
-                <div className={`w-8 h-8 rounded-lg ${bgColor} flex items-center justify-center ${iconColor}`}>
+        <div className="bg-background p-4 rounded-xl border border-theme-border flex flex-col">
+            <div className="flex items-center gap-2 mb-3">
+                <div className={`w-6 h-6 rounded-md ${bgColor} flex items-center justify-center ${iconColor}`}>
                     {icon}
                 </div>
                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted">{label}</span>
             </div>
-            <p className="text-xl font-black tracking-tight">{symbol}</p>
+            <p className="text-xl font-black tracking-tight text-foreground">{symbol}</p>
             <p className="text-xs text-muted mt-1">{detail}</p>
         </div>
     );
