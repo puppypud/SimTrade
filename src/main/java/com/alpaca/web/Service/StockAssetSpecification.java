@@ -1,4 +1,4 @@
-package com.alpaca.web.Repository;
+package com.alpaca.web.Service;
 
 import com.alpaca.web.dto.StockSearchDto;
 import com.alpaca.web.entity.StockAsset;

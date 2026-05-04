@@ -6,6 +6,7 @@ import com.alpaca.web.dto.CreateAccountRequest;
 import com.alpaca.web.dto.OnboardingRequest;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
+import com.alpaca.web.entity.UserBalance;
 import io.github.cdimascio.dotenv.Dotenv;
 import jakarta.annotation.PostConstruct;
 import jakarta.transaction.Transactional;
@@ -62,10 +63,12 @@ public class BrokerService {
     private final AccountRepository accountRepository;
     private static final BigDecimal FEE_RATE = new BigDecimal("0.00025"); // 0.025% ///แก้ไขตรงนี้
     private static final BigDecimal FEE_MULTIPLIER = BigDecimal.ONE.add(FEE_RATE); // 1.00025 สำหรับไว้หารยอด Notional
+    private final BalanceLogService balanceLogService;
 
-    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository) {
+    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, BalanceLogService balanceLogService) {
         this.orderHistoryRepository = orderHistoryRepository;
         this.accountRepository = accountRepository;
+        this.balanceLogService = balanceLogService;
     }
 
     @PostConstruct
@@ -203,6 +206,24 @@ public class BrokerService {
                         // 6. บันทึกลง Database (บรรทัดเดียวจบ)
                         orderHistoryRepository.save(historyToSave);
                         log.info("✅ Database Updated: Order {} is now FILLED with commission.", orderId);
+
+                        //บันทึก balance หรือ กระเป๋าเงิน user
+                        if (historyToSave.getUserAccount() != null && historyToSave.getUserAccount().getAccountNumber() != null) {
+                            Integer userId = Integer.valueOf(historyToSave.getUserAccount().getAccountNumber());
+                            String alpacaAccountIdStr = accountId.toString();
+
+                            try {
+                                log.info("🔄 Triggering BalanceLogService for User {} after Order {} fill.", userId, orderId);
+                                // เรียกใช้ Service ตัวเก่งของเรา (มันจะเช็คเองว่ายอดเปลี่ยนไหม ค่อยเซฟ)
+                                balanceLogService.fetchAndLogBalance(userId, alpacaAccountIdStr);
+
+                            } catch (Exception e) {
+                                log.error("❌ Error logging balance after trade update for order: " + orderId, e);
+                            }
+                        } else {
+                            log.warn("⚠️ Cannot log balance: UserAccount or UserId is missing for Order {}", orderId);
+                        }
+
 
                     } catch (IllegalArgumentException e) {
                         log.warn("⚠️ Client Order ID is not a valid UUID: {}", order.getClientOrderId());

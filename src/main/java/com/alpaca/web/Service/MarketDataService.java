@@ -27,7 +27,6 @@ import java.time.*;
 import java.net.URI;
 
 import com.alpaca.web.Repository.StockAssetRepository;
-import com.alpaca.web.Repository.StockAssetSpecification;
 import com.alpaca.web.entity.StockAsset;
 import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
