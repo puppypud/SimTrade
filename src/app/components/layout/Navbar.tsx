@@ -7,6 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useTheme } from 'next-themes';
 import { User, LogOut, Sun, Moon } from 'lucide-react';
 import SearchBar from '../features/SearchBar';
+import FilterSheet from '../features/FilterSheet';
 
 // ----------------------------------------------------------------------
 // 1. รายการเมนูนำทาง (Navigation Links)
@@ -32,6 +33,7 @@ export default function Navbar() {
 
   const [mounted, setMounted] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
 
   // ตั้งค่าให้รู้ว่าคอมโพเนนต์ Mount แล้ว (แก้ปัญหา Hydration Error ของ next-themes)
@@ -80,11 +82,10 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all ${
-                  pathname === link.href
-                    ? 'text-gold bg-gold/10'
-                    : 'text-muted hover:text-foreground hover:bg-background'
-                }`}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-all ${pathname === link.href
+                  ? 'text-gold bg-gold/10'
+                  : 'text-muted hover:text-foreground hover:bg-background'
+                  }`}
               >
                 {link.name}
               </Link>
@@ -97,9 +98,18 @@ export default function Navbar() {
         {/* --------------------------- */}
         <div className="flex items-center gap-4">
 
-          {/* ช่องค้นหา */}
-          <div className="w-64 xl:w-80">
-            <SearchBar />
+          {/* ช่องค้นหา + Filter */}
+          <div className="flex items-center gap-2">
+            <div className="w-64 xl:w-80">
+              <SearchBar />
+            </div>
+            <button 
+              onClick={() => setIsFilterOpen(true)}
+              className="flex items-center justify-center w-[38px] h-[38px] bg-gold/10 border border-gold/20 text-gold rounded-xl hover:bg-gold/20 hover:border-gold/40 transition-all duration-200 active:scale-[0.97]" 
+              aria-label="Filter Stocks"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-sliders-horizontal w-4 h-4" aria-hidden="true"><path d="M10 5H3"></path><path d="M12 19H3"></path><path d="M14 3v4"></path><path d="M16 17v4"></path><path d="M21 12h-9"></path><path d="M21 19h-5"></path><path d="M21 5h-7"></path><path d="M8 10v4"></path><path d="M8 12H3"></path></svg>
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -127,7 +137,7 @@ export default function Navbar() {
                 {/* เนื้อหา Dropdown */}
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-3 w-[240px] bg-surface border border-theme-border rounded-xl shadow-xl py-2 z-50 text-sm animate-in fade-in slide-in-from-top-2 duration-200">
-                    
+
                     {/* Header ของ Dropdown */}
                     <div className="flex items-center gap-3 px-4 py-3 border-b border-theme-border">
                       <div className="w-8 h-8 rounded-full bg-[#5fa38e] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
@@ -138,8 +148,8 @@ export default function Navbar() {
 
                     <div className="py-1">
                       {/* ปุ่มสลับธีม */}
-                      <div 
-                        className="px-4 py-2 flex justify-between items-center hover:bg-background transition-colors cursor-pointer" 
+                      <div
+                        className="px-4 py-2 flex justify-between items-center hover:bg-background transition-colors cursor-pointer"
                         onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                       >
                         <span className="text-foreground">Dark theme</span>
@@ -177,6 +187,9 @@ export default function Navbar() {
           </div>
         </div>
       </div>
+
+      {/* Global Filter Sheet */}
+      <FilterSheet isOpen={isFilterOpen} onClose={() => setIsFilterOpen(false)} />
     </div>
   );
 }
