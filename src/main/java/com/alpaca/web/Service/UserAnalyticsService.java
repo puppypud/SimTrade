@@ -458,22 +458,32 @@ public class UserAnalyticsService {
         String recommendationText = String.format(
                 "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้",
                 statedType, stockCat);
+        List<String> suggestedStocks = new ArrayList<>();
+
         // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
         if (bestStock != null && !bestStock.equals("-")) {
-            List<String> similarStocks = findSimilarStocks(bestStock, stockCat);
-
-            if (!similarStocks.isEmpty()) {
-                String suggestedSymbols = String.join(", ", similarStocks);
+            suggestedStocks = findSimilarStocks(bestStock, stockCat);
+            if (!suggestedStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", suggestedStocks);
                 recommendationText += String.format(
                         "\n\n💡 หุ้นที่คุณทำกำไรได้ดีที่สุดคือ %s ระบบขอแนะนำให้คุณลองศึกษาหุ้นในอุตสาหกรรมเดียวกันที่มีพฤติกรรมคล้ายกัน เช่น %s ดูเพิ่มเติม เพราะจริตของคุณเข้ากับหุ้นกลุ่มนี้มาก",
                         bestStock, suggestedSymbols);
-
-                result.setRecommendedSimilarStocks(similarStocks);
             }
-        } else {
-            recommendationText += " และพยายาม Scale Up พอร์ตการลงทุน";
         }
 
+        // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดแทน (ต้องแนะนำเสมอ)
+        if (suggestedStocks.isEmpty()) {
+            suggestedStocks = findStocksForTraderType(statedType);
+            if (!suggestedStocks.isEmpty()) {
+                String symbols = String.join(", ", suggestedStocks);
+                recommendationText += String.format(
+                        "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติมเพื่อ Scale Up พอร์ต",
+                        statedType, symbols);
+            } else {
+                recommendationText += " และพยายาม Scale Up พอร์ตการลงทุน";
+            }
+        }
+        result.setRecommendedSimilarStocks(suggestedStocks);
         result.setRecommendation(recommendationText);
     }
 
@@ -525,18 +535,33 @@ public class UserAnalyticsService {
                     actualType, statedType));
         }
 
-        // --- ส่วนที่เพิ่มเข้ามา: แนะนำหุ้นตามความชอบแอบแฝง ---
+        // --- แนะนำหุ้นตามความชอบแอบแฝง ---
+        List<String> suggestedStocks = new ArrayList<>();
         String bestStock = result.getBestPerformingStock();
         if (bestStock != null && !bestStock.equals("-")) {
-            List<String> similarStocks = findSimilarStocks(bestStock, stockCat);
-            if (!similarStocks.isEmpty()) {
-                String suggestedSymbols = String.join(", ", similarStocks);
+            suggestedStocks = findSimilarStocks(bestStock, stockCat);
+            if (!suggestedStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", suggestedStocks);
                 rec.append(String.format(
                         "\n จากความสำเร็จแบบไม่ได้ตั้งใจนี้ หุ้นทำเงินของคุณคือ %s เราขอแนะนำให้คุณลองศึกษาหุ้นอุตสาหกรรมเดียวกันที่มีลักษณะคล้ายกัน เช่น %s เพราะนี่อาจเป็น 'ทางถนัดที่แท้จริง' ของคุณ",
                         bestStock, suggestedSymbols));
-                result.setRecommendedSimilarStocks(similarStocks);
             }
         }
+
+        // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดจริง (actualType) แทน
+        if (suggestedStocks.isEmpty()) {
+            suggestedStocks = findStocksForTraderType(actualType);
+            if (suggestedStocks.isEmpty()) {
+                suggestedStocks = findStocksForTraderType(statedType);
+            }
+            if (!suggestedStocks.isEmpty()) {
+                String symbols = String.join(", ", suggestedStocks);
+                rec.append(String.format(
+                        "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติม",
+                        actualType, symbols));
+            }
+        }
+        result.setRecommendedSimilarStocks(suggestedStocks);
 
         result.setRecommendation(rec.toString());
         result.setSuggestedTraderType(actualType);
