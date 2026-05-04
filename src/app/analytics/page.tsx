@@ -32,7 +32,10 @@ import {
     Trophy,
     AlertTriangle,
     LineChart,
-    Play
+    Play,
+    MessageCircle,
+    Bot,
+    Sparkles
 } from 'lucide-react';
 
 const TRADER_INFO: Record<string, { label: string; desc: string; emoji: string }> = {
@@ -102,6 +105,22 @@ export default function AnalyticsPage() {
             setAnalyzing(true);
             setError(null);
             const data = await brokerService.getUserAnalytics(user.id);
+
+            // ★ Fallback: ถ้า backend ไม่ส่ง recommendedSimilarStocks กลับมา ให้ดึงจาก API แยก
+            if (!data.recommendedSimilarStocks || data.recommendedSimilarStocks.length === 0) {
+                try {
+                    const traderType = data.suggestedTraderType || data.traderType || dbTraderType;
+                    if (traderType && traderType !== 'Unknown') {
+                        const fallbackStocks = await brokerService.getRecommendedStocks(traderType);
+                        if (fallbackStocks && fallbackStocks.length > 0) {
+                            data.recommendedSimilarStocks = fallbackStocks;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch fallback recommended stocks", e);
+                }
+            }
+
             setAnalytics(data);
 
             // --- บันทึกลง Cache ---
@@ -113,7 +132,7 @@ export default function AnalyticsPage() {
         } finally {
             setAnalyzing(false);
         }
-    }, [user?.id]);
+    }, [user?.id, dbTraderType]);
 
     const preTestInfo = TRADER_INFO[dbTraderType] || TRADER_INFO['Unknown'];
     const aiTypeInfo = analytics
@@ -311,22 +330,139 @@ export default function AnalyticsPage() {
                             </div>
                         </div>
 
-                        {/* AI Feedback Card */}
-                        <div className="bg-surface rounded-3xl p-6 md:p-8 border border-theme-border shadow-soft">
-                            <div className="flex flex-col md:flex-row gap-6 items-start">
-                                <div className={`w-14 h-14 rounded-2xl flex-shrink-0 flex items-center justify-center ${analytics.profitable ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
-                                    {analytics.profitable ? <TrendingUp className="w-7 h-7" /> : <TrendingDown className="w-7 h-7" />}
+                        {/* AI Chat-style Q&A Analysis */}
+                        <div className="bg-surface rounded-3xl p-6 md:p-8 border border-theme-border shadow-soft overflow-hidden relative">
+                            <div className="absolute top-0 right-0 w-40 h-40 bg-gold/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+                            <div className="flex items-center gap-3 mb-6 relative z-10">
+                                <div className="w-9 h-9 rounded-xl bg-gold/10 flex items-center justify-center">
+                                    <MessageCircle className="w-4.5 h-4.5 text-gold" />
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-black tracking-tight mb-2">{analytics.primaryFeedback}</h3>
-                                    <div className="text-sm text-foreground leading-relaxed whitespace-pre-line bg-background/50 p-4 rounded-xl border border-theme-border mt-3 relative overflow-hidden">
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gold"></div>
-                                        <p className="font-bold text-muted mb-2 text-xs uppercase tracking-wider">💡 ความเห็นจาก AI (ข้อดี/ข้อเสีย/คำแนะนำ)</p>
-                                        {analytics.recommendation}
+                                <div>
+                                    <h3 className="font-black text-sm tracking-tight">AI Trading Advisor</h3>
+                                    <p className="text-[10px] text-muted">วิเคราะห์พฤติกรรมและแนะนำกลยุทธ์</p>
+                                </div>
+                                <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wider">Online</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4 relative z-10">
+                                {/* User Question Bubble */}
+                                <div className="flex justify-end">
+                                    <div className="max-w-[80%] bg-gold/10 border border-gold/20 rounded-2xl rounded-tr-md px-5 py-3.5">
+                                        <p className="text-sm font-bold text-foreground">ช่วยวิเคราะห์ผลการเทรดของฉันหน่อย</p>
+                                        <p className="text-[10px] text-muted mt-1">ข้อมูลจาก {analytics.totalClosedTrades} ไม้ที่เทรดจบ</p>
+                                    </div>
+                                </div>
+
+                                {/* AI Response: Primary Feedback */}
+                                <div className="flex gap-3 items-start">
+                                    <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center ${analytics.profitable ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                                        <Bot className={`w-5 h-5 ${analytics.profitable ? 'text-emerald-500' : 'text-red-500'}`} />
+                                    </div>
+                                    <div className="flex-1 bg-background/60 border border-theme-border rounded-2xl rounded-tl-md px-5 py-4 space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <Sparkles className="w-3.5 h-3.5 text-gold" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-gold">AI Diagnosis</span>
+                                        </div>
+                                        <h4 className="text-base font-black text-foreground leading-snug">{analytics.primaryFeedback}</h4>
+
+                                        {/* Parse recommendation into styled sections */}
+                                        {analytics.recommendation && analytics.recommendation.split('\n\n').map((section, idx) => {
+                                            const trimmed = section.trim();
+                                            if (!trimmed) return null;
+
+                                            const isDiagnostic = trimmed.includes('วิเคราะห์สาเหตุ') || trimmed.includes('Trading Diagnostics');
+                                            const isWarning = trimmed.includes('คำเตือน') || trimmed.includes('Critical Warning') || trimmed.includes('⚠️');
+                                            const isTip = trimmed.includes('💡') || trimmed.includes('แนะนำ') || trimmed.includes('📌');
+                                            const isPro = trimmed.includes('คำแนะนำจากมืออาชีพ');
+
+                                            let borderColor = 'border-theme-border';
+                                            let bgColor = 'bg-background/30';
+                                            let icon = null;
+
+                                            if (isDiagnostic) { borderColor = 'border-blue-500/30'; bgColor = 'bg-blue-500/5'; icon = <Activity className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 mt-0.5" />; }
+                                            else if (isWarning) { borderColor = 'border-red-500/30'; bgColor = 'bg-red-500/5'; icon = <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />; }
+                                            else if (isPro) { borderColor = 'border-gold/30'; bgColor = 'bg-gold/5'; icon = <Shield className="w-3.5 h-3.5 text-gold flex-shrink-0 mt-0.5" />; }
+                                            else if (isTip) { borderColor = 'border-emerald-500/30'; bgColor = 'bg-emerald-500/5'; icon = <Sparkles className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0 mt-0.5" />; }
+
+                                            return (
+                                                <div key={idx} className={`${bgColor} border ${borderColor} rounded-xl p-3.5 mt-2`}>
+                                                    <div className="flex gap-2 items-start">
+                                                        {icon}
+                                                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-line">{trimmed}</p>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Behavioral Summary as AI follow-up */}
+                                {analytics.behavioralFeedback && (
+                                    <div className="flex gap-3 items-start">
+                                        <div className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center bg-purple-500/10">
+                                            <Bot className="w-5 h-5 text-purple-500" />
+                                        </div>
+                                        <div className="flex-1 bg-background/60 border border-theme-border rounded-2xl rounded-tl-md px-5 py-4">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <Shield className="w-3.5 h-3.5 text-purple-500" />
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-purple-500">Behavioral Analysis</span>
+                                            </div>
+                                            <p className="text-sm text-foreground leading-relaxed">{analytics.behavioralFeedback}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ======= AI RECOMMENDED STOCKS (Prominent) ======= */}
+                        {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
+                            <div className="bg-gradient-to-br from-gold/5 via-surface to-amber-500/5 rounded-3xl p-6 md:p-8 border border-gold/20 shadow-soft relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-gold/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-500/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/4" />
+                                <div className="relative z-10">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <div className="w-10 h-10 rounded-xl bg-gold/15 flex items-center justify-center border border-gold/20">
+                                            <Award className="w-5 h-5 text-gold" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-xl font-black tracking-tight">🔥 หุ้นแนะนำสำหรับคุณ</h2>
+                                            <p className="text-xs text-muted">AI เลือกจากอุตสาหกรรมที่คุณทำกำไรได้ดีที่สุด — คลิกเพื่อเทรดต่อ</p>
+                                        </div>
+                                    </div>
+
+                                    {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' && (
+                                        <div className="mt-4 mb-5 flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3">
+                                            <TrendingUp className="w-4 h-4 text-emerald-500" />
+                                            <p className="text-sm text-foreground">
+                                                <span className="font-bold">หุ้นทำเงินของคุณ:</span>{' '}
+                                                <span className="font-black text-emerald-500">{analytics.bestPerformingStock}</span>
+                                                <span className="text-muted ml-1">(+{analytics.bestPerformingStockPnL?.toFixed(2)}%)</span>
+                                                <span className="text-muted"> — ระบบแนะนำหุ้นกลุ่มเดียวกัน:</span>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                        {analytics.recommendedSimilarStocks.map((stock, idx) => (
+                                            <a
+                                                key={idx}
+                                                href={`/trade?symbol=${stock}`}
+                                                className="group relative flex flex-col items-center gap-2 px-4 py-5 rounded-2xl bg-surface/80 backdrop-blur border border-gold/15 hover:border-gold/50 transition-all duration-300 hover:shadow-[0_0_25px_-5px_rgba(255,215,0,0.3)] hover:scale-105 active:scale-95"
+                                            >
+                                                <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center group-hover:bg-gold/20 transition-colors">
+                                                    <TrendingUp className="w-5 h-5 text-gold" />
+                                                </div>
+                                                <span className="font-black text-base tracking-tight text-foreground">{stock}</span>
+                                                <span className="text-[9px] text-muted group-hover:text-gold/70 transition-colors font-bold uppercase tracking-wider">คลิกเพื่อเทรด →</span>
+                                            </a>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Key Metrics Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -438,38 +574,7 @@ export default function AnalyticsPage() {
                             </div>
                         )}
 
-                        {/* ======= AI RECOMMENDED STOCKS ======= */}
-                        {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3 px-2">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-gold/20 to-amber-500/10 flex items-center justify-center">
-                                        <Award className="w-5 h-5 text-gold" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-black tracking-tight">AI Recommended Stocks</h2>
-                                        <p className="text-xs text-muted">หุ้นในอุตสาหกรรมเดียวกันที่เข้ากับจริตของคุณ</p>
-                                    </div>
-                                </div>
-                                <div className="bg-surface rounded-2xl p-6 border border-theme-border shadow-soft">
-                                    <p className="text-xs text-muted mb-4">ระบบแนะนำหุ้นเหล่านี้จากหุ้นทำเงินของคุณ — คลิกเพื่อดูข้อมูลเพิ่มเติม</p>
-                                    <div className="flex flex-wrap gap-3">
-                                        {analytics.recommendedSimilarStocks.map((stock, idx) => (
-                                            <a
-                                                key={idx}
-                                                href={`/trade?symbol=${stock}`}
-                                                className="group relative px-5 py-3.5 rounded-xl bg-gradient-to-br from-gold/5 to-amber-500/5 border border-gold/20 hover:border-gold/50 hover:from-gold/10 hover:to-amber-500/10 transition-all duration-300 hover:shadow-[0_0_20px_-5px_rgba(255,215,0,0.3)] hover:scale-105 active:scale-95"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <TrendingUp className="w-3.5 h-3.5 text-gold opacity-60 group-hover:opacity-100 transition-opacity" />
-                                                    <span className="font-black text-sm tracking-tight text-foreground">{stock}</span>
-                                                </div>
-                                                <p className="text-[9px] text-muted mt-1 group-hover:text-gold/70 transition-colors">คลิกเพื่อดูกราฟ →</p>
-                                            </a>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+
 
                         {/* ======= BEHAVIORAL RISK ANALYSIS ======= */}
                         <div className="space-y-4">
