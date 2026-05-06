@@ -3,6 +3,8 @@ package com.alpaca.web.controller;
 import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.Repository.PortfolioHistoryRepository;
 import com.alpaca.web.Repository.UserPositionRepository;
+import com.alpaca.web.Repository.WatchlistRepository;
+import com.alpaca.web.entity.Watchlist;
 import com.alpaca.web.Service.*;
 import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.OrderHistory;
@@ -18,6 +20,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.alpaca.web.Repository.AccountRepository;
 import org.springframework.data.domain.Sort;
 
@@ -38,6 +42,9 @@ public class BrokerController {
     private final StockImportService stockImportService;
     private final UserPositionRepository userPositionRepository;
     private final PortfolioHistoryRepository portfolioHistoryRepository;
+    
+    @Autowired
+    private WatchlistRepository watchlistRepository;
 
     // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
@@ -676,5 +683,36 @@ public class BrokerController {
         Page<com.alpaca.web.entity.PortfolioHistory> pagedResult = portfolioHistoryRepository.findAll(pageRequest);
 
         return ResponseEntity.ok(pagedResult);
+    }
+    // ============================================================
+    // WATCHLIST MANAGEMENT
+    // ============================================================
+    
+    @GetMapping("/watchlist/{userId}")
+    public ResponseEntity<List<String>> getWatchlist(@PathVariable Long userId) {
+        List<Watchlist> watchlist = watchlistRepository.findByUserId(userId);
+        return ResponseEntity.ok(watchlist.stream()
+                .map(Watchlist::getSymbol)
+                .collect(java.util.stream.Collectors.toList()));
+    }
+
+    @PostMapping("/watchlist/{userId}/add")
+    public ResponseEntity<String> addToWatchlist(@PathVariable Long userId, @RequestParam String symbol) {
+        if (watchlistRepository.findByUserIdAndSymbol(userId, symbol).isPresent()) {
+            return ResponseEntity.badRequest().body("Already in watchlist");
+        }
+        Watchlist item = Watchlist.builder()
+                .userId(userId)
+                .symbol(symbol)
+                .build();
+        watchlistRepository.save(item);
+        return ResponseEntity.ok("Added to watchlist");
+    }
+
+    @DeleteMapping("/watchlist/{userId}/remove")
+    @Transactional
+    public ResponseEntity<String> removeFromWatchlist(@PathVariable Long userId, @RequestParam String symbol) {
+        watchlistRepository.deleteByUserIdAndSymbol(userId, symbol);
+        return ResponseEntity.ok("Removed from watchlist");
     }
 }
