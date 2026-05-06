@@ -457,23 +457,21 @@ public class BrokerService {
 
     // เติมเงินให้ user
     @Async
-    @Retryable(retryFor = { ApiException.class, IllegalStateException.class }, maxAttempts = 15, // 💡 เพิ่มรอบเป็น 15
-                                                                                                 // ครั้ง (เผื่อ Alpaca
-                                                                                                 // ช้า)
-            backoff = @Backoff(delay = 5000) // 💡 รอ 5 วินาทีก่อนลองใหม่ (รวมเวลาพยายามคือ 15 * 5 = 75 วินาที)
+    @Retryable(retryFor = { IllegalStateException.class }, maxAttempts = 15,
+            backoff = @Backoff(delay = 5000)
     )
     public void addMoneyToUserAccount(UUID userAccountId, Double amount) throws ApiException {
         log.info("⏳ [Background Task] กำลังตรวจสอบบัญชี {} เพื่อเติมเงิน...", userAccountId);
+
         AccountExtended account = brokerAPI.broker().accounts().getAccount(userAccountId);
 
-        // ถ้าสถานะยังไม่ ACTIVE ให้โยน Error ออกไป เพื่อให้ @Retryable สั่งรอ 5
-        // วิแล้วทำงานใหม่
+        // ถ้าสถานะยังไม่ ACTIVE ให้โยน IllegalStateException เพื่อให้ @Retryable รอแล้วลองใหม่
         if (!"ACTIVE".equals(account.getStatus().toString())) {
             log.warn("⚠️ บัญชี {} ยังไม่ ACTIVE รอทำซ้ำ...", userAccountId);
             throw new IllegalStateException("Account is not active yet");
         }
 
-        // เมื่อ ACTIVE แล้วถึงจะรันบรรทัดล่างนี้
+        // เมื่อ ACTIVE แล้วถึงจะส่ง Journal
         CreateJournalRequest journalRequest = new CreateJournalRequest()
                 .entryType(JournalEntryType.JNLC)
                 .fromAccount(UUID.fromString(FIRM_ACCOUNT_ID))
@@ -481,8 +479,22 @@ public class BrokerService {
                 .amount(String.valueOf(amount))
                 .description("Deposit by Admin Initial Fund");
 
-        brokerAPI.broker().journals().createJournal(journalRequest);
-        log.info("✅ โอนเงิน $100,000 เข้าบัญชี {} เรียบร้อยแล้ว!", userAccountId);
+        try {
+            brokerAPI.broker().journals().createJournal(journalRequest);
+            log.info("✅ โอนเงิน ${} เข้าบัญชี {} เรียบร้อยแล้ว!", amount, userAccountId);
+        } catch (ApiException e) {
+            // ดักจับ 403 Insufficient Balance — หยุดทันที ไม่ต้อง retry
+            if (e.getCode() == 403) {
+                log.error("❌ [FUND FAILED] บัญชี Firm Account เงินไม่พอ (Insufficient Balance)!");
+                log.error("❌ กรุณาไปที่ Admin Panel → 'Fund Firm Account' เพื่อเติมเงินเข้าบัญชีบริษัทก่อน แล้วค่อย Fund User ด้วยตนเอง");
+                log.error("❌ UserAccount ที่ยังไม่ได้รับเงิน: {} จำนวน ${}", userAccountId, amount);
+                // ไม่ throw ต่อ → @Retryable จะไม่ retry
+                return;
+            }
+            // กรณี error อื่น ให้ throw ต่อตามปกติ
+            log.error("❌ เติมเงินไม่สำเร็จ (ApiException code={}): {}", e.getCode(), e.getMessage());
+            throw e;
+        }
     }
 
     // เติมเงินเข้าบัญชีเรา (Sandbox ใช้ ACH เพราะ WIRE ต้องการ bank_id)
@@ -491,9 +503,9 @@ public class BrokerService {
             log.info("Admin: กำลังเสกเงินเข้า Firm Account จำนวน ${}", amount);
 
             CreateTransferRequest transferRequest = new CreateTransferRequest()
-                    .transferType(TransferType.ACH) // ใช้ ACH แทน WIRE (Sandbox ไม่ต้องใช้ bank_id)
-                    .direction(TransferDirection.INCOMING) // ขาเข้า (เติมเงิน)
-                    .timing(TransferTiming.IMMEDIATE) // ทันที
+                    .transferType(TransferType.ACH)
+                    .relationshipId(UUID.fromString("1c1da111-e86f-4961-a97e-59878354f358")) // จาก ACH relationships ของ Firm Account
+                    .direction(TransferDirection.INCOMING)
                     .amount(BigDecimal.valueOf(amount));
 
             Transfer transfer = brokerAPI.broker().funding().createTransferForAccount(
