@@ -13,8 +13,8 @@ public interface StockAssetRepository extends JpaRepository<StockAsset, String>,
     List<StockAsset> findByIsTradableTrue();
     // หาหุ้นตามหมวดหมู่
     List<StockAsset> findByCategory(String category);
-    // ดึงหุ้น 3 ตัวที่ตรงกลุ่มหุ้นและตรงอุสหกรรม และไม่ซ้ำ
-    List<StockAsset> findTop3ByCategoryAndIndustryAndSymbolNot(String category, String industry, String symbolToExclude);
+    // ดึงหุ้น 5 ตัวที่ตรงกลุ่มหุ้นและตรงอุสหกรรม และไม่ซ้ำ
+    List<StockAsset> findTop5ByCategoryAndIndustryAndSymbolNot(String category, String industry, String symbolToExclude);
     // ดึงหุ้น 5 ตัวตาม Category (ไม่จำกัด Industry) — ใช้แนะนำหุ้นเมื่อหาแบบเจาะจงไม่ได้
     List<StockAsset> findTop5ByCategoryAndIsTradableTrue(String category);
 
