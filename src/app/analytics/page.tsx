@@ -50,7 +50,7 @@ import {
 
 const TRADER_INFO: Record<string, { label: string; desc: string; icon: React.ReactNode }> = {
     'Scalper': { label: 'Scalper', desc: 'ทำกำไรสั้นๆ ถือไม่เกิน 30 นาที', icon: <Zap className="w-5 h-5" /> },
-    'Day Trader': { label: 'Day Trader', desc: 'จบงานภายในวัน ไม่ห่อข้ามคืน', icon: <Sun className="w-5 h-5" /> },
+    'Day Trader': { label: 'Day Trader', desc: 'จบงานภายในวัน ไม่ห่อข้ามคืน', icon: <Sun className="w-5 h-5 text-amber-400" /> },
     'Swing Trader': { label: 'Swing Trader', desc: 'รันเทรดเป็นรอบ ถือ 2-5 วัน', icon: <TrendingUp className="w-5 h-5" /> },
     'Position Trader': { label: 'Position Trader', desc: 'ลงทุนระยะยาว เน้นพื้นฐาน', icon: <Mountain className="w-5 h-5" /> },
     'Unknown': { label: 'ยังไม่ได้ทำแบบทดสอบ', desc: 'กรุณาทำ Quiz ก่อน', icon: <HelpCircle className="w-5 h-5" /> },
@@ -170,41 +170,51 @@ export default function AnalyticsPage() {
                 {/* ======= PROFILE ASSESSMENT ======= */}
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch">
                     {/* Left: Declared Profile */}
-                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden">
-                        {/* Header section with badge */}
-                        <div className="mb-6">
-                            <span className="px-3 py-1 rounded-full bg-theme-border/30 border border-theme-border/50 text-[10px] font-bold text-muted uppercase tracking-widest">
-                                Initial Setup
-                            </span>
+                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden h-full">
+                        {/* Header Row (Mirroring Observed Behavior) */}
+                        <div className="flex items-center gap-2 mb-6 relative z-10">
+                            <UserCircle className="w-5 h-5 text-muted" />
+                            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Declared Profile</span>
                         </div>
 
                         {profileLoading ? (
-                            <div className="flex flex-col items-center justify-center w-full py-8 flex-1">
-                                <RefreshCw className="w-6 h-6 text-muted animate-spin mb-3" />
+                            <div className="flex-1 flex flex-col items-center justify-center w-full py-8 relative z-10">
+                                <div className="w-12 h-12 border-2 border-muted/20 border-t-muted rounded-xl animate-spin mx-auto mb-4" />
+                                <p className="text-sm text-muted">Loading profile...</p>
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center w-full">
-                                <div className="w-20 h-20 rounded-3xl bg-background border border-theme-border flex items-center justify-center mx-auto mb-6 shadow-sm text-muted">
-                                    {preTestInfo.icon}
+                            <div className="flex flex-col h-full w-full relative z-10">
+                                {/* Badge Area */}
+                                <div className="mb-6">
+                                    <span className="px-3 py-1 rounded-full bg-theme-border/30 border border-theme-border/50 text-[10px] font-bold text-muted uppercase tracking-widest">
+                                        Initial Setup
+                                    </span>
                                 </div>
 
-                                <p className="text-[10px] text-muted uppercase tracking-[0.2em] mb-2 font-bold">
-                                    สายการเทรดที่คุณเลือกไว้
-                                </p>
-
-                                <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
-                                    {preTestInfo.label}
-                                </h2>
-
-                                <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
-                                    {preTestInfo.desc}
-                                </p>
-
-                                <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
-                                    <p className="text-[10px] text-muted font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
-                                        <UserCircle className="w-4 h-4" />
-                                        Declared Profile
+                                {/* Main Profile Info */}
+                                <div className="flex-1 flex flex-col items-center">
+                                    <div className="w-20 h-20 rounded-3xl bg-background border border-theme-border flex items-center justify-center mx-auto mb-6 shadow-sm text-muted">
+                                        {preTestInfo.icon}
+                                    </div>
+                                    
+                                    <p className="text-[10px] text-muted uppercase tracking-[0.2em] mb-2 font-bold">
+                                        สายการเทรดที่คุณเลือกไว้
                                     </p>
+                                    
+                                    <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
+                                        {preTestInfo.label}
+                                    </h2>
+                                    
+                                    <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
+                                        {preTestInfo.desc}
+                                    </p>
+                                    
+                                    <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
+                                        <p className="text-[10px] text-muted font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
+                                            <UserCircle className="w-4 h-4" />
+                                            Declared Profile
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         )}
