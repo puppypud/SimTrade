@@ -494,7 +494,7 @@ public class UserAnalyticsService {
             recommendationText += " จงรักษาวินัยที่ยอดเยี่ยมนี้ไว้";
         }
         List<String> suggestedStocks = new ArrayList<>();
-
+        String bestStock = result.getBestPerformingStock();
         // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
         if (bestStock != null && !bestStock.equals("-")) {
             suggestedStocks = findSimilarStocks(bestStock, stockCat);

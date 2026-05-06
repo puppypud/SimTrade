@@ -66,6 +66,8 @@ public class BrokerService {
     private static final BigDecimal FEE_MULTIPLIER = BigDecimal.ONE.add(FEE_RATE); // 1.00025 สำหรับไว้หารยอด Notional
     private final BehavioralAnalyticsService behavioralAnalyticsService;
     private final MarketDataService marketDataService;
+    private final BalanceLogService balanceLogService;
+    private final OrderManagementService orderManagementService;
 
     public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, 
                         BalanceLogService balanceLogService, OrderManagementService orderManagementService,

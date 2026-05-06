@@ -21,6 +21,7 @@ public class UserAnalyticsController {
     private final UserAnalyticsService userAnalyticsService;
     private final AccountRepository accountRepository;
     private final BehavioralAnalyticsService behavioralAnalyticsService;
+    private TraderType typeToUse;
 
     public UserAnalyticsController(UserAnalyticsService userAnalyticsService, AccountRepository accountRepository, BehavioralAnalyticsService behavioralAnalyticsService) {
         this.userAnalyticsService = userAnalyticsService;
