@@ -11,4 +11,5 @@ public interface BalanceRepository extends JpaRepository<UserBalance, Integer> {
 
     Optional<UserBalance> findTopByUserIdOrderByUpdatedAtDesc(Integer userId);
 
+    Optional<UserBalance> findTopByUserIdOrderByUpdatedAtDesc(Long userId);
 }

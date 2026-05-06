@@ -22,7 +22,7 @@ public class BalanceLogService {
         this.alpacaAPI = alpacaAPI;
     }
 
-    public UserBalance fetchAndLogBalance(Integer userId, String alpacaAccountId) throws  ApiException {
+    public UserBalance fetchAndLogBalance(Long userId, String alpacaAccountId) throws  ApiException {
 
         // 1. ดึงยอดปัจจุบันจาก Alpaca API โดยระบุ Account ID เข้าไปด้วย
         // (คำสั่งดึงข้อมูลอาจแตกต่างกันนิดหน่อยตามเวอร์ชัน แต่หลักการคือต้องมี ID)
@@ -46,7 +46,7 @@ public class BalanceLogService {
 
         // 4. ถ้าเพิ่งเคยดึงครั้งแรก หรือ ยอดเงินไม่เท่าเดิม (มีการซื้อขาย) ถึงจะบันทึก Log ใหม่
         UserBalance newLog = new UserBalance();
-        newLog.setUserId(userId);
+        newLog.setUserId(Math.toIntExact(userId));
         newLog.setAvailableBalance(currentAlpacaBalance);
 
         System.out.println("ยอดเงินเปลี่ยนไป! ทำการบันทึก Log ใหม่");

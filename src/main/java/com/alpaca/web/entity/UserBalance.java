@@ -7,12 +7,14 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "User_Balance") // ชื่อตาราง
+@Table(name = "UserBalance") // ชื่อตาราง
 @Getter
 @Setter
 public class UserBalance {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "balance_id")
     private Integer balanceId; // PK รันออโต้
 
     @Column(name = "user_id", nullable = false)

@@ -64,11 +64,13 @@ public class BrokerService {
     private static final BigDecimal FEE_RATE = new BigDecimal("0.00025"); // 0.025% ///แก้ไขตรงนี้
     private static final BigDecimal FEE_MULTIPLIER = BigDecimal.ONE.add(FEE_RATE); // 1.00025 สำหรับไว้หารยอด Notional
     private final BalanceLogService balanceLogService;
+    private final OrderManagementService orderManagementService;
 
-    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, BalanceLogService balanceLogService) {
+    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, BalanceLogService balanceLogService, OrderManagementService orderManagementService) {
         this.orderHistoryRepository = orderHistoryRepository;
         this.accountRepository = accountRepository;
         this.balanceLogService = balanceLogService;
+        this.orderManagementService = orderManagementService;
     }
 
     @PostConstruct
@@ -207,21 +209,11 @@ public class BrokerService {
                         orderHistoryRepository.save(historyToSave);
                         log.info("✅ Database Updated: Order {} is now FILLED with commission.", orderId);
 
-                        //บันทึก balance หรือ กระเป๋าเงิน user
-                        if (historyToSave.getUserAccount() != null && historyToSave.getUserAccount().getAccountNumber() != null) {
-                            Integer userId = Integer.valueOf(historyToSave.getUserAccount().getAccountNumber());
-                            String alpacaAccountIdStr = accountId.toString();
-
-                            try {
-                                log.info("🔄 Triggering BalanceLogService for User {} after Order {} fill.", userId, orderId);
-                                // เรียกใช้ Service ตัวเก่งของเรา (มันจะเช็คเองว่ายอดเปลี่ยนไหม ค่อยเซฟ)
-                                balanceLogService.fetchAndLogBalance(userId, alpacaAccountIdStr);
-
-                            } catch (Exception e) {
-                                log.error("❌ Error logging balance after trade update for order: " + orderId, e);
-                            }
-                        } else {
-                            log.warn("⚠️ Cannot log balance: UserAccount or UserId is missing for Order {}", orderId);
+                        //7. บันทึก balance หรือ กระเป๋าเงิน user
+                        try {
+                            orderManagementService.processOrderFill(historyToSave, accountId, orderId);
+                        } catch (Exception e) {
+                            log.error("❌ OrderManagementService failed for order {}: {}", orderId, e.getMessage());
                         }
 
 
