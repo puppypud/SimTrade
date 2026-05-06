@@ -63,14 +63,18 @@ public class BrokerService {
     private final AccountRepository accountRepository;
     private static final BigDecimal FEE_RATE = new BigDecimal("0.00025"); // 0.025% ///แก้ไขตรงนี้
     private static final BigDecimal FEE_MULTIPLIER = BigDecimal.ONE.add(FEE_RATE); // 1.00025 สำหรับไว้หารยอด Notional
-    private final BalanceLogService balanceLogService;
-    private final OrderManagementService orderManagementService;
+    private final BehavioralAnalyticsService behavioralAnalyticsService;
+    private final MarketDataService marketDataService;
 
-    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, BalanceLogService balanceLogService, OrderManagementService orderManagementService) {
+    public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, 
+                        BalanceLogService balanceLogService, OrderManagementService orderManagementService,
+                        BehavioralAnalyticsService behavioralAnalyticsService, MarketDataService marketDataService) {
         this.orderHistoryRepository = orderHistoryRepository;
         this.accountRepository = accountRepository;
         this.balanceLogService = balanceLogService;
         this.orderManagementService = orderManagementService;
+        this.behavioralAnalyticsService = behavioralAnalyticsService;
+        this.marketDataService = marketDataService;
     }
 
     @PostConstruct
@@ -363,14 +367,16 @@ public class BrokerService {
         Optional<UserAccount> userOptional = accountRepository.findByAlpacaAccountId(accountId.toString());
 
         if (userOptional.isPresent()) {
+            UserAccount user = userOptional.get();
             try {
                 // 3. เรียกใช้เมธอด saveOrderHistory เพื่อบันทึกสถานะ "NEW"
-                saveOrderHistory(createdOrder, userOptional.get());
+                saveOrderHistory(createdOrder, user);
                 log.info("✅ บันทึกออร์เดอร์สถานะ NEW ลง Database สำเร็จ: {}", createdOrder.getId());
+
+                // 🚀 4. Trigger Behavioral Analytics (FOMO / Alert Check)
+                triggerBehavioralAnalysis(user, symbol, side.name());
+
             } catch (Exception e) {
-                // มืออาชีพจะใช้ try-catch ครอบไว้เสมอ
-                // เผื่อ Database เราล่ม ออร์เดอร์ที่สร้างสำเร็จที่ Alpaca แล้ว จะได้ไม่เกิด
-                // Error ตีกลับไปหน้าบ้าน
                 log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์ลง Database: {}", createdOrder.getId(), e);
             }
         } else {
@@ -379,6 +385,42 @@ public class BrokerService {
 
         // ่ส่งข้อมูลออร์เดอร์กลับไปให้ Controller ตามปกติ
         return createdOrder;
+    }
+
+    private void triggerBehavioralAnalysis(UserAccount user, String symbol, String side) {
+        try {
+            // ดึงราคาปัจจุบันเพื่อมาคำนวณการเปลี่ยนแปลง (FOMO)
+            Map<String, Object> quote = marketDataService.getLatestQuote(symbol);
+            double price = 0.0;
+            if (quote.get("price") != null) {
+                price = Double.parseDouble(quote.get("price").toString());
+            }
+            double prevClose = price;
+            if (quote.get("prevClose") != null) {
+                prevClose = Double.parseDouble(quote.get("prevClose").toString());
+            }
+
+            double priceChange = (prevClose != 0) ? ((price - prevClose) / prevClose) * 100 : 0.0;
+
+            // ในระบบจำลองนี้ เราจะส่งค่าบางอย่างแบบ Mock ไปก่อนถ้าหาข้อมูลไม่ได้
+            // เช่น volumeSoldPercent ถ้าเป็น Sell เราอาจจะถือว่าขายหมด (100%) เพื่อให้ Rule ทำงาน
+            double volumeSold = side.equalsIgnoreCase("sell") ? 100.0 : 0.0;
+            
+            // ดึงสไตล์ของ User
+            com.alpaca.web.enums.TraderType type = com.alpaca.web.enums.TraderType.valueOf(user.getTraderType() != null ? user.getTraderType() : "DAY_TRADER");
+
+            behavioralAnalyticsService.evaluateOrderEvent(
+                    user.getId(),
+                    symbol,
+                    side,
+                    0.0, // currentProfit (ต้องคำนวณจาก Position จริงๆ ในอนาคต)
+                    priceChange,
+                    volumeSold,
+                    type
+            );
+        } catch (Exception e) {
+            log.error("⚠️ Failed to trigger behavioral analysis: {}", e.getMessage());
+        }
     }
 
     // ฟังก์ชันเติมเงินเข้า Firm Account แบบถูกวิธี (ใช้ Funding API)
@@ -577,13 +619,16 @@ public class BrokerService {
             // ✅ สิ่งที่เพิ่มเข้ามา: ค้นหา User และบันทึกสถานะ NEW ลง Database
             Optional<UserAccount> userOptional = accountRepository.findByAlpacaAccountId(accountId.toString());
             if (userOptional.isPresent()) {
+                UserAccount user = userOptional.get();
                 try {
                     // เรียกใช้เมธอด saveOrderHistory ที่เราเพิ่งแก้เรื่องกันการทับสถานะ FILLED ไป
-                    saveOrderHistory(order, userOptional.get());
+                    saveOrderHistory(order, user);
                     log.info("✅ บันทึกออร์เดอร์คริปโตสถานะ NEW ลง Database สำเร็จ: {}", order.getId());
+
+                    // 🚀 Trigger Behavioral Analytics
+                    triggerBehavioralAnalysis(user, symbol, side.name());
+
                 } catch (Exception dbEx) {
-                    // ต้องครอบ try-catch ไว้เสมอ เผื่อ DB ล่ม
-                    // คำสั่งซื้อที่สำเร็จแล้วจะได้ไม่ถูกตีกลับเป็น Error 500 ไปหา User
                     log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์คริปโตลง Database: {}", order.getId(), dbEx);
                 }
             } else {
