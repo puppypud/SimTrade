@@ -980,8 +980,12 @@ public class UserAnalyticsService {
                     if (e.getValue() > 0) { // ต้องกำไรจริงๆ ถึงจะโชว์
                         result.setBestPerformingStock(e.getKey());
                         result.setBestPerformingStockPnL(e.getValue());
+                        stockAssetRepository.findById(e.getKey()).ifPresent(asset -> {
+                            result.setBestPerformingStockIndustry(asset.getIndustry());
+                        });
                     } else {
                         result.setBestPerformingStock("-"); // ไม่มีตัวไหนกำไรเลย
+                        result.setBestPerformingStockIndustry("-");
                     }
                 });
 
@@ -1282,22 +1286,12 @@ public class UserAnalyticsService {
             String industry = asset.getIndustry();
             String cat = (category != null) ? category : asset.getCategory();
 
-            // ลอง 1: หาตาม Category + Industry (เจาะจงที่สุด)
+            // หาตาม Category + Industry (เจาะจงที่สุด) ต้องตรงทั้ง 2 อย่าง
             if (industry != null && !industry.isEmpty() && cat != null) {
                 List<String> results = stockAssetRepository
                         .findTop3ByCategoryAndIndustryAndSymbolNot(cat, industry, symbol)
                         .stream().map(StockAsset::getSymbol).collect(Collectors.toList());
                 if (!results.isEmpty()) return results;
-            }
-
-            // ลอง 2 (Fallback): หาตาม Category อย่างเดียว (กว้างขึ้น)
-            if (cat != null) {
-                return stockAssetRepository.findTop5ByCategoryAndIsTradableTrue(cat)
-                        .stream()
-                        .map(StockAsset::getSymbol)
-                        .filter(s -> !s.equals(symbol))
-                        .limit(3)
-                        .collect(Collectors.toList());
             }
 
             return new ArrayList<String>();
