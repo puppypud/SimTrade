@@ -460,36 +460,39 @@ public class UserAnalyticsService {
 
         // นิยามคำว่า "ถูกสาย" (Alignment) : ต้องถูกทั้งตัวหุ้น และ พฤติกรรมการถือ
         boolean isRightStyle = stockMatch && behaviorMatch;
+        
+        // 🚀 ใหม่: วิเคราะห์พฤติกรรมเสี่ยงเสมอ (ไม่สนกำไร/ขาดทุน) เพื่อความสมจริง
+        String behaviorInsight = analyzeBehavioralInsight(result);
+
         if (isRightStyle) {
-            // GROUP A: ถูกสาย (Aligned)
             if (profitable) {
-                // 1. ถูกสาย - กำไร (Ideal State)
-                handleRightStyleProfitable(result, statedType, stockCat);
+                handleRightStyleProfitable(result, statedType, stockCat, behaviorInsight);
             } else {
-                // 3. ถูกสาย - ขาดทุน (Discipline Trap) -> *มี 2 ทางเลือก*
-                handleRightStyleUnprofitable(result, statedType);
+                handleRightStyleUnprofitable(result, statedType, behaviorInsight);
             }
         } else {
-            // GROUP B: ผิดสาย (Misaligned) -> คือ stockMatch=false หรือ behaviorMatch=false
             if (profitable) {
-                // 2. ผิดสาย - กำไร (Accidental Success/Discovery)
-                handleWrongStyleProfitable(result, statedType, actualType, stockCat, stockMatch);
+                handleWrongStyleProfitable(result, statedType, actualType, stockCat, stockMatch, behaviorInsight);
             } else {
-                // 4. ผิดสาย - ขาดทุน (Total Chaos)
-                handleWrongStyleUnprofitable(result, statedType, actualType, stockCat);
+                handleWrongStyleUnprofitable(result, statedType, actualType, stockCat, behaviorInsight);
             }
         }
 
     }
 
     // 1. ถูกสาย - กำไร
-    private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat) {
+    private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat, String behaviorInsight) {
         result.setPrimaryFeedback("ยอดเยี่ยม! คุณคือนักเทรดที่มีวินัย (Perfect Alignment)");
-        // ดึงตัวหุ้นที่เหมาะสมหรือที่ได้กำไรมากสุดใน port
-        String bestStock = result.getBestPerformingStock();
+        
         String recommendationText = String.format(
-                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง จงรักษาวินัยนี้ไว้",
+                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง",
                 statedType, stockCat);
+        
+        if (!behaviorInsight.isEmpty()) {
+            recommendationText += "\n\n💡 ข้อสังเกตเพิ่มเติม:" + behaviorInsight;
+        } else {
+            recommendationText += " จงรักษาวินัยที่ยอดเยี่ยมนี้ไว้";
+        }
         List<String> suggestedStocks = new ArrayList<>();
 
         // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
@@ -519,16 +522,19 @@ public class UserAnalyticsService {
         result.setRecommendation(recommendationText);
     }
 
-    // 2. ถูกสาย - ขาดทุน (ไฮไลท์ที่คุณต้องการ: 2 ทางเลือก)
-    private void handleRightStyleUnprofitable(UserAnalyticsResult result, String statedType) {
+    // 2. ถูกสาย - ขาดทุน
+    private void handleRightStyleUnprofitable(UserAnalyticsResult result, String statedType, String behaviorInsight) {
         result.setPrimaryFeedback("วินัยดีเยี่ยม แต่ผลลัพธ์ยังไม่ตอบโจทย์ (Discipline with Loss)");
 
         String baseRec = String.format(
                 "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย'",
                 statedType);
 
-        // เรียกใช้การวินิจฉัยเชิงลึก
         String deepDiagnostic = diagnoseLossReason(result);
+        
+        if (!behaviorInsight.isEmpty() && !deepDiagnostic.contains(behaviorInsight.trim())) {
+            deepDiagnostic += "\n\nจุดที่ควรระวัง:" + behaviorInsight;
+        }
 
         // ★ แนะนำหุ้นที่เหมาะกับสายของ User แม้จะขาดทุน (ช่วยให้มีทิศทาง)
         String mostTraded = result.getMostTradedStock();
@@ -550,9 +556,9 @@ public class UserAnalyticsService {
         result.setRecommendation(baseRec + deepDiagnostic);
     }
 
-    // 3. ผิดสาย - กำไร  //เพิ่มชอบหุ้นแอบแฝงเข้าไปให้มี มิติขึ้น
+    // 3. ผิดสาย - กำไร
     private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType,
-                                            String stockCat, boolean stockMatch) {
+                                            String stockCat, boolean stockMatch, String behaviorInsight) {
         result.setPrimaryFeedback("ค้นพบพรสวรรค์ใหม่? (New Strength Discovered)");
 
         StringBuilder rec = new StringBuilder();
@@ -565,6 +571,10 @@ public class UserAnalyticsService {
             rec.append(String.format(
                     "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า\n",
                     actualType, statedType));
+        }
+
+        if (!behaviorInsight.isEmpty()) {
+            rec.append("\n⚠️ ข้อควรระวังแม้มันจะได้กำไรก็ตาม:").append(behaviorInsight);
         }
 
         // --- แนะนำหุ้นตามความชอบแอบแฝง ---
@@ -599,16 +609,18 @@ public class UserAnalyticsService {
         result.setSuggestedTraderType(actualType);
     }
 
-    // 4. ผิดสาย - ขาดทุน ผิดทุกอย่าง
-    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat) {
+    // 4. ผิดสาย - ขาดทุน
+    private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat, String behaviorInsight) {
         result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
 
         String baseRec = String.format(
                 "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน",
                 statedType, stockCat, actualType);
 
-        // เรียกใช้การวินิจฉัยเชิงลึก
         String deepDiagnostic = diagnoseLossReason(result);
+        if (!behaviorInsight.isEmpty() && !deepDiagnostic.contains(behaviorInsight.trim())) {
+            deepDiagnostic += "\n\nพฤติกรรมที่เป็นสาเหตุ:" + behaviorInsight;
+        }
 
         // ★ แนะนำหุ้นที่ถูกสายสำหรับ statedType (ช่วยชี้ทางกลับมาถูกทาง)
         List<String> suggestedStocks = findStocksForTraderType(statedType);
@@ -1403,5 +1415,25 @@ public class UserAnalyticsService {
             diag.append("\nคำแนะนำจากมืออาชีพ: ปัญหาหลักของคุณตอนนี้ไม่ใช่ 'ความรู้ทางเทคนิค' แต่เป็น 'วินัยและอารมณ์' จงจำกัดความเสี่ยงต่อไม้ (Risk per trade) ไม่เกิน 1-2% ของพอร์ต และตั้ง Stop Loss เสมอ");
         }
         return diag.toString();
+    }
+
+    // 🚀 ใหม่: แยกส่วนวิเคราะห์พฤติกรรมออกมาเป็นอิสระ เพื่อใช้ได้ทุกสถานการณ์
+    private String analyzeBehavioralInsight(UserAnalyticsResult result) {
+        StringBuilder insight = new StringBuilder();
+        
+        if ("พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
+            insight.append("\n- พบพฤติกรรม FOMO: คุณมักไล่ราคาซื้อตอนหุ้นพุ่งแรง ซึ่งเสี่ยงมากหากตลาดกลับตัว");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
+            insight.append("\n- ขาดวินัย Stop Loss: คุณมีแนวโน้มถือหุ้นขาดทุนนานเกินไป หวังเพียงแค่ให้มันกลับมาเท่าทุน");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
+            insight.append("\n- ขายหมูบ่อย: คุณรีบขายทำกำไรไวเกินไป ทำให้ภาพรวมพอร์ตเติบโตได้ไม่เต็มที่");
+        }
+        if ("พฤติกรรมเสี่ยง".equals(result.getPanicSellStatus())) {
+            insight.append("\n- พบภาวะ Panic Sell: คุณมักเทขายหุ้นด้วยความตกใจในช่วงที่ราคาผันผวนแรง");
+        }
+        
+        return insight.toString();
     }
 }
