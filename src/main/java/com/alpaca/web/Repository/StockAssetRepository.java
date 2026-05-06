@@ -18,6 +18,9 @@ public interface StockAssetRepository extends JpaRepository<StockAsset, String>,
     // ดึงหุ้น 5 ตัวตาม Category (ไม่จำกัด Industry) — ใช้แนะนำหุ้นเมื่อหาแบบเจาะจงไม่ได้
     List<StockAsset> findTop5ByCategoryAndIsTradableTrue(String category);
 
+    // ดึงหุ้น 5 ตัวในอุตสาหกรรมเดียวกัน
+    List<StockAsset> findTop5ByIndustryAndSymbolNot(String industry, String symbolToExclude);
+
     //ใช้หาข้อมูล ของ Hybrid Search พวกทำ fitter
     @Query("SELECT s FROM StockAsset s WHERE s.isTradable = true " +
             "AND (:keyword IS NULL OR LOWER(s.symbol) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')) OR LOWER(s.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))) " +

@@ -421,6 +421,38 @@ public class UserAnalyticsService {
             String currentRec = result.getRecommendation();
             result.setRecommendation(currentRec + "\n\nคำเตือนเพิ่มเติม:" + badHabitWarnings);
         }
+
+        // ★ 3. เติมช่องหุ้นแนะนำเฉพาะทาง (New Features)
+        populateSpecificRecommendations(result, statedType);
+    }
+
+    private void populateSpecificRecommendations(UserAnalyticsResult result, String currentType) {
+        // 3.1 หุ้นในอุตสาหกรรมเดียวกับตัวที่ทำกำไรดีที่สุด
+        String bestStock = result.getBestPerformingStock();
+        if (bestStock != null && !bestStock.equals("-")) {
+            result.setRecommendedIndustryStocks(findStocksByIndustry(bestStock));
+        }
+
+        // 3.2 หุ้นสำหรับสายใหม่ที่แนะนำ
+        if (result.getSuggestedTraderType() != null && !result.getSuggestedTraderType().equals(currentType)) {
+            result.setRecommendedNewTypeStocks(findStocksForTraderType(result.getSuggestedTraderType()));
+        }
+
+        // 3.3 หุ้นสำหรับสายเดิม (ไม่สนอุตสาหกรรม)
+        result.setRecommendedCurrentTypeStocks(findStocksForTraderType(currentType));
+    }
+
+    private List<String> findStocksByIndustry(String symbol) {
+        return stockAssetRepository.findById(symbol).map(asset -> {
+            String industry = asset.getIndustry();
+            if (industry == null || industry.isEmpty()) return new ArrayList<String>();
+            
+            return stockAssetRepository.findTop5ByIndustryAndSymbolNot(industry, symbol)
+                    .stream()
+                    .map(StockAsset::getSymbol)
+                    .limit(5)
+                    .collect(Collectors.toList());
+        }).orElse(new ArrayList<>());
     }
 
     private void generateDetailedRecommendation(UserAnalyticsResult result, String statedType, String actualType,
@@ -1260,13 +1292,12 @@ public class UserAnalyticsService {
         }).orElse(new ArrayList<>());
     }
 
-    // ★ หาหุ้นแนะนำตามประเภทนักเทรด (ใช้เมื่อไม่มี bestPerformingStock)
     private List<String> findStocksForTraderType(String traderType) {
         String dbCategory = switch (traderType != null ? traderType : "Unknown") {
-            case "Scalper" -> "SPECULATIVE";
-            case "Day Trader" -> "TRENDING";
-            case "Swing Trader" -> "SWING";
-            case "Position Trader" -> "STABLE";
+            case "Scalper" -> "เก็งกำไร (Speculative)";
+            case "Day Trader" -> "กระแส (Trending)";
+            case "Swing Trader" -> "เล่นรอบ (Swing)";
+            case "Position Trader" -> "มั่นคง (Stable)";
             default -> null;
         };
         if (dbCategory == null) return new ArrayList<>();
