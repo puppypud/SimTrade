@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@stomp/stompjs": "^7.3.0",
     "apexcharts": "^5.3.6",
     "axios": "^1.13.2",
     "lightweight-charts": "^5.0.9",

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "./components/layout/Navbar";
 import { AuthProvider } from "../context/AuthContext";
+import { NotificationProvider } from "../context/NotificationContext";
 import { ThemeProvider } from "./components/providers/ThemeProvider";
 import "./globals.css";
 
@@ -32,8 +33,10 @@ export default function RootLayout({
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
-            <Navbar />
-            {children}
+            <NotificationProvider>
+              <Navbar />
+              {children}
+            </NotificationProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>
