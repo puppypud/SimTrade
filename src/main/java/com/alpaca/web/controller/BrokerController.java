@@ -618,7 +618,7 @@ public class BrokerController {
         ));
     }
 
-    @GetMapping("/user/{userId}")
+    @GetMapping("/user/{userId}/UserPortfolio")
     public ResponseEntity<List<UserPosition>> getUserPortfolio(@PathVariable Long userId) {
         // ดึงรายการหุ้นทั้งหมดที่ User ID นี้ถืออยู่จากตาราง user_positions
         List<UserPosition> positions = userPositionRepository.findAllByUserId(userId);
@@ -634,7 +634,7 @@ public class BrokerController {
     // API 2: ดูรายการหุ้นทั้งหมดในระบบ (ทุก User)
     // ใช้งานด้วย: GET http://localhost:8080/api/admin/positions/all
     // ----------------------------------------------------
-    @GetMapping("/all")
+    @GetMapping("/all/Positions")
     public ResponseEntity<List<UserPosition>> getAllPositionsInSystem() {
         // ดึงรายการทั้งหมดในตาราง
         // [ข้อควรระวัง] ถ้าระบบมีผู้ใช้เยอะมาก ควรทำ Pagination ไม่ควรดึง .findAll() ตรงๆ
@@ -652,7 +652,7 @@ public class BrokerController {
         return ResponseEntity.ok(pagedResult);
     }
 
-    @GetMapping("/user/{userId}")
+    @GetMapping("/user/{userId}/UserHistory")
     public ResponseEntity<List<com.alpaca.web.entity.PortfolioHistory>> getUserHistory(@PathVariable Long userId) {
         List<com.alpaca.web.entity.PortfolioHistory> historyList = portfolioHistoryRepository.findByUserIdOrderByRecordedAtAsc(userId);
 
@@ -666,7 +666,7 @@ public class BrokerController {
     // API 2: ดูประวัติทั้งหมดของระบบ (บังคับใช้ Pagination แบบมืออาชีพ)
     // ใช้งาน: GET http://localhost:8080/api/admin/portfolio-history/all?page=0&size=20
     // ------------------------------------------------------------------
-    @GetMapping("/all")
+    @GetMapping("/all/History/Positions")
     public ResponseEntity<Page<com.alpaca.web.entity.PortfolioHistory>> getAllHistory(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
