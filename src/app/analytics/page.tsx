@@ -170,49 +170,41 @@ export default function AnalyticsPage() {
                 {/* ======= PROFILE ASSESSMENT ======= */}
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch">
                     {/* Left: Declared Profile */}
-                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden h-full">
-                        <div className="flex items-center gap-2 mb-6 relative z-10">
-                            <UserCircle className="w-5 h-5 text-muted" />
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Declared Profile</span>
+                    <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden">
+                        {/* Header section with badge */}
+                        <div className="mb-6">
+                            <span className="px-3 py-1 rounded-full bg-theme-border/30 border border-theme-border/50 text-[10px] font-bold text-muted uppercase tracking-widest">
+                                Initial Setup
+                            </span>
                         </div>
 
                         {profileLoading ? (
-                            <div className="flex-1 flex flex-col items-center justify-center w-full py-8 relative z-10">
-                                <div className="w-12 h-12 border-2 border-muted/20 border-t-muted rounded-xl animate-spin mx-auto mb-4" />
-                                <p className="text-sm text-muted">Loading profile...</p>
+                            <div className="flex flex-col items-center justify-center w-full py-8 flex-1">
+                                <RefreshCw className="w-6 h-6 text-muted animate-spin mb-3" />
                             </div>
                         ) : (
-                            <div className="flex flex-col h-full w-full relative z-10">
-                                {/* Header section with badge */}
-                                <div className="mb-6">
-                                    <span className="px-3 py-1 rounded-full bg-theme-border/30 border border-theme-border/50 text-[10px] font-bold text-muted uppercase tracking-widest">
-                                        Initial Setup
-                                    </span>
+                            <div className="flex-1 flex flex-col items-center w-full">
+                                <div className="w-20 h-20 rounded-3xl bg-background border border-theme-border flex items-center justify-center mx-auto mb-6 shadow-sm text-muted">
+                                    {preTestInfo.icon}
                                 </div>
 
-                                <div className="flex-1 flex flex-col items-center">
-                                    <div className="w-20 h-20 rounded-3xl bg-background border border-theme-border flex items-center justify-center mx-auto mb-6 shadow-sm text-muted">
-                                        {preTestInfo.icon}
-                                    </div>
-                                    
-                                    <p className="text-[10px] text-muted uppercase tracking-[0.2em] mb-2 font-bold">
-                                        สายการเทรดที่คุณเลือกไว้
+                                <p className="text-[10px] text-muted uppercase tracking-[0.2em] mb-2 font-bold">
+                                    สายการเทรดที่คุณเลือกไว้
+                                </p>
+
+                                <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
+                                    {preTestInfo.label}
+                                </h2>
+
+                                <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
+                                    {preTestInfo.desc}
+                                </p>
+
+                                <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
+                                    <p className="text-[10px] text-muted font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
+                                        <UserCircle className="w-4 h-4" />
+                                        Declared Profile
                                     </p>
-                                    
-                                    <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
-                                        {preTestInfo.label}
-                                    </h2>
-                                    
-                                    <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
-                                        {preTestInfo.desc}
-                                    </p>
-                                    
-                                    <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
-                                        <p className="text-[10px] text-muted font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
-                                            <CheckCircle2 className="w-4 h-4" />
-                                            Active Profile
-                                        </p>
-                                    </div>
                                 </div>
                             </div>
                         )}
@@ -221,7 +213,7 @@ export default function AnalyticsPage() {
                     {/* Center: Analysis Trigger */}
                     <div className="flex flex-col items-center justify-center gap-4 px-4">
                         <div className="h-px w-8 bg-theme-border hidden md:block" />
-                        
+
                         {analyzing ? (
                             <div className="flex flex-col items-center gap-3">
                                 <div className="w-12 h-12 rounded-xl border border-gold/30 flex items-center justify-center bg-gold/5 relative overflow-hidden">
@@ -314,12 +306,12 @@ export default function AnalyticsPage() {
                                                 {suggestedInfo?.icon || <Sparkles className="w-8 h-8" />}
                                             </div>
 
-                                            
+
                                             {/* Big Heading: Recommended Style */}
                                             <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
                                                 {suggestedInfo?.label || analytics.suggestedTraderType}
                                             </h2>
-                                            
+
                                             <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
                                                 จากพฤติกรรมการเทรดจริง ระบบขอแนะนำให้คุณเปลี่ยนมาเป็นสายนี้เพื่อให้ได้ผลลัพธ์ที่ดีที่สุด
                                             </p>
@@ -340,17 +332,17 @@ export default function AnalyticsPage() {
                                             <div className="w-20 h-20 rounded-3xl bg-emerald-500/5 flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 text-emerald-500">
                                                 {aiTypeInfo?.icon || <Activity className="w-8 h-8" />}
                                             </div>
-                                            
+
                                             {/* Small Label: Verified Style */}
                                             <p className="text-[10px] text-emerald-500 uppercase tracking-[0.2em] mb-2 font-bold">
                                                 ยืนยันสายการเทรดปัจจุบัน
                                             </p>
-                                            
+
                                             {/* Big Heading: Actual Behavior */}
                                             <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
                                                 {aiTypeInfo?.label || analytics.traderType}
                                             </h2>
-                                            
+
                                             <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
                                                 ยอดเยี่ยมมาก! พฤติกรรมการเทรดจริงของคุณสอดคล้องกับสายที่คุณเลือกไว้ตั้งแต่ต้น
                                             </p>
@@ -470,10 +462,10 @@ export default function AnalyticsPage() {
                                     <p className="text-xs text-muted mb-4 leading-relaxed">
                                         {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' ? (
                                             <>
-                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span> 
-                                                <span className="text-foreground/60 ml-1">({analytics.bestPerformingStockIndustry || 'N/A'})</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต 
+                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span>
+                                                <span className="text-foreground/60 ml-1">({analytics.bestPerformingStockIndustry || 'N/A'})</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต
                                                 เราจึงแนะนำหุ้นที่อยู่ใน <span className="text-blue-400 font-bold">อุตสาหกรรม {analytics.bestPerformingStockIndustry || 'N/A'}</span> และมีพฤติกรรมตรงกับสาย <span className="text-gold font-bold">{dbTraderType}</span> ซึ่งเป็นประเภทนักเทรดปัจจุบันของคุณ
-                                             </>
+                                            </>
                                         ) : (
                                             <>
                                                 เนื่องจากคุณเป็นนักเทรดสาย <span className="text-gold font-bold">{dbTraderType}</span> ระบบจึงแนะนำรายชื่อหุ้นที่มีพฤติกรรมสอดคล้องกับสไตล์การเทรดของคุณ เพื่อช่วยให้คุณหาโอกาสทำกำไรได้แม่นยำขึ้น

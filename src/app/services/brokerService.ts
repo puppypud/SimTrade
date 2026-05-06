@@ -273,5 +273,77 @@ export const brokerService = {
   filterStocks: async (filter: StockFilterRequest): Promise<FilteredStockResult[]> => {
     const response = await apiClient.post('/broker/assets/filter', filter);
     return response.data;
-  }
+  },
+
+  // ===== ADMIN APIs =====
+
+  // Admin: แก้ไขข้อมูลผู้ใช้
+  adminUpdateUser: async (userId: number, data: {
+    firstName?: string; lastName?: string; phoneNumber?: string;
+    status?: string; traderType?: string; riskBehavior?: string;
+  }) => {
+    const response = await apiClient.put(`/broker/admin/users/${userId}`, data);
+    return response.data;
+  },
+
+  // Admin: ลบผู้ใช้ (soft delete)
+  adminDeleteUser: async (userId: number) => {
+    const response = await apiClient.delete(`/broker/admin/users/${userId}`);
+    return response.data;
+  },
+
+  // Admin: ดูพอร์ตรายบุคคล
+  adminGetUserPortfolio: async (userId: number) => {
+    const response = await apiClient.get(`/broker/admin/users/${userId}/portfolio`);
+    return response.data;
+  },
+
+  // Admin: ดึงธุรกรรมทั้งหมด
+  adminGetAllOrders: async (params?: { page?: number; size?: number; symbol?: string; status?: string; side?: string }) => {
+    const response = await apiClient.get('/broker/admin/orders', { params });
+    return response.data;
+  },
+
+  // Admin: ยกเลิกออเดอร์
+  adminCancelOrder: async (orderId: string) => {
+    const response = await apiClient.post(`/broker/admin/orders/${orderId}/cancel`);
+    return response.data;
+  },
+
+  // Admin: ดึงหุ้นทั้งหมด (รวม disabled)
+  adminGetAllStocks: async (params?: { keyword?: string; category?: string; assetClass?: string; sortBy?: string; direction?: string }) => {
+    const response = await apiClient.get('/broker/admin/stocks', { params });
+    return response.data;
+  },
+
+  // Admin: เพิ่มหุ้นใหม่
+  adminAddStock: async (data: {
+    symbol: string; name: string; assetClass?: string;
+    category?: string; industry?: string; beta?: number;
+    marketCap?: number; avgVolume?: number;
+  }) => {
+    const response = await apiClient.post('/broker/admin/stocks', data);
+    return response.data;
+  },
+
+  // Admin: แก้ไขหุ้น
+  adminUpdateStock: async (symbol: string, data: {
+    name?: string; category?: string; industry?: string;
+    isTradable?: boolean; beta?: number; marketCap?: number; avgVolume?: number;
+  }) => {
+    const response = await apiClient.put(`/broker/admin/stocks/${symbol}`, data);
+    return response.data;
+  },
+
+  // Admin: ลบ/ปิดหุ้น
+  adminRemoveStock: async (symbol: string) => {
+    const response = await apiClient.delete(`/broker/admin/stocks/${symbol}`);
+    return response.data;
+  },
+
+  // Admin: Dashboard stats
+  adminGetDashboardStats: async () => {
+    const response = await apiClient.get('/broker/admin/dashboard/stats');
+    return response.data;
+  },
 };
