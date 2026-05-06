@@ -11,9 +11,11 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @EnableRetry   // เปิดใช้งานการทำซ้ำ (Retry)
 @EnableAsync   // เปิดใช้งานการรันเบื้องหลัง (Background Task)
+@EnableScheduling // เปิดใช้งาน Scheduled Task (Cron job)
 @SpringBootApplication
 @EnableCaching
 public class Application {

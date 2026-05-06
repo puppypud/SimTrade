@@ -20,6 +20,7 @@ import java.util.UUID;
 public class OrderManagementService {
     // 3. Inject Service ด้วย final
     private final BalanceLogService balanceLogService;
+    private final UserPositionService userPositionService;
 
     @Transactional // 4. คลุมด้วย Transaction เพื่อรักษาความถูกต้องของข้อมูล
     public void processOrderFill(OrderHistory historyToSave, UUID accountId, String orderId) {
@@ -40,6 +41,17 @@ public class OrderManagementService {
 
             // เรียกใช้ Service
             balanceLogService.fetchAndLogBalance(userId, alpacaAccountIdStr);
+
+            // อัปเดต UserPosition ในฐานข้อมูล
+            if (historyToSave.getFilledQty() != null && historyToSave.getFilledAvgPrice() != null) {
+                userPositionService.addOrUpdatePosition(
+                        userId, 
+                        historyToSave.getSymbol(), 
+                        historyToSave.getFilledQty(), 
+                        historyToSave.getFilledAvgPrice(), 
+                        historyToSave.getSide()
+                );
+            }
 
         } catch (NumberFormatException nfe) {
             log.error("❌ Data formatting error: Account ID is not a valid number for order: {}", orderId, nfe);

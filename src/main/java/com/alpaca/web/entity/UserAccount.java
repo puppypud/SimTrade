@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Getter
@@ -47,6 +49,11 @@ public class UserAccount {
 
     @Column(name = "risk_behavior")
     private String riskBehavior;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_watchlist", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "symbol")
+    private Set<String> watchlist = new HashSet<>();
 
     @PrePersist
     protected void onCreate() {

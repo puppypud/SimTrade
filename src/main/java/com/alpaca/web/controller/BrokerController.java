@@ -3,8 +3,7 @@ package com.alpaca.web.controller;
 import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.Repository.PortfolioHistoryRepository;
 import com.alpaca.web.Repository.UserPositionRepository;
-import com.alpaca.web.Repository.WatchlistRepository;
-import com.alpaca.web.entity.Watchlist;
+
 import com.alpaca.web.Service.*;
 import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.OrderHistory;
@@ -43,8 +42,6 @@ public class BrokerController {
     private final UserPositionRepository userPositionRepository;
     private final PortfolioHistoryRepository portfolioHistoryRepository;
     
-    @Autowired
-    private WatchlistRepository watchlistRepository;
 
     // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
@@ -689,30 +686,39 @@ public class BrokerController {
     // ============================================================
     
     @GetMapping("/watchlist/{userId}")
-    public ResponseEntity<List<String>> getWatchlist(@PathVariable Long userId) {
-        List<Watchlist> watchlist = watchlistRepository.findByUserId(userId);
-        return ResponseEntity.ok(watchlist.stream()
-                .map(Watchlist::getSymbol)
-                .collect(java.util.stream.Collectors.toList()));
+    public ResponseEntity<?> getWatchlist(@PathVariable Long userId) {
+        Optional<UserAccount> userOpt = accountRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+        return ResponseEntity.ok(userOpt.get().getWatchlist());
     }
 
     @PostMapping("/watchlist/{userId}/add")
     public ResponseEntity<String> addToWatchlist(@PathVariable Long userId, @RequestParam String symbol) {
-        if (watchlistRepository.findByUserIdAndSymbol(userId, symbol).isPresent()) {
+        Optional<UserAccount> userOpt = accountRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+        UserAccount user = userOpt.get();
+        if (user.getWatchlist().contains(symbol.toUpperCase())) {
             return ResponseEntity.badRequest().body("Already in watchlist");
         }
-        Watchlist item = Watchlist.builder()
-                .userId(userId)
-                .symbol(symbol)
-                .build();
-        watchlistRepository.save(item);
+        user.getWatchlist().add(symbol.toUpperCase());
+        accountRepository.save(user);
         return ResponseEntity.ok("Added to watchlist");
     }
 
     @DeleteMapping("/watchlist/{userId}/remove")
     @Transactional
     public ResponseEntity<String> removeFromWatchlist(@PathVariable Long userId, @RequestParam String symbol) {
-        watchlistRepository.deleteByUserIdAndSymbol(userId, symbol);
+        Optional<UserAccount> userOpt = accountRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+        UserAccount user = userOpt.get();
+        user.getWatchlist().remove(symbol.toUpperCase());
+        accountRepository.save(user);
         return ResponseEntity.ok("Removed from watchlist");
     }
 }
