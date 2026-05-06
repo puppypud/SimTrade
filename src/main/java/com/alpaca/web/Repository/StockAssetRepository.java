@@ -20,7 +20,7 @@ public interface StockAssetRepository extends JpaRepository<StockAsset, String>,
 
     //ใช้หาข้อมูล ของ Hybrid Search พวกทำ fitter
     @Query("SELECT s FROM StockAsset s WHERE s.isTradable = true " +
-            "AND (:keyword IS NULL OR LOWER(s.symbol) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(s.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+            "AND (:keyword IS NULL OR LOWER(s.symbol) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%')) OR LOWER(s.name) LIKE LOWER(CONCAT('%', CAST(:keyword AS text), '%'))) " +
             "AND (:category IS NULL OR s.category = :category) " +
             "AND (:industry IS NULL OR s.industry = :industry)")
     List<StockAsset> hybridSearchDb(
