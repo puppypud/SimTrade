@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 
 export interface BehaviorAlert {
     alertType: string;
@@ -35,7 +35,7 @@ export default function BehaviorAlertPopup({ alert, onClose }: BehaviorAlertPopu
 
     const handleClose = () => {
         setIsVisible(false);
-        setTimeout(onClose, 400);
+        setTimeout(onClose, 500);
     };
 
     const handleMute = () => {
@@ -46,52 +46,68 @@ export default function BehaviorAlertPopup({ alert, onClose }: BehaviorAlertPopu
 
     if ((!alert && !isVisible) || isMuted) return null;
 
-    const getSeverityColor = () => {
+    // Severity based colors mapping to theme
+    const getSeverityDetails = () => {
         switch (alert?.severity) {
-            case 'DANGER': return 'bg-red-500';
-            case 'WARNING': return 'bg-orange-500';
-            default: return 'bg-blue-500';
+            case 'DANGER': return { color: 'text-red-500', glow: 'shadow-red-500/10' };
+            case 'WARNING': return { color: 'text-amber-500', glow: 'shadow-amber-500/10' };
+            default: return { color: 'text-gold', glow: 'shadow-gold/10' };
         }
     };
 
-    return (
-        <div className={`fixed top-12 right-6 z-[9999] transition-all duration-500 transform ${
-            isVisible ? 'translate-y-0 opacity-100' : '-translate-y-4 opacity-0'
-        }`}>
-            <div className="w-[320px] bg-white/90 dark:bg-zinc-900/90 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-xl overflow-hidden flex">
-                
-                {/* Minimal Vertical Severity Bar */}
-                <div className={`w-1.5 ${getSeverityColor()}`} />
+    const details = getSeverityDetails();
 
-                <div className="flex-1 p-4">
-                    <div className="flex justify-between items-start mb-1">
-                        <span className="text-[10px] font-bold tracking-widest text-zinc-400 dark:text-zinc-500 uppercase">
-                            Behavior Insight
-                        </span>
-                        <button onClick={handleClose} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition-colors">
+    return (
+        <div className={`fixed top-12 right-6 z-[9999] transition-all duration-700 cubic-bezier(0.4, 0, 0.2, 1) transform ${
+            isVisible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0'
+        }`}>
+            {/* Main Container - Themed with Surface and Gold */}
+            <div className={`w-[360px] bg-surface/95 border border-theme-border/50 rounded-xl shadow-2xl ${details.glow} overflow-hidden`}>
+                
+                {/* Subtle Accent Line */}
+                <div className={`h-1 w-full bg-gradient-to-r from-transparent via-gold to-transparent opacity-50`} />
+
+                <div className="p-4">
+                    {/* Top Row: AI Label & Close */}
+                    <div className="flex justify-between items-center mb-2">
+                        <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-3 h-3 text-gold animate-pulse" />
+                            <span className="text-[10px] font-bold tracking-[0.2em] text-muted uppercase">
+                                Trading Psychology
+                            </span>
+                        </div>
+                        <button 
+                            onClick={handleClose} 
+                            className="p-1.5 hover:bg-white/5 rounded-full transition-colors text-muted hover:text-foreground"
+                        >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
 
-                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
-                        {alert?.title}
-                    </h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-normal">
-                        {alert?.message}
-                    </p>
+                    {/* Main Message Area */}
+                    <div className="space-y-1">
+                        <h4 className={`text-xs font-bold tracking-tight ${details.color} flex items-center gap-2`}>
+                            {alert?.title}
+                        </h4>
+                        <p className="text-[13px] text-foreground font-medium leading-relaxed">
+                            {alert?.message}
+                        </p>
+                    </div>
 
-                    <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
+                    {/* Bottom Actions */}
+                    <div className="mt-4 flex items-center justify-between">
                         <button 
                             onClick={handleMute}
-                            className="text-[10px] text-zinc-400 hover:text-red-500 transition-colors"
+                            className="text-[10px] text-muted hover:text-red-400 transition-colors font-semibold"
                         >
-                            ปิดถาวร
+                            ปิดการแจ้งเตือนพฤติกรรมนี้
                         </button>
+                        
                         <button 
                             onClick={handleClose}
-                            className="text-[10px] font-bold text-zinc-900 dark:text-zinc-100 hover:opacity-70"
+                            className="px-3 py-1 bg-gold/10 hover:bg-gold/20 text-gold rounded-full text-[10px] font-bold transition-all border border-gold/20"
                         >
-                            ตกลง
+                            รับทราบ
                         </button>
                     </div>
                 </div>
