@@ -13,10 +13,10 @@ import java.time.LocalDateTime;
 public class PortfolioHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer id;
+    private Long id; // แก้เป็น Long
 
     @Column(name = "user_id", nullable = false)
-    private Integer userId;
+    private Long userId; // แก้เป็น Long ให้ตรงกับ UserAccount
 
     @Column(name = "total_portfolio_value", precision = 15, scale = 2)
     private BigDecimal totalPortfolioValue;
@@ -39,7 +39,6 @@ public class PortfolioHistory {
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private LocalDateTime recordedAt;
 
-    // ทำงานตอน Insert ลง Database ครั้งแรกเท่านั้น (ทำ Snapshot สิ้นวัน)
     @PrePersist
     protected void onCreate() {
         this.recordedAt = LocalDateTime.now();
