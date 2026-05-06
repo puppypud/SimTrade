@@ -1,22 +1,27 @@
 package com.alpaca.web.controller;
 
 import com.alpaca.web.Repository.OrderHistoryRepository;
+import com.alpaca.web.Repository.PortfolioHistoryRepository;
+import com.alpaca.web.Repository.UserPositionRepository;
 import com.alpaca.web.Service.*;
 import com.alpaca.web.dto.*;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.UserAccount;
+import com.alpaca.web.entity.UserPosition;
 import net.jacobpeterson.alpaca.openapi.broker.ApiException;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.*;
 import org.slf4j.Logger;
 import net.jacobpeterson.alpaca.openapi.broker.model.*; // Import ของ Alpaca
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.alpaca.web.Repository.AccountRepository;
+import org.springframework.data.domain.Sort;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.*;
 
 @RestController
@@ -31,17 +36,21 @@ public class BrokerController {
     private final StockAnalysisService stockAnalysisService;
     private final OrderHistoryRepository orderHistoryRepository;
     private final StockImportService stockImportService;
+    private final UserPositionRepository userPositionRepository;
+    private final PortfolioHistoryRepository portfolioHistoryRepository;
 
     // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
                             AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
-                            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository, StockImportService stockImportService) {
+                            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository, StockImportService stockImportService, UserPositionRepository userPositionRepository, PortfolioHistoryRepository portfolioHistoryRepository) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
         this.stockAnalysisService = stockAnalysisService1;
         this.orderHistoryRepository = orderHistoryRepository;
         this.stockImportService = stockImportService;
+        this.userPositionRepository = userPositionRepository;
+        this.portfolioHistoryRepository = portfolioHistoryRepository;
     }
 
     @PostMapping("/order/user") // รับได้2แบบ1.accountId(แก้ไข) หรือ 2. email แต่รับด้วย email
@@ -607,5 +616,65 @@ public class BrokerController {
                 "status", "Processing",
                 "message", "🚀 เริ่มกระบวนการนำเข้าหุ้นจาก CSV แล้ว กรุณาตรวจสอบความคืบหน้าได้ที่หน้าจอ Console Log ของ Spring Boot"
         ));
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<UserPosition>> getUserPortfolio(@PathVariable Long userId) {
+        // ดึงรายการหุ้นทั้งหมดที่ User ID นี้ถืออยู่จากตาราง user_positions
+        List<UserPosition> positions = userPositionRepository.findAllByUserId(userId);
+
+        if (positions.isEmpty()) {
+            return ResponseEntity.noContent().build(); // คืนค่า HTTP 204 ถ้า User ไม่มีหุ้น
+        }
+
+        return ResponseEntity.ok(positions); // คืนค่า JSON คืนไปให้ Frontend
+    }
+
+    // ----------------------------------------------------
+    // API 2: ดูรายการหุ้นทั้งหมดในระบบ (ทุก User)
+    // ใช้งานด้วย: GET http://localhost:8080/api/admin/positions/all
+    // ----------------------------------------------------
+    @GetMapping("/all")
+    public ResponseEntity<List<UserPosition>> getAllPositionsInSystem() {
+        // ดึงรายการทั้งหมดในตาราง
+        // [ข้อควรระวัง] ถ้าระบบมีผู้ใช้เยอะมาก ควรทำ Pagination ไม่ควรดึง .findAll() ตรงๆ
+        List<UserPosition> allPositions = userPositionRepository.findAll();
+
+        return ResponseEntity.ok(allPositions);
+    }
+
+    @GetMapping("/all/paged")
+    public ResponseEntity<Page<UserPosition>> getAllPositionsPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        Page<UserPosition> pagedResult = userPositionRepository.findAll(PageRequest.of(page, size));
+        return ResponseEntity.ok(pagedResult);
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<com.alpaca.web.entity.PortfolioHistory>> getUserHistory(@PathVariable Long userId) {
+        List<com.alpaca.web.entity.PortfolioHistory> historyList = portfolioHistoryRepository.findByUserIdOrderByRecordedAtAsc(userId);
+
+        if (historyList.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(historyList);
+    }
+
+    // ------------------------------------------------------------------
+    // API 2: ดูประวัติทั้งหมดของระบบ (บังคับใช้ Pagination แบบมืออาชีพ)
+    // ใช้งาน: GET http://localhost:8080/api/admin/portfolio-history/all?page=0&size=20
+    // ------------------------------------------------------------------
+    @GetMapping("/all")
+    public ResponseEntity<Page<com.alpaca.web.entity.PortfolioHistory>> getAllHistory(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        // สั่งให้ดึงข้อมูลทีละ 20 แถว และเรียงจากวันที่ล่าสุด (DESC)
+        PageRequest pageRequest = PageRequest.of(page, size, Sort.by("recordedAt").descending());
+        Page<com.alpaca.web.entity.PortfolioHistory> pagedResult = portfolioHistoryRepository.findAll(pageRequest);
+
+        return ResponseEntity.ok(pagedResult);
     }
 }
