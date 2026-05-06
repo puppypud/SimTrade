@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { brokerService } from "@/src/app/services/brokerService";
 import { StockQuote } from "@/src/app/types/broker";
 import { formatSymbolDisplay } from "@/src/app/utils/formatters";
-import { Trash2, Plus, TrendingUp, TrendingDown, Star, Lock } from "lucide-react";
+import { Trash2, TrendingUp, TrendingDown, Star, Lock } from "lucide-react";
 import { useAuth } from "@/src/context/AuthContext";
 
 interface WatchlistPanelProps {
@@ -32,9 +32,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
     const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
     const [bars, setBars] = useState<Record<string, number[]>>({}); 
     const [loading, setLoading] = useState(true);
-    const [expandedSeven, setExpandedSeven] = useState(false);
-    const [expandedRecommended, setExpandedRecommended] = useState(false);
-    const [expandedMyWatchlist, setExpandedMyWatchlist] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
     const [togglingSymbols, setTogglingSymbols] = useState<Set<string>>(new Set());
 
@@ -258,7 +255,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
 
         if (loading && !quote) {
             return (
-                <div key={symbol} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                <div key={symbol} className="flex items-center justify-between py-4 border-b border-gray-100 last:border-0 flex-shrink-0">
                     <div className="w-4 h-4 bg-gray-200 rounded animate-pulse mr-4"></div>
                     <div className="flex-1 flex flex-col gap-1.5">
                         <div className="w-24 h-4 bg-gray-200 rounded animate-pulse"></div>
@@ -281,47 +278,40 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
             <div
                 key={symbol}
                 onClick={() => handleRowClick(symbol)}
-                className={`flex flex-col py-4 px-4 border-b border-theme-border/50 last:border-0 transition-all cursor-pointer group relative hover:bg-gold/5
-          ${isSelected ? "bg-gold/10" : "bg-transparent"}`}
+                className={`flex flex-col py-5 px-4 border-b border-theme-border/30 last:border-0 transition-all duration-300 cursor-pointer group relative overflow-hidden flex-shrink-0
+          ${isSelected ? "bg-gold/5 border-l-2 border-l-gold" : "bg-transparent hover:bg-white/[0.02]"}`}
             >
-                <div className="flex justify-between items-center mb-2">
-                    <div className="flex gap-2">
-                        <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[9px] font-black uppercase tracking-wider border border-gold/20">
-                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : (user ? "แนะนำพิเศษ" : "Trending")}
-                        </span>
-                        {isUp && percentChange > 5 && (
-                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-wider border border-emerald-500/20">
-                                Hot 🔥
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3">
+                {/* Subtle Glow Effect on hover */}
+                <div className="absolute inset-0 bg-gradient-to-r from-gold/0 via-gold/0 to-gold/0 group-hover:via-gold/[0.02] transition-all duration-500 pointer-events-none" />
+                
+                <div className="flex justify-end items-center mb-1">
+                    <div className="flex items-center gap-2">
                         <button 
                             onClick={(e) => toggleWatchlist(e, symbol)}
                             disabled={isToggling}
-                            className={`p-2.5 rounded-xl transition-all border-2 ${
+                            className={`p-1.5 rounded-lg transition-all border ${
                                 inWatchlist 
-                                    ? 'bg-gold border-gold text-surface shadow-lg scale-105 shadow-gold/20' 
-                                    : 'bg-surface border-theme-border text-gold hover:border-gold hover:bg-gold/5'
-                            } ${isToggling ? 'opacity-50 animate-pulse' : 'active:scale-95'}`}
+                                    ? 'bg-gold/10 border-gold/30 text-gold shadow-sm scale-105' 
+                                    : 'bg-surface/50 border-theme-border/50 text-muted/40 hover:border-gold/50 hover:text-gold hover:bg-gold/5'
+                            } ${isToggling ? 'opacity-50 animate-pulse' : 'active:scale-90'}`}
                             title={inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
                         >
-                            <Star className={`w-5 h-5 ${inWatchlist ? 'fill-current' : ''} ${isToggling ? 'animate-spin' : ''}`} />
+                            <Star className={`w-3.5 h-3.5 ${inWatchlist ? 'fill-current' : ''} ${isToggling ? 'animate-spin' : ''}`} />
                         </button>
-                        <span className={`text-[10px] font-bold ${rankColor}`}>#{index + 1}</span>
+                        <span className={`text-[9px] font-bold opacity-30 ${rankColor}`}>#{index + 1}</span>
                     </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-[120px]">
-                        <div className="w-10 h-10 rounded-xl bg-surface border border-theme-border flex items-center justify-center text-gold text-sm font-black shadow-sm group-hover:border-gold/50 transition-colors">
+                    <div className="flex items-center gap-3 min-w-[110px]">
+                        <div className="w-9 h-9 rounded-lg bg-surface/80 border border-theme-border flex items-center justify-center text-gold text-xs font-black shadow-sm group-hover:border-gold/30 transition-all duration-300 group-hover:scale-110">
                             {symbol.charAt(0)}
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-xl font-black text-foreground group-hover:text-gold transition-colors leading-none mb-1">
+                            <span className="text-lg font-black text-foreground group-hover:text-gold transition-colors leading-tight">
                                 {symbol}
                             </span>
-                            <span className="text-[10px] font-medium text-muted truncate max-w-[100px]">
+                            <span className="text-[9px] font-medium text-muted/60 truncate max-w-[80px] uppercase tracking-tighter">
                                 {fullName.split(' ')[0]} {fullName.split(' ')[1] || ''}
                             </span>
                         </div>
@@ -331,17 +321,17 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         <RealSparkline data={bars[symbol]} up={isUp} />
                     </div>
 
-                    <div className="flex flex-col items-end min-w-[90px]">
-                        <div className={`flex items-center gap-1 text-[11px] font-black mb-1 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
-                            {isUp ? '↗' : '↘'} {Math.abs(percentChange).toFixed(2)}%
+                    <div className="flex flex-col items-end min-w-[80px]">
+                        <div className={`flex items-center gap-1 text-[10px] font-black mb-0.5 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
+                            {isUp ? '▲' : '▼'} {Math.abs(percentChange).toFixed(2)}%
                         </div>
                         {quote ? (
-                            <>
-                                <span className="text-xl font-black text-foreground tracking-tight">
-                                    {quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                            <div className="flex flex-col items-end">
+                                <span className="text-lg font-black text-foreground tracking-tighter leading-none">
+                                    {quote.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
-                                <span className="text-[9px] font-bold text-muted uppercase tracking-[0.2em] mt-0.5">USD</span>
-                            </>
+                                <span className="text-[8px] font-bold text-muted/40 uppercase tracking-[0.3em] mt-1">USD</span>
+                            </div>
                         ) : (
                             <span className="text-xs text-muted">Loading...</span>
                         )}
@@ -354,106 +344,100 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
     return (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
             {/* Seven Angels Section */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col max-h-[600px] overflow-hidden">
-                <div className="p-5 border-b border-theme-border flex items-center gap-2">
-                    <Star className="w-5 h-5 text-gold fill-gold" />
-                    <h2 className="text-lg font-bold text-foreground">Seven Angels</h2>
+            <div className="bg-surface/40 backdrop-blur-md rounded-3xl shadow-xl shadow-black/5 border border-theme-border/50 flex flex-col max-h-[600px] overflow-hidden group/panel transition-all duration-500 hover:border-gold/20">
+                <div className="p-6 border-b border-theme-border/30 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center shadow-inner">
+                            <Star className="w-5 h-5 text-gold fill-gold/20" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-foreground">Seven Angels</h2>
+                            <p className="text-[10px] text-muted/60 font-medium">Top Market Leaders</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
-                    {SEVEN_ANGELS.slice(0, expandedSeven ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, false))}
+                <div className="flex flex-col flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
+                    {SEVEN_ANGELS.map((symbol, index) => renderStockItem(symbol, index, false))}
                 </div>
-
-                {SEVEN_ANGELS.length > 4 && (
-                    <button
-                        onClick={() => setExpandedSeven(!expandedSeven)}
-                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
-                    >
-                        {expandedSeven ? "ย่อลง" : "ดูเพิ่มเติม"}
-                        <Plus className={`w-3 h-3 transition-transform ${expandedSeven ? 'rotate-45' : ''}`} />
-                    </button>
-                )}
             </div>
 
             {/* My Personal Watchlist (New) */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-gold/30 flex flex-col max-h-[600px] overflow-hidden bg-gradient-to-br from-surface to-gold/5">
-                <div className="p-5 border-b border-gold/20 flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <Star className="w-5 h-5 text-gold fill-gold" />
-                        My Watchlist
-                    </h2>
-                    <span className="text-[10px] font-black bg-gold/10 text-gold px-2 py-1 rounded-md uppercase tracking-wider">
+            <div className="bg-surface/40 backdrop-blur-md rounded-3xl shadow-xl shadow-black/5 border border-theme-border/50 flex flex-col max-h-[600px] overflow-hidden group/panel transition-all duration-500 hover:border-gold/20">
+                <div className="p-6 border-b border-theme-border/30 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center shadow-inner">
+                            <Star className="w-5 h-5 text-gold fill-gold" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-foreground">My Watchlist</h2>
+                            <p className="text-[10px] text-muted/60 font-medium">Your Handpicked Assets</p>
+                        </div>
+                    </div>
+                    <span className="text-[10px] font-black bg-gold/10 text-gold px-2.5 py-1 rounded-full uppercase tracking-wider border border-gold/20 shadow-sm">
                         {myWatchlist.length} Items
                     </span>
                 </div>
 
-                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
+                <div className="flex flex-col flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
                     {myWatchlist.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-3 py-12 text-center opacity-60">
-                            <div className="w-12 h-12 rounded-2xl bg-theme-border flex items-center justify-center mb-2">
-                                <Star className="w-6 h-6 text-muted" />
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-4 py-16 text-center opacity-40 group-hover/panel:opacity-60 transition-opacity">
+                            <div className="w-16 h-16 rounded-3xl bg-theme-border/30 flex items-center justify-center mb-2 border border-theme-border/50">
+                                <Star className="w-8 h-8 text-muted" />
                             </div>
-                            <p>ไม่มีหุ้นใน Watchlist<br/><span className="text-[10px]">กดดาวที่หุ้นเพื่อบันทึกไว้ดูภายหลัง</span></p>
+                            <p className="font-medium tracking-tight">Your watchlist is empty<br/><span className="text-[10px] font-bold uppercase tracking-widest mt-2 block">Star stocks to track them</span></p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
-                            {myWatchlist.slice(0, expandedMyWatchlist ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
+                            {myWatchlist.map((symbol, index) => renderStockItem(symbol, index, true))}
                         </div>
                     )}
                 </div>
-
-                {myWatchlist.length > 4 && (
-                    <button
-                        onClick={() => setExpandedMyWatchlist(!expandedMyWatchlist)}
-                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
-                    >
-                        {expandedMyWatchlist ? "ย่อลง" : "ดูเพิ่มเติม"}
-                        <Plus className={`w-3 h-3 transition-transform ${expandedMyWatchlist ? 'rotate-45' : ''}`} />
-                    </button>
-                )}
             </div>
 
             {/* Recommended Stocks Section */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col max-h-[600px] overflow-hidden">
-                <div className="p-5 border-b border-theme-border flex items-center justify-between">
-                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <TrendingUp className="w-5 h-5 text-gold" />
-                        {user ? "ตัวเลือกแนะนำตามสไตล์คุณ" : "Trending Stocks"}
-                    </h2>
+            <div className="bg-surface/40 backdrop-blur-md rounded-3xl shadow-xl shadow-black/5 border border-theme-border/50 flex flex-col max-h-[600px] overflow-hidden group/panel transition-all duration-500 hover:border-gold/20">
+                <div className="p-6 border-b border-theme-border/30 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center shadow-inner">
+                            <TrendingUp className="w-5 h-5 text-gold" />
+                        </div>
+                        <div>
+                            <h2 className="text-base font-bold text-foreground">
+                                {user ? "Recommended" : "Trending"}
+                            </h2>
+                            <p className="text-[10px] text-muted/60 font-medium">AI Powered Picks</p>
+                        </div>
+                    </div>
                     <button
                         onClick={() => {
                             const currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
                             localStorage.removeItem(`simtrade_random_stocks_${currentIdentity}`);
                             window.location.reload();
                         }}
-                        className="text-[10px] font-black text-gold border border-gold/30 px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors uppercase"
+                        className="p-2 rounded-lg bg-surface/50 border border-theme-border/50 text-gold/60 hover:text-gold hover:border-gold transition-all duration-300"
+                        title="Refresh Recommendations"
                     >
-                        Refresh
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
                     </button>
                 </div>
 
-                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
+                <div className="flex flex-col flex-1 overflow-y-auto px-2 py-2 custom-scrollbar">
                     {recommendedStocks.length === 0 ? (
-                        <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-2 py-12 text-center">
-                            <Star className="w-8 h-8 text-theme-border animate-pulse" />
-                            <p>Loading recommendations...</p>
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-4 py-16 text-center opacity-40">
+                            <div className="w-16 h-16 rounded-3xl bg-theme-border/30 flex items-center justify-center mb-2 animate-pulse">
+                                <TrendingUp className="w-8 h-8 text-muted" />
+                            </div>
+                            <p className="font-medium tracking-tight">Analyzing market patterns...</p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
-                            {recommendedStocks.slice(0, expandedRecommended ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
+                            {recommendedStocks.map((symbol, index) => renderStockItem(symbol, index, true))}
                         </div>
                     )}
                 </div>
-
-                {recommendedStocks.length > 4 && (
-                    <button
-                        onClick={() => setExpandedRecommended(!expandedRecommended)}
-                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
-                    >
-                        {expandedRecommended ? "ย่อลง" : "ดูเพิ่มเติม"}
-                        <Plus className={`w-3 h-3 transition-transform ${expandedRecommended ? 'rotate-45' : ''}`} />
-                    </button>
-                )}
             </div>
 
             <style dangerouslySetInnerHTML={{
