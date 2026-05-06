@@ -20,7 +20,14 @@ public class RiskConfig {
     public double holdingLoserLossPercent;
     public int holdingLoserMaxDays;
 
+    // --- In-Memory Updatable Configs ---
+    public static java.util.Map<TraderType, RiskConfig> customConfigs = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static RiskConfig getConfig(TraderType type) {
+        if (customConfigs.containsKey(type)) {
+            return customConfigs.get(type);
+        }
+
         RiskConfig config = new RiskConfig();
 
         switch (type) {
@@ -72,6 +79,12 @@ public class RiskConfig {
                 config.holdingLoserMaxDays = 30;
                 break;
         }
+        
+        customConfigs.put(type, config);
         return config;
+    }
+
+    public static void updateConfig(TraderType type, RiskConfig newConfig) {
+        customConfigs.put(type, newConfig);
     }
 }

@@ -45,6 +45,24 @@ public class AnalysisData {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // ==========================================
+    // IN-MEMORY CONFIGURATION (แทนการสร้างตารางใหม่)
+    // ==========================================
+    public static class FeedbackTemplateDTO {
+        public String title;
+        public String message;
+        public String severity;
+        public FeedbackTemplateDTO(String t, String m, String s) { this.title=t; this.message=m; this.severity=s; }
+    }
+
+    public static java.util.Map<String, FeedbackTemplateDTO> feedbackConfig = new java.util.concurrent.ConcurrentHashMap<>();
+    
+    static {
+        feedbackConfig.put("FOMO_ALERT", new FeedbackTemplateDTO("อาการ: กลัวตกรถ (FOMO)", "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง", "WARNING"));
+        feedbackConfig.put("SELL_EARLY_ALERT", new FeedbackTemplateDTO("อาการ: รีบขายหมู (Sell Early)", "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้", "INFO"));
+        feedbackConfig.put("PANIC_SELL_ALERT", new FeedbackTemplateDTO("อาการ: ตื่นตระหนก (Panic Sell)", "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง", "DANGER"));
+    }
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();

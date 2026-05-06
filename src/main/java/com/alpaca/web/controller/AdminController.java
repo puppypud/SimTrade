@@ -9,6 +9,9 @@ import com.alpaca.web.dto.AdminAddStockRequest;
 import com.alpaca.web.entity.OrderHistory;
 import com.alpaca.web.entity.StockAsset;
 import com.alpaca.web.entity.UserAccount;
+import com.alpaca.web.corsconfig.RiskConfig;
+import com.alpaca.web.entity.AnalysisData;
+import com.alpaca.web.enums.TraderType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -527,6 +530,75 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error fetching dashboard stats", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "ดึงข้อมูล Dashboard ไม่สำเร็จ"));
+        }
+    }
+
+    // ============================================================
+    // 5. ANALYSIS LOGIC & CRITERIA CONFIGURATION
+    // ============================================================
+
+    /**
+     * GET /broker/admin/configs/risk - ดึงข้อมูลเกณฑ์ความเสี่ยงทั้งหมด
+     */
+    @GetMapping("/configs/risk")
+    public ResponseEntity<?> getAllRiskConfigs() {
+        Map<TraderType, RiskConfig> allConfigs = new HashMap<>();
+        for (TraderType type : TraderType.values()) {
+            allConfigs.put(type, RiskConfig.getConfig(type));
+        }
+        return ResponseEntity.ok(allConfigs);
+    }
+
+    /**
+     * PUT /broker/admin/configs/risk/{traderType} - อัปเดตเกณฑ์ความเสี่ยงตามประเภทนักเทรด
+     */
+    @PutMapping("/configs/risk/{traderType}")
+    public ResponseEntity<?> updateRiskConfig(@PathVariable String traderType, @RequestBody RiskConfig request) {
+        try {
+            TraderType type = TraderType.valueOf(traderType.toUpperCase());
+            RiskConfig.updateConfig(type, request);
+            
+            log.info("✅ Admin updated risk config for {}", type);
+            return ResponseEntity.ok(Map.of("message", "อัปเดตเกณฑ์ความเสี่ยงสำเร็จ", "config", request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid Trader Type"));
+        } catch (Exception e) {
+            log.error("Error updating risk config", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "อัปเดตเกณฑ์ความเสี่ยงไม่สำเร็จ"));
+        }
+    }
+
+    /**
+     * GET /broker/admin/configs/feedback - ดึงข้อมูลข้อความแจ้งเตือนทั้งหมด
+     */
+    @GetMapping("/configs/feedback")
+    public ResponseEntity<?> getAllFeedbackTemplates() {
+        return ResponseEntity.ok(AnalysisData.feedbackConfig);
+    }
+
+    /**
+     * PUT /broker/admin/configs/feedback/{id} - อัปเดตข้อความแจ้งเตือน
+     * (id ในที่นี้คือ alertType เช่น FOMO_ALERT)
+     */
+    @PutMapping("/configs/feedback/{id}")
+    public ResponseEntity<?> updateFeedbackTemplate(@PathVariable String id, @RequestBody AnalysisData.FeedbackTemplateDTO request) {
+        try {
+            if (!AnalysisData.feedbackConfig.containsKey(id)) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Template not found: " + id));
+            }
+            
+            AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.get(id);
+            if (request.title != null) template.title = request.title;
+            if (request.message != null) template.message = request.message;
+            if (request.severity != null) template.severity = request.severity;
+            
+            AnalysisData.feedbackConfig.put(id, template);
+            
+            log.info("✅ Admin updated feedback template ID {}", id);
+            return ResponseEntity.ok(Map.of("message", "อัปเดตข้อความแจ้งเตือนสำเร็จ", "template", template));
+        } catch (Exception e) {
+            log.error("Error updating feedback template", e);
+            return ResponseEntity.internalServerError().body(Map.of("error", "อัปเดตข้อความแจ้งเตือนไม่สำเร็จ"));
         }
     }
 }

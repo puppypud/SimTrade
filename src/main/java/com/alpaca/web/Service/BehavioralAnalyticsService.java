@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class BehavioralAnalyticsService {
     private final SimpMessagingTemplate messagingTemplate;
-    private final AnalysisDataRepository analysisDataRepository; // 🚀 เพิ่ม Repo
-    private final AccountRepository accountRepository;   // 🚀 เพิ่ม Repo
+    private final AnalysisDataRepository analysisDataRepository;
+    private final AccountRepository accountRepository;
     private final Cache<String, AtomicInteger> orderFrequencyCache;
 
     public BehavioralAnalyticsService(SimpMessagingTemplate messagingTemplate,
@@ -53,13 +53,15 @@ public class BehavioralAnalyticsService {
             int currentCount = orderCount.incrementAndGet();
 
             if (currentCount >= config.fomoMaxOrders && priceChangePercent >= config.fomoPriceSurgePercent) {
-                String message = "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง";
+                AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.getOrDefault("FOMO_ALERT", 
+                    new AnalysisData.FeedbackTemplateDTO("อาการ: กลัวตกรถ (FOMO)", "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง", "WARNING"));
+                String message = template.message;
 
                 // 1. บันทึกลง Database
-                saveToDatabase(user, symbol, "FOMO_ALERT", message, "WARNING", priceChangePercent, null, null);
+                saveToDatabase(user, symbol, "FOMO_ALERT", message, template.severity, priceChangePercent, null, null);
 
                 // 2. สร้าง DTO และยิง WebSocket ไปหน้าบ้าน
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("FOMO_ALERT", "อาการ: กลัวตกรถ (FOMO)", message, "WARNING"));
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("FOMO_ALERT", template.title, message, template.severity));
 
                 orderFrequencyCache.invalidate(cacheKey);
             }
@@ -73,18 +75,24 @@ public class BehavioralAnalyticsService {
             // Rule 2: Selling Winners Too Early
             if (currentProfitPercent > 0 && currentProfitPercent <= config.sellingTooEarlyTriggerPercent &&
                     config.takeProfitExpectedPercent > currentProfitPercent * 2) {
-                String message = "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้ (เป้าหมาย +" + config.takeProfitExpectedPercent + "%)";
+                
+                AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.getOrDefault("SELL_EARLY_ALERT", 
+                    new AnalysisData.FeedbackTemplateDTO("อาการ: รีบขายหมู (Sell Early)", "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้", "INFO"));
+                String message = template.message;
 
-                saveToDatabase(user, symbol, "SELL_EARLY_ALERT", message, "INFO", null, currentProfitPercent, null);
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("SELL_EARLY_ALERT", "อาการ: รีบขายหมู (Sell Early)", message, "INFO"));
+                saveToDatabase(user, symbol, "SELL_EARLY_ALERT", message, template.severity, null, currentProfitPercent, null);
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("SELL_EARLY_ALERT", template.title, message, template.severity));
             }
 
             // Rule 3: Panic Sell
             if (priceChangePercent <= config.panicSellPriceDropPercent && volumeSoldPercent >= config.panicSellVolumePercent) {
-                String message = "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง";
+                
+                AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.getOrDefault("PANIC_SELL_ALERT", 
+                    new AnalysisData.FeedbackTemplateDTO("อาการ: ตื่นตระหนก (Panic Sell)", "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง", "DANGER"));
+                String message = template.message;
 
-                saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, "DANGER", priceChangePercent, currentProfitPercent, volumeSoldPercent);
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", "อาการ: ตื่นตระหนก (Panic Sell)", message, "DANGER"));
+                saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, template.severity, priceChangePercent, currentProfitPercent, volumeSoldPercent);
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", template.title, message, template.severity));
             }
         }
     }
