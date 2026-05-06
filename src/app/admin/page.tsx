@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import {
   UsersIcon, ChartBarIcon, ShieldCheckIcon,
   BuildingLibraryIcon, ClipboardDocumentListIcon,
-  ArrowTrendingUpIcon, CpuChipIcon,
+  ArrowTrendingUpIcon, CpuChipIcon, Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 
 // Tab components
@@ -13,6 +13,7 @@ import AdminStockTab from "./tabs/AdminStockTab";
 import AdminOrderTab from "./tabs/AdminOrderTab";
 import AdminDashboardTab from "./tabs/AdminDashboardTab";
 import AdminOverviewTab from "./tabs/AdminOverviewTab";
+import AdminConfigTab from "./tabs/AdminConfigTab";
 
 const TABS = [
   { id: "overview", label: "ภาพรวม", icon: ChartBarIcon },
@@ -20,6 +21,7 @@ const TABS = [
   { id: "stocks", label: "จัดการหุ้น", icon: BuildingLibraryIcon },
   { id: "orders", label: "ธุรกรรม", icon: ClipboardDocumentListIcon },
   { id: "dashboard", label: "Dashboard พฤติกรรม", icon: CpuChipIcon },
+  { id: "configs", label: "ตั้งค่าระบบวิเคราะห์", icon: Cog6ToothIcon },
 ];
 
 export default function AdminPage() {
@@ -74,6 +76,7 @@ export default function AdminPage() {
           {activeTab === "stocks" && <AdminStockTab />}
           {activeTab === "orders" && <AdminOrderTab />}
           {activeTab === "dashboard" && <AdminDashboardTab />}
+          {activeTab === "configs" && <AdminConfigTab />}
         </div>
       </main>
     </div>
