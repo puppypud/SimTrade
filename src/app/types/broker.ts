@@ -287,4 +287,7 @@ export interface UserAnalyticsResult {
   maxConsecutiveLosses: number;
   streakFeedback: string;
   recommendedSimilarStocks?: string[];
+  recommendedIndustryStocks?: string[];
+  recommendedNewTypeStocks?: string[];
+  recommendedCurrentTypeStocks?: string[];
 }

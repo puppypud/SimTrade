@@ -84,7 +84,11 @@ function FilterResultsContent() {
                 setResults(data);
             } catch (err: any) {
                 console.error('Failed to fetch filter results:', err);
-                setError(err?.response?.data || 'Failed to load results. Please try again.');
+                const errorData = err?.response?.data;
+                const errorMessage = typeof errorData === 'string' 
+                    ? errorData 
+                    : errorData?.message || errorData?.error || 'Failed to load results. Please try again.';
+                setError(errorMessage);
             } finally {
                 setIsLoading(false);
             }

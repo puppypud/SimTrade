@@ -8,11 +8,6 @@ import { X, SlidersHorizontal, ChevronDown, ChevronUp, Loader2 } from 'lucide-re
 
 // =================== FILTER DATA ===================
 
-const ASSET_TYPES = [
-    { id: 'US_EQUITY', label: 'Stocks', icon: '📈' },
-    { id: 'CRYPTO', label: 'Crypto', icon: '₿' },
-];
-
 const MARKET_CAP_TIERS = [
     { id: 'MEGA', label: 'Mega Cap', desc: '> $200B' },
     { id: 'LARGE', label: 'Large Cap', desc: '$10B – $200B' },
@@ -22,16 +17,25 @@ const MARKET_CAP_TIERS = [
 ];
 
 const SECTORS = [
-    'Technology', 'Healthcare', 'Financial Services', 'Consumer Cyclical',
-    'Communication Services', 'Industrials', 'Consumer Defensive',
-    'Energy', 'Utilities', 'Real Estate', 'Basic Materials',
+    'Software', 'Semiconductors & Semiconductor Equipment', 'Technology Hardware, Storage & Peripherals',
+    'IT Services', 'Electronic Equipment, Instruments & Components', 'Communications Equipment',
+    'Interactive Media & Services', 'Entertainment', 'Media', 'Banks', 'Capital Markets',
+    'Consumer Finance', 'Insurance', 'Diversified Financial Services', 'Thrifts & Mortgage Finance',
+    'Health Care Equipment & Supplies', 'Health Care Providers & Services', 'Pharmaceuticals',
+    'Biotechnology', 'Life Sciences Tools & Services', 'Health Care Technology',
+    'Internet & Direct Marketing Retail', 'Specialty Retail', 'Hotels, Restaurants & Leisure',
+    'Multiline Retail', 'Distributors', 'Textiles, Apparel & Luxury Goods', 'Automobiles',
+    'Food & Staples Retailing', 'Food Products', 'Beverages', 'Household Products', 'Personal Products',
+    'Oil, Gas & Consumable Fuels', 'Energy Equipment & Services', 'Electric Utilities', 'Multi-Utilities',
+    'Aerospace & Defense', 'Machinery', 'Industrial Conglomerates', 'Commercial Services & Supplies',
+    'Chemicals', 'Metals & Mining', 'Equity Real Estate Investment Trusts (REITs)', 'Real Estate Management & Development'
 ];
 
 const CATEGORIES = [
-    { id: 'STABLE', label: 'Stable', desc: 'Low volatility, steady growth', color: '#22C55E' },
-    { id: 'SWING', label: 'Swing', desc: 'Medium volatility, good for swing trading', color: '#3B82F6' },
-    { id: 'TRENDING', label: 'Trending', desc: 'Strong momentum, trending stocks', color: '#F59E0B' },
-    { id: 'SPECULATIVE', label: 'Speculative', desc: 'High volatility, high risk', color: '#EF4444' },
+    { id: 'มั่นคง (Stable)', label: 'Stable (หุ้นมั่นคง)', desc: 'เน้นปันผล ความผันผวนต่ำ พื้นฐานแข็งแกร่ง', color: '#22C55E' },
+    { id: 'เล่นรอบ (Swing)', label: 'Swing (หุ้นเล่นรอบ)', desc: 'เหมาะสำหรับทำกำไรตามรอบราคา ผันผวนปานกลาง', color: '#3B82F6' },
+    { id: 'กระแส (Trending)', label: 'Trending (หุ้นกระแส)', desc: 'หุ้นที่มี Momentum สูง มีแนวโน้มชัดเจน', color: '#F59E0B' },
+    { id: 'เก็งกำไร (Speculative)', label: 'Speculative (หุ้นเก็งกำไร)', desc: 'ผันผวนสูงมาก เสี่ยงสูงแต่กำไรสูง', color: '#EF4444' },
 ];
 
 const PRICE_PRESETS = [
@@ -55,7 +59,6 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
     const [isLoading, setIsLoading] = useState(false);
 
     // Filter State
-    const [selectedAssetTypes, setSelectedAssetTypes] = useState<string[]>([]);
     const [selectedMarketCaps, setSelectedMarketCaps] = useState<string[]>([]);
     const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -65,16 +68,14 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
 
     // Section expand/collapse
     const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-        types: true,
+        category: true,
         marketCap: true,
         sector: false,
         price: true,
-        category: false,
     });
 
     // Count active filters
     const activeFilterCount = [
-        selectedAssetTypes.length > 0,
         selectedMarketCaps.length > 0,
         selectedSectors.length > 0,
         selectedCategories.length > 0,
@@ -96,7 +97,6 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
     };
 
     const resetAll = () => {
-        setSelectedAssetTypes([]);
         setSelectedMarketCaps([]);
         setSelectedSectors([]);
         setSelectedCategories([]);
@@ -110,7 +110,6 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
         try {
             const filterRequest: StockFilterRequest = {};
 
-            if (selectedAssetTypes.length > 0) filterRequest.assetTypes = selectedAssetTypes;
             if (selectedMarketCaps.length > 0) filterRequest.marketCapTiers = selectedMarketCaps;
             if (selectedSectors.length > 0) filterRequest.sectors = selectedSectors;
             if (selectedCategories.length > 0) filterRequest.categories = selectedCategories;
@@ -120,7 +119,6 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
 
             // Encode filter as URL search params and navigate to results page
             const params = new URLSearchParams();
-            if (filterRequest.assetTypes) params.set('assetTypes', filterRequest.assetTypes.join(','));
             if (filterRequest.marketCapTiers) params.set('marketCapTiers', filterRequest.marketCapTiers.join(','));
             if (filterRequest.sectors) params.set('sectors', filterRequest.sectors.join(','));
             if (filterRequest.categories) params.set('categories', filterRequest.categories.join(','));
@@ -195,26 +193,33 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
                         />
                     </div>
 
-                    {/* ===== SECTION: Asset Types ===== */}
+                    {/* ===== SECTION: Category (ประเภทนักเทรด) ===== */}
                     <FilterSection
-                        title="Asset Type"
-                        isExpanded={expandedSections.types}
-                        onToggle={() => toggleSection('types')}
-                        count={selectedAssetTypes.length}
+                        title="Category (ประเภทนักเทรด)"
+                        isExpanded={expandedSections.category}
+                        onToggle={() => toggleSection('category')}
+                        count={selectedCategories.length}
                     >
-                        <div className="grid grid-cols-2 gap-2">
-                            {ASSET_TYPES.map(type => (
+                        <div className="space-y-2">
+                            {CATEGORIES.map(cat => (
                                 <button
-                                    key={type.id}
-                                    onClick={() => toggleItem(selectedAssetTypes, setSelectedAssetTypes, type.id)}
-                                    className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                                        selectedAssetTypes.includes(type.id)
-                                            ? 'bg-gold/15 border-gold text-gold shadow-[0_0_12px_rgba(255,215,0,0.15)]'
-                                            : 'bg-background border-theme-border text-muted hover:border-gold/30 hover:text-foreground'
-                                    }`}
+                                    key={cat.id}
+                                    onClick={() => toggleItem(selectedCategories, setSelectedCategories, cat.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-all text-left ${selectedCategories.includes(cat.id)
+                                            ? 'bg-gold/15 border-gold shadow-[0_0_12px_rgba(255,215,0,0.15)]'
+                                            : 'bg-background border-theme-border hover:border-gold/30'
+                                        }`}
                                 >
-                                    <span className="text-lg">{type.icon}</span>
-                                    {type.label}
+                                    <div
+                                        className="w-3 h-3 rounded-full shrink-0"
+                                        style={{ backgroundColor: cat.color }}
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`font-medium ${selectedCategories.includes(cat.id) ? 'text-gold' : 'text-foreground'}`}>
+                                            {cat.label}
+                                        </p>
+                                        <p className="text-xs text-muted truncate">{cat.desc}</p>
+                                    </div>
                                 </button>
                             ))}
                         </div>
@@ -232,11 +237,10 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
                                 <button
                                     key={tier.id}
                                     onClick={() => toggleItem(selectedMarketCaps, setSelectedMarketCaps, tier.id)}
-                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${
-                                        selectedMarketCaps.includes(tier.id)
+                                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-sm transition-all ${selectedMarketCaps.includes(tier.id)
                                             ? 'bg-gold/15 border-gold text-gold shadow-[0_0_12px_rgba(255,215,0,0.15)]'
                                             : 'bg-background border-theme-border text-foreground hover:border-gold/30'
-                                    }`}
+                                        }`}
                                 >
                                     <span className="font-medium">{tier.label}</span>
                                     <span className={`text-xs ${selectedMarketCaps.includes(tier.id) ? 'text-gold/70' : 'text-muted'}`}>
@@ -259,11 +263,10 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
                                 <button
                                     key={sector}
                                     onClick={() => toggleItem(selectedSectors, setSelectedSectors, sector)}
-                                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                                        selectedSectors.includes(sector)
+                                    className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${selectedSectors.includes(sector)
                                             ? 'bg-gold/15 border-gold text-gold'
                                             : 'bg-background border-theme-border text-muted hover:border-gold/30 hover:text-foreground'
-                                    }`}
+                                        }`}
                                 >
                                     {sector}
                                 </button>
@@ -287,11 +290,10 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
                                         <button
                                             key={i}
                                             onClick={() => handlePricePreset(preset.min, preset.max)}
-                                            className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${
-                                                isActive
+                                            className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-all ${isActive
                                                     ? 'bg-gold/15 border-gold text-gold'
                                                     : 'bg-background border-theme-border text-muted hover:border-gold/30 hover:text-foreground'
-                                            }`}
+                                                }`}
                                         >
                                             {preset.label}
                                         </button>
@@ -323,39 +325,6 @@ export default function FilterSheet({ isOpen, onClose }: FilterSheetProps) {
                                     />
                                 </div>
                             </div>
-                        </div>
-                    </FilterSection>
-
-                    {/* ===== SECTION: Trading Category ===== */}
-                    <FilterSection
-                        title="Trading Pattern"
-                        isExpanded={expandedSections.category}
-                        onToggle={() => toggleSection('category')}
-                        count={selectedCategories.length}
-                    >
-                        <div className="space-y-2">
-                            {CATEGORIES.map(cat => (
-                                <button
-                                    key={cat.id}
-                                    onClick={() => toggleItem(selectedCategories, setSelectedCategories, cat.id)}
-                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border text-sm transition-all text-left ${
-                                        selectedCategories.includes(cat.id)
-                                            ? 'bg-gold/15 border-gold shadow-[0_0_12px_rgba(255,215,0,0.15)]'
-                                            : 'bg-background border-theme-border hover:border-gold/30'
-                                    }`}
-                                >
-                                    <div
-                                        className="w-3 h-3 rounded-full shrink-0"
-                                        style={{ backgroundColor: cat.color }}
-                                    />
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`font-medium ${selectedCategories.includes(cat.id) ? 'text-gold' : 'text-foreground'}`}>
-                                            {cat.label}
-                                        </p>
-                                        <p className="text-xs text-muted truncate">{cat.desc}</p>
-                                    </div>
-                                </button>
-                            ))}
                         </div>
                     </FilterSection>
 

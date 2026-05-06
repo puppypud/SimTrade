@@ -340,36 +340,101 @@ export default function AnalyticsPage() {
                         </div>
 
                         {/* ======= SUGGESTED ASSETS ======= */}
-                        {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
-                            <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
-                                <div className="flex items-center gap-2 mb-4">
+                        <div className="space-y-6 pt-6">
+                            <div className="flex items-center gap-3 px-2">
+                                <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
                                     <Target className="w-5 h-5 text-gold" />
-                                    <h3 className="font-bold text-lg text-foreground tracking-tight">Correlated Opportunities</h3>
                                 </div>
-
-                                {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' && (
-                                    <div className="mb-6">
-                                        <p className="text-sm text-muted">
-                                            Based on your success with <span className="font-bold text-foreground">{analytics.bestPerformingStock}</span>, 
-                                            you might also consider these correlated assets:
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-                                    {analytics.recommendedSimilarStocks.map((stock, idx) => (
-                                        <a
-                                            key={idx}
-                                            href={`/trade?symbol=${stock}`}
-                                            className="flex flex-col items-center justify-center p-4 rounded-xl bg-background border border-theme-border hover:border-gold/50 transition-colors group"
-                                        >
-                                            <span className="font-bold text-foreground group-hover:text-gold transition-colors">{stock}</span>
-                                            <span className="text-[10px] text-muted mt-1 uppercase tracking-wider">Trade</span>
-                                        </a>
-                                    ))}
+                                <div>
+                                    <h2 className="text-xl font-black tracking-tight">Smart Recommendations</h2>
+                                    <p className="text-xs text-muted">หุ้นแนะนำที่วิเคราะห์ตามพฤติกรรมของคุณ</p>
                                 </div>
                             </div>
-                        )}
+
+                            {/* Section 1: Correlated Opportunities (Original) */}
+                            {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
+                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Bot className="w-5 h-5 text-gold" />
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Correlated Opportunities (โอกาสที่สัมพันธ์กัน)</h3>
+                                    </div>
+                                    <p className="text-xs text-muted mb-4 leading-relaxed">
+                                        {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' ? (
+                                            <>
+                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต เราจึงแนะนำกลุ่มอุตสาหกรรมและประเภทนักเทรดเดียวกันที่คุณน่าจะชอบ
+                                            </>
+                                        ) : (
+                                            <>
+                                                เนื่องจากคุณเป็นนักเทรดสาย <span className="text-gold font-bold">{dbTraderType}</span> ระบบจึงแนะนำรายชื่อหุ้นที่มีพฤติกรรมสอดคล้องกับสไตล์การเทรดของคุณ เพื่อช่วยให้คุณหาโอกาสทำกำไรได้แม่นยำขึ้น
+                                            </>
+                                        )}
+                                    </p>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                        {analytics.recommendedSimilarStocks.map((stock, idx) => (
+                                            <RecommendationItem key={idx} stock={stock} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Section 3.1: Same Industry (New) */}
+                            {analytics.recommendedIndustryStocks && analytics.recommendedIndustryStocks.length > 0 && (
+                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm border-l-4 border-l-emerald-500/50">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Database className="w-5 h-5 text-emerald-500" />
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Industry Specialists (หุ้นกลุ่มอุตสาหกรรมเดียวกัน)</h3>
+                                    </div>
+                                    <p className="text-xs text-muted mb-4 leading-relaxed">
+                                        แนะนำหุ้นในกลุ่มอุตสาหกรรมเดียวกับหุ้น <span className="text-emerald-500 font-bold">{analytics.bestPerformingStock}</span> ที่คุณทำกำไรได้มากที่สุด เพราะคุณมีความเข้าใจในอุตสาหกรรมนี้เป็นอย่างดี
+                                    </p>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                        {analytics.recommendedIndustryStocks.map((stock, idx) => (
+                                            <RecommendationItem key={idx} stock={stock} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Section 3.2: Recommended New Type (New) */}
+                            {analytics.recommendedNewTypeStocks && analytics.recommendedNewTypeStocks.length > 0 && analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType && (
+                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm border-l-4 border-l-gold/50">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <Sparkles className="w-5 h-5 text-gold" />
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Adaptive Strategy (หุ้นสำหรับสายใหม่ที่คุณควรลอง)</h3>
+                                    </div>
+                                    <p className="text-xs text-muted mb-4 leading-relaxed">
+                                        เนื่องจากระบบวิเคราะห์ว่าคุณควรเปลี่ยนเป็นสาย <span className="text-gold font-bold">{analytics.suggestedTraderType}</span> เราจึงคัดหุ้นที่เหมาะกับพฤติกรรมจริงของคุณมาให้ศึกษา
+                                    </p>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                        {analytics.recommendedNewTypeStocks.map((stock, idx) => (
+                                            <RecommendationItem key={idx} stock={stock} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Section 3.3: Current Type Stocks (New) */}
+                            {analytics.recommendedCurrentTypeStocks && analytics.recommendedCurrentTypeStocks.length > 0 && (
+                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <ShieldCheck className="w-5 h-5 text-muted" />
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Profile Matched (หุ้นแนะนำตามสายเดิมของคุณ)</h3>
+                                    </div>
+                                    <p className="text-xs text-muted mb-4 leading-relaxed">
+                                        คัดรายชื่อหุ้นที่ตรงกับประเภทนักเทรด <span className="text-foreground font-bold">{dbTraderType}</span> ที่คุณได้ประเมินไว้ตั้งแต่ตอนเริ่มต้น
+                                    </p>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                                        {analytics.recommendedCurrentTypeStocks.map((stock, idx) => (
+                                            <RecommendationItem key={idx} stock={stock} />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
 
                         {/* Key Metrics Grid */}
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -777,5 +842,17 @@ function BehaviorItem({ label, description, status, statusText }: {
                 {statusText}
             </span>
         </div>
+    );
+}
+
+function RecommendationItem({ stock }: { stock: string }) {
+    return (
+        <a
+            href={`/trade?symbol=${stock}`}
+            className="flex flex-col items-center justify-center p-4 rounded-xl bg-background border border-theme-border hover:border-gold/50 transition-colors group shadow-sm"
+        >
+            <span className="font-bold text-foreground group-hover:text-gold transition-colors">{stock}</span>
+            <span className="text-[10px] text-muted mt-1 uppercase tracking-wider">Trade</span>
+        </a>
     );
 }
