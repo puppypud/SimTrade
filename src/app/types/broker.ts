@@ -273,6 +273,7 @@ export interface UserAnalyticsResult {
   mostTradedStockCount: number;
   bestPerformingStock: string;
   bestPerformingStockPnL: number;
+  bestPerformingStockIndustry?: string;
   worstPerformingStock: string;
   worstPerformingStockPnL: number;
   longestHeldStock: string;

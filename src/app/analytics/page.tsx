@@ -42,7 +42,10 @@ import {
     Scale,
     Database,
     ShieldCheck,
-    Binary
+    Binary,
+    Search,
+    Lightbulb,
+    Brain
 } from 'lucide-react';
 
 const TRADER_INFO: Record<string, { label: string; desc: string; icon: React.ReactNode }> = {
@@ -168,24 +171,40 @@ export default function AnalyticsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-stretch">
                     {/* Left: Declared Profile */}
                     <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border flex flex-col items-center text-center shadow-sm relative overflow-hidden">
-                        <div className="flex items-center gap-2 mb-6">
-                            <UserCircle className="w-5 h-5 text-muted" />
-                            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Declared Profile</span>
+                        {/* Header section with badge */}
+                        <div className="mb-6">
+                            <span className="px-3 py-1 rounded-full bg-theme-border/30 border border-theme-border/50 text-[10px] font-bold text-muted uppercase tracking-widest">
+                                Initial Setup
+                            </span>
                         </div>
 
                         {profileLoading ? (
-                            <div className="flex flex-col items-center justify-center w-full py-8">
+                            <div className="flex flex-col items-center justify-center w-full py-8 flex-1">
                                 <RefreshCw className="w-6 h-6 text-muted animate-spin mb-3" />
                             </div>
                         ) : (
-                            <div className="flex flex-col h-full w-full">
-                                <div className="w-16 h-16 rounded-2xl bg-background flex items-center justify-center mx-auto mb-4 border border-theme-border shadow-sm text-gold">
+                            <div className="flex-1 flex flex-col items-center w-full">
+                                <div className="w-20 h-20 rounded-3xl bg-background border border-theme-border flex items-center justify-center mx-auto mb-6 shadow-sm text-muted">
                                     {preTestInfo.icon}
                                 </div>
-                                <h2 className="text-2xl font-bold text-foreground mb-2">{preTestInfo.label}</h2>
-                                <p className="text-sm text-muted flex-1 leading-relaxed px-4">{preTestInfo.desc}</p>
-                                <div className="mt-6 pt-4 border-t border-theme-border w-full">
-                                    <p className="text-[10px] text-muted uppercase tracking-wider">Verified Profile</p>
+                                
+                                <p className="text-[10px] text-muted uppercase tracking-[0.2em] mb-2 font-bold">
+                                    สายการเทรดที่คุณเลือกไว้
+                                </p>
+                                
+                                <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
+                                    {preTestInfo.label}
+                                </h2>
+                                
+                                <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
+                                    {preTestInfo.desc}
+                                </p>
+                                
+                                <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
+                                    <p className="text-[10px] text-muted font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
+                                        <UserCircle className="w-4 h-4" />
+                                        Declared Profile
+                                    </p>
                                 </div>
                             </div>
                         )}
@@ -263,33 +282,80 @@ export default function AnalyticsPage() {
                             </div>
                         )}
 
-                        {analytics && aiTypeInfo && (
+                        {analytics && (
                             <div className="flex flex-col h-full w-full relative z-10">
-                                <div className="w-16 h-16 rounded-2xl bg-gold/5 flex items-center justify-center mx-auto mb-4 border border-gold/10 text-gold">
-                                    {aiTypeInfo.icon}
+                                {/* Header section with comparison badge */}
+                                <div className="mb-6">
+                                    {analytics.traderType === dbTraderType ? (
+                                        <span className="px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                                            Consistency Verified
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] font-bold text-amber-500 uppercase tracking-widest">
+                                            Style Shift Detected
+                                        </span>
+                                    )}
                                 </div>
-                                <h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">{aiTypeInfo.label}</h2>
-                                <p className="text-sm text-muted flex-1 leading-relaxed">{aiTypeInfo.desc}</p>
-                                
-                                {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown' && analytics.suggestedTraderType !== dbTraderType && (
-                                    <div className="mt-6 pt-4 border-t border-theme-border w-full flex flex-col items-center gap-3">
-                                        <div>
-                                            <p className="text-[10px] text-muted uppercase tracking-wider mb-1">Recommended</p>
-                                            <p className="text-sm font-semibold text-gold">{suggestedInfo?.label || analytics.suggestedTraderType}</p>
-                                        </div>
-                                        <button
-                                            onClick={() => setShowConfirmModal(true)}
-                                            className="px-4 py-2 bg-gold text-[#1A1A1A] text-xs font-bold rounded-lg hover:bg-gold-hover transition-colors shadow-sm w-full"
-                                        >
-                                            Update Profile
-                                        </button>
-                                    </div>
-                                )}
-                                {(!analytics.suggestedTraderType || analytics.suggestedTraderType === 'Unknown' || analytics.suggestedTraderType === dbTraderType) && (
-                                    <div className="mt-6 pt-4 border-t border-theme-border w-full">
-                                        <p className="text-[10px] text-emerald-500 uppercase tracking-wider font-semibold">Matched</p>
-                                    </div>
-                                )}
+
+                                {/* Main Analyzed Result (Big) */}
+                                <div className="flex-1 flex flex-col items-center">
+                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== 'Unknown' && analytics.suggestedTraderType !== dbTraderType ? (
+                                        // Case: System recommends a CHANGE
+                                        <>
+                                            <div className="w-20 h-20 rounded-3xl bg-gold/10 flex items-center justify-center mx-auto mb-6 border border-gold/20 text-gold shadow-[0_0_20px_rgba(255,215,0,0.1)]">
+                                                {suggestedInfo?.icon || <Sparkles className="w-8 h-8" />}
+                                            </div>
+
+                                            
+                                            {/* Big Heading: Recommended Style */}
+                                            <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
+                                                {suggestedInfo?.label || analytics.suggestedTraderType}
+                                            </h2>
+                                            
+                                            <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
+                                                จากพฤติกรรมการเทรดจริง ระบบขอแนะนำให้คุณเปลี่ยนมาเป็นสายนี้เพื่อให้ได้ผลลัพธ์ที่ดีที่สุด
+                                            </p>
+
+                                            <div className="mt-auto w-full pt-4 border-t border-theme-border/50">
+                                                <button
+                                                    onClick={() => setShowConfirmModal(true)}
+                                                    className="w-full py-3.5 bg-gold text-[#1A1A1A] text-sm font-black rounded-xl hover:bg-gold-hover transition-all shadow-[0_4px_15px_rgba(255,215,0,0.2)] active:scale-[0.98] flex items-center justify-center gap-2"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                    อัปเดตโปรไฟล์เป็นสายนี้
+                                                </button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        // Case: Behavior MATCHES
+                                        <>
+                                            <div className="w-20 h-20 rounded-3xl bg-emerald-500/5 flex items-center justify-center mx-auto mb-6 border border-emerald-500/20 text-emerald-500">
+                                                {aiTypeInfo?.icon || <Activity className="w-8 h-8" />}
+                                            </div>
+                                            
+                                            {/* Small Label: Verified Style */}
+                                            <p className="text-[10px] text-emerald-500 uppercase tracking-[0.2em] mb-2 font-bold">
+                                                ยืนยันสายการเทรดปัจจุบัน
+                                            </p>
+                                            
+                                            {/* Big Heading: Actual Behavior */}
+                                            <h2 className="text-3xl md:text-4xl font-black text-foreground mb-3 tracking-tight">
+                                                {aiTypeInfo?.label || analytics.traderType}
+                                            </h2>
+                                            
+                                            <p className="text-xs text-muted leading-relaxed max-w-[280px] mx-auto mb-8">
+                                                ยอดเยี่ยมมาก! พฤติกรรมการเทรดจริงของคุณสอดคล้องกับสายที่คุณเลือกไว้ตั้งแต่ต้น
+                                            </p>
+
+                                            <div className="mt-auto w-full pt-4 border-t border-theme-border/50 flex justify-center">
+                                                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest flex items-center gap-1.5 py-2">
+                                                    <ShieldCheck className="w-4 h-4" />
+                                                    พฤติกรรมถูกต้องตามแผน
+                                                </p>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -301,28 +367,54 @@ export default function AnalyticsPage() {
 
                         {/* Executive Summary */}
                         <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
-                            <div className="flex items-center gap-2 mb-6">
-                                <LineChart className="w-5 h-5 text-gold" />
-                                <h3 className="font-bold text-lg text-foreground tracking-tight">Executive Summary</h3>
+                            <div className="flex items-center gap-3 mb-8 pb-4 border-b border-theme-border/50">
+                                <div className="w-10 h-10 rounded-xl bg-gold/10 flex items-center justify-center">
+                                    <LineChart className="w-5 h-5 text-gold" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-xl text-foreground tracking-tight">Executive Summary <span className="text-muted text-sm font-normal ml-1">(สรุปผลการวิเคราะห์)</span></h3>
+                                </div>
                             </div>
 
-                            <div className="space-y-6">
+                            <div className="space-y-8">
+                                {/* Primary Diagnosis */}
                                 <div>
-                                    <h4 className="text-sm font-semibold text-foreground mb-2">Primary Diagnosis</h4>
-                                    <p className="text-sm text-muted leading-relaxed">{analytics.primaryFeedback}</p>
+                                    <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                                        <Activity className="w-4 h-4 text-emerald-500" />
+                                        Primary Diagnosis <span className="text-muted font-normal text-xs">(การวินิจฉัยหลัก)</span>
+                                    </h4>
+                                    <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+                                        <p className="text-sm text-foreground font-medium leading-relaxed">{analytics.primaryFeedback}</p>
+                                    </div>
                                 </div>
 
+                                {/* Key Observations */}
                                 {analytics.recommendation && (
                                     <div>
-                                        <h4 className="text-sm font-semibold text-foreground mb-3">Key Observations</h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        <h4 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                                            <Search className="w-4 h-4 text-blue-500" />
+                                            Key Observations <span className="text-muted font-normal text-xs">(ข้อสังเกตสำคัญ)</span>
+                                        </h4>
+                                        <div className="grid grid-cols-1 gap-3">
                                             {analytics.recommendation.split('\n\n').map((section, idx) => {
                                                 const trimmed = section.trim();
                                                 if (!trimmed) return null;
+                                                // Determine icon based on content
+                                                let Icon = Sparkles;
+                                                let iconColor = "text-gold";
+                                                if (trimmed.includes("ข้อสังเกต") || trimmed.includes("💡")) {
+                                                    Icon = Lightbulb;
+                                                } else if (trimmed.includes("ระวัง") || trimmed.includes("⚠️")) {
+                                                    Icon = AlertTriangle;
+                                                    iconColor = "text-amber-500";
+                                                } else if (trimmed.includes("📌")) {
+                                                    Icon = Target;
+                                                }
+
                                                 return (
-                                                    <div key={idx} className="bg-background rounded-xl p-4 border border-theme-border text-sm text-muted leading-relaxed whitespace-pre-line flex items-start gap-3">
-                                                        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
-                                                        <span>{trimmed.replace(/^[🔥⚠️💡📌]\s*/g, '')}</span>
+                                                    <div key={idx} className="bg-background rounded-xl p-4 border border-theme-border text-sm text-muted leading-relaxed whitespace-pre-line flex items-start gap-3 hover:border-theme-border/80 transition-colors shadow-sm">
+                                                        <Icon className={`w-5 h-5 ${iconColor} flex-shrink-0 mt-0.5`} />
+                                                        <span className="pt-0.5 text-foreground/80">{trimmed.replace(/^[🔥⚠️💡📌]\s*/g, '')}</span>
                                                     </div>
                                                 );
                                             })}
@@ -330,10 +422,19 @@ export default function AnalyticsPage() {
                                     </div>
                                 )}
 
+                                {/* Behavioral Insights */}
                                 {analytics.behavioralFeedback && (
                                     <div>
-                                        <h4 className="text-sm font-semibold text-foreground mb-2">Behavioral Insights</h4>
-                                        <p className="text-sm text-muted leading-relaxed bg-background/50 p-4 rounded-xl border border-theme-border/50">{analytics.behavioralFeedback}</p>
+                                        <h4 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+                                            <Brain className="w-4 h-4 text-purple-500" />
+                                            Behavioral Insights <span className="text-muted font-normal text-xs">(ข้อมูลเชิงลึกด้านพฤติกรรม)</span>
+                                        </h4>
+                                        <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4 flex items-start gap-3">
+                                            <Zap className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                                            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-line">
+                                                {analytics.behavioralFeedback.replace(/\|/g, '\n')}
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -361,8 +462,10 @@ export default function AnalyticsPage() {
                                     <p className="text-xs text-muted mb-4 leading-relaxed">
                                         {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' ? (
                                             <>
-                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต เราจึงแนะนำกลุ่มอุตสาหกรรมและประเภทนักเทรดเดียวกันที่คุณน่าจะชอบ
-                                            </>
+                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span> 
+                                                <span className="text-foreground/60 ml-1">({analytics.bestPerformingStockIndustry || 'N/A'})</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต 
+                                                เราจึงแนะนำหุ้นที่อยู่ใน <span className="text-blue-400 font-bold">อุตสาหกรรม {analytics.bestPerformingStockIndustry || 'N/A'}</span> และมีพฤติกรรมตรงกับ <span className="text-gold font-bold">ประเภทนักเทรดปัจจุบันของคุณ</span>
+                                             </>
                                         ) : (
                                             <>
                                                 เนื่องจากคุณเป็นนักเทรดสาย <span className="text-gold font-bold">{dbTraderType}</span> ระบบจึงแนะนำรายชื่อหุ้นที่มีพฤติกรรมสอดคล้องกับสไตล์การเทรดของคุณ เพื่อช่วยให้คุณหาโอกาสทำกำไรได้แม่นยำขึ้น
