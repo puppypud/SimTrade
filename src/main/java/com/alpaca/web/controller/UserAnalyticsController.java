@@ -95,11 +95,12 @@ public class UserAnalyticsController {
         // ---------------------------------------------------------
 
         // ถ้าหน้าบ้านไม่ได้ส่ง TraderType มา เราก็ดึงจาก DB ของ User คนนั้น
-        TraderType typeToUse = request.getTraderType();
         if (typeToUse == null) {
             UserAccount user = accountRepository.findById(request.getUserId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            typeToUse = TraderType.valueOf(user.getTraderType());
+            String traderTypeStr = user.getTraderType() != null ? user.getTraderType() : "DAY_TRADER";
+            String normalizedType = traderTypeStr.toUpperCase().replace(" ", "_");
+            typeToUse = TraderType.valueOf(normalizedType);
         }
 
         // โยนข้อมูลเข้า Service ที่เราเขียนไว้

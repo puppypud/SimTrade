@@ -11,6 +11,7 @@ import org.apache.commons.text.similarity.JaroWinklerDistance;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import jakarta.annotation.PostConstruct; // Import เพิ่ม
 import org.slf4j.Logger;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,7 +75,7 @@ public class MarketDataService {
         }
     }
 
-    public MarketDataService(StockAnalysisService stockAssetRepository, StockAnalysisService stockAnalysisService, StockAssetRepository stockAssetRepository1, BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
+    public MarketDataService(StockAnalysisService stockAssetRepository, StockAnalysisService stockAnalysisService, StockAssetRepository stockAssetRepository1, @Lazy BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
         this.stockAnalysisService = stockAnalysisService;
         this.stockAssetRepository = stockAssetRepository1;
         this.brokerService = brokerService;
@@ -716,7 +717,32 @@ public class MarketDataService {
         // 2. จำกัดผลลัพธ์ไม่เกิน 50 ตัว (เพื่อไม่ให้ยิง API เยอะเกินไป)
         List<StockAsset> limitedResults = dbResults.stream().limit(50).collect(Collectors.toList());
 
-        // 3. แปลงเป็น DTO และเสริมข้อมูลราคา + 1Y Return
+        // 3. Batch processing (Optimized API calls)
+        List<String> usSymbols = limitedResults.stream()
+                .filter(a -> "US_EQUITY".equals(a.getAssetClass()))
+                .map(StockAsset::getSymbol)
+                .collect(Collectors.toList());
+
+        List<String> cryptoSymbols = limitedResults.stream()
+                .filter(a -> "CRYPTO".equals(a.getAssetClass()))
+                .map(a -> {
+                    String sym = a.getSymbol().toUpperCase();
+                    return sym.contains("/") ? sym : sym + "/USD";
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Double> allPrices = new HashMap<>();
+        Map<String, Double> allReturns = new HashMap<>();
+
+        if (!usSymbols.isEmpty()) {
+            allPrices.putAll(getBatchLatestPrices(usSymbols, false));
+            allReturns.putAll(getBatch1YearReturns(usSymbols, false));
+        }
+        if (!cryptoSymbols.isEmpty()) {
+            allPrices.putAll(getBatchLatestPrices(cryptoSymbols, true));
+            allReturns.putAll(getBatch1YearReturns(cryptoSymbols, true));
+        }
+
         List<StockSearchResultDTO> enrichedResults = new ArrayList<>();
         for (StockAsset asset : limitedResults) {
             StockSearchResultDTO dto = new StockSearchResultDTO();
@@ -730,36 +756,25 @@ public class MarketDataService {
             dto.setMarketcap(asset.getMarketCap());
             dto.setBata(asset.getBeta());
             dto.setVolume(asset.getAvgVolume());
-
-            // กำหนด Market Cap Tier
             dto.setMarketCapTier(calculateMarketCapTier(asset.getMarketCap()));
 
-            // ดึงราคาปัจจุบันจาก Alpaca API
-            try {
-                Map<String, Object> quoteData = getLatestQuote(asset.getSymbol());
-                if (quoteData != null && quoteData.containsKey("price") && quoteData.get("price") != null) {
-                    double price = ((Number) quoteData.get("price")).doubleValue();
-                    dto.setCurrentPrice(BigDecimal.valueOf(price).setScale(2, RoundingMode.HALF_UP));
-                }
-            } catch (Exception e) {
-                log.warn("⚠️ Could not fetch price for {}: {}", asset.getSymbol(), e.getMessage());
+            String symKey = asset.getSymbol().toUpperCase();
+            if ("CRYPTO".equals(asset.getAssetClass()) && !symKey.contains("/")) {
+                symKey = symKey + "/USD";
             }
 
-            // คำนวณ 1-Year Return จาก Alpaca Historical Bars
-            try {
-                ZonedDateTime now = ZonedDateTime.now(NY_ZONE);
-                ZonedDateTime oneYearAgo = now.minusYears(1);
-                List<StockBar> historicalBars = getHistoricalBars(asset.getSymbol(), oneYearAgo, now, "1Month", 15);
-                if (historicalBars != null && historicalBars.size() >= 2) {
-                    double oldPrice = historicalBars.get(0).getC();  // ราคาเปิดปีที่แล้ว
-                    double newPrice = historicalBars.get(historicalBars.size() - 1).getC();  // ราคาปัจจุบัน
-                    if (oldPrice > 0) {
-                        double returnPct = ((newPrice - oldPrice) / oldPrice) * 100.0;
-                        dto.setOneYearReturnPct(BigDecimal.valueOf(returnPct).setScale(2, RoundingMode.HALF_UP));
-                    }
-                }
-            } catch (Exception e) {
-                log.warn("⚠️ Could not calculate 1Y return for {}: {}", asset.getSymbol(), e.getMessage());
+            // Assign pre-fetched price
+            if (allPrices.containsKey(symKey)) {
+                dto.setCurrentPrice(BigDecimal.valueOf(allPrices.get(symKey)).setScale(2, RoundingMode.HALF_UP));
+            } else if (allPrices.containsKey(asset.getSymbol().toUpperCase())) {
+                dto.setCurrentPrice(BigDecimal.valueOf(allPrices.get(asset.getSymbol().toUpperCase())).setScale(2, RoundingMode.HALF_UP));
+            }
+
+            // Assign pre-fetched 1Y return
+            if (allReturns.containsKey(symKey)) {
+                dto.setOneYearReturnPct(BigDecimal.valueOf(allReturns.get(symKey)).setScale(2, RoundingMode.HALF_UP));
+            } else if (allReturns.containsKey(asset.getSymbol().toUpperCase())) {
+                dto.setOneYearReturnPct(BigDecimal.valueOf(allReturns.get(asset.getSymbol().toUpperCase())).setScale(2, RoundingMode.HALF_UP));
             }
 
             enrichedResults.add(dto);
@@ -791,6 +806,112 @@ public class MarketDataService {
         if (marketCap >= 2_000_000_000L) return "MID";
         if (marketCap >= 300_000_000L) return "SMALL";
         return "MICRO";
+    }
+
+    private Map<String, Double> getBatchLatestPrices(List<String> symbols, boolean isCrypto) {
+        if (symbols == null || symbols.isEmpty()) return Collections.emptyMap();
+        Map<String, Double> results = new HashMap<>();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            for (int i = 0; i < symbols.size(); i += 50) {
+                int end = Math.min(i + 50, symbols.size());
+                List<String> chunk = symbols.subList(i, end);
+                String symbolsParam = String.join(",", chunk);
+
+                if (!isCrypto) {
+                    String url = "https://data.alpaca.markets/v2/stocks/snapshots?symbols=" + symbolsParam + "&feed=iex";
+                    ResponseEntity<Map> response = restTemplate.exchange(URI.create(url), HttpMethod.GET, entity, Map.class);
+                    if (response.getBody() != null) {
+                        Map<String, Map<String, Object>> body = (Map<String, Map<String, Object>>) response.getBody();
+                        for (Map.Entry<String, Map<String, Object>> entry : body.entrySet()) {
+                            Map<String, Object> snapshot = entry.getValue();
+                            if (snapshot.containsKey("latestTrade")) {
+                                Map<String, Object> trade = (Map<String, Object>) snapshot.get("latestTrade");
+                                if (trade != null && trade.get("p") != null) {
+                                    results.put(entry.getKey(), ((Number) trade.get("p")).doubleValue());
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    String url = "https://data.alpaca.markets/v1beta3/crypto/us/latest/trades?symbols=" + symbolsParam;
+                    ResponseEntity<Map> response = restTemplate.exchange(URI.create(url), HttpMethod.GET, entity, Map.class);
+                    if (response.getBody() != null && response.getBody().containsKey("trades")) {
+                        Map<String, Map<String, Object>> trades = (Map<String, Map<String, Object>>) response.getBody().get("trades");
+                        for (Map.Entry<String, Map<String, Object>> entry : trades.entrySet()) {
+                            Map<String, Object> tradeDetail = entry.getValue();
+                            if (tradeDetail != null && tradeDetail.get("p") != null) {
+                                String symbol = entry.getKey().replace("/USD", "");
+                                results.put(symbol, ((Number) tradeDetail.get("p")).doubleValue());
+                                results.put(entry.getKey(), ((Number) tradeDetail.get("p")).doubleValue());
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Error fetching batch prices: {}", e.getMessage());
+        }
+        return results;
+    }
+
+    private Map<String, Double> getBatch1YearReturns(List<String> symbols, boolean isCrypto) {
+        if (symbols == null || symbols.isEmpty()) return Collections.emptyMap();
+        Map<String, Double> results = new HashMap<>();
+
+        ZonedDateTime now = ZonedDateTime.now(NY_ZONE);
+        ZonedDateTime oneYearAgo = now.minusYears(1);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'");
+        String startStr = oneYearAgo.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
+        String endStr = now.withZoneSameInstant(ZoneOffset.UTC).format(formatter);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("APCA-API-KEY-ID", apiKey.trim());
+        headers.set("APCA-API-SECRET-KEY", apiSecret.trim());
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            for (int i = 0; i < symbols.size(); i += 50) {
+                int end = Math.min(i + 50, symbols.size());
+                List<String> chunk = symbols.subList(i, end);
+                String symbolsParam = String.join(",", chunk);
+
+                String url;
+                if (!isCrypto) {
+                    url = String.format("https://data.alpaca.markets/v2/stocks/bars?symbols=%s&timeframe=1Month&feed=iex&start=%s&end=%s&limit=15&adjustment=split",
+                            symbolsParam, startStr, endStr);
+                } else {
+                    url = String.format("https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=1Month&start=%s&limit=15",
+                            symbolsParam, startStr);
+                }
+
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(url), HttpMethod.GET, entity, Map.class);
+                if (response.getBody() != null && response.getBody().containsKey("bars")) {
+                    Map<String, List<Map<String, Object>>> barsMap = (Map<String, List<Map<String, Object>>>) response.getBody().get("bars");
+                    for (Map.Entry<String, List<Map<String, Object>>> entry : barsMap.entrySet()) {
+                        List<Map<String, Object>> barsData = entry.getValue();
+                        if (barsData != null && barsData.size() >= 2) {
+                            double oldPrice = Double.parseDouble(barsData.get(0).get("c").toString());
+                            double newPrice = Double.parseDouble(barsData.get(barsData.size() - 1).get("c").toString());
+                            if (oldPrice > 0) {
+                                double returnPct = ((newPrice - oldPrice) / oldPrice) * 100.0;
+                                String symbolKey = entry.getKey().replace("/USD", "");
+                                results.put(symbolKey, returnPct);
+                                results.put(entry.getKey(), returnPct);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.error("❌ Error fetching batch 1Y returns: {}", e.getMessage());
+        }
+        return results;
     }
 
     private int getSearchScore(String symbol, String name, String searchStr) {

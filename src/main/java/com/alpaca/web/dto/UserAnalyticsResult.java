@@ -63,5 +63,8 @@ public class UserAnalyticsResult {
     private String streakFeedback;        // เช่น "ระวัง! คุณแพ้ติดกัน 5 ไม้แล้ว หยุดพักก่อนไหม (Cool-down required)"
 
     //แนะนำหุ้น ที่หรงกับผู้เทรด
-    private List<String> recommendedSimilarStocks;   //รายชื่อหุ้นที่แนะนำ
+    private List<String> recommendedSimilarStocks;   //รายชื่อหุ้นที่แนะนำ (Legacy/Fallback)
+    private List<String> recommendedIndustryStocks;  // 3.1 หุ้นในอุตสาหกรรมเดียวกับตัวที่ทำกำไรดีที่สุด
+    private List<String> recommendedNewTypeStocks;   // 3.2 หุ้นสำหรับสายใหม่ที่ระบบแนะนำ
+    private List<String> recommendedCurrentTypeStocks; // 3.3 หุ้นสำหรับสายเดิมของผู้เล่น
 }

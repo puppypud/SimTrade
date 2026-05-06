@@ -53,13 +53,13 @@ public class BehavioralAnalyticsService {
             int currentCount = orderCount.incrementAndGet();
 
             if (currentCount >= config.fomoMaxOrders && priceChangePercent >= config.fomoPriceSurgePercent) {
-                String message = "คุณเคาะขวาซื้อรัวๆ " + currentCount + " ครั้ง ขณะราคากำลังพุ่ง";
+                String message = "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง";
 
                 // 1. บันทึกลง Database
                 saveToDatabase(user, symbol, "FOMO_ALERT", message, "WARNING", priceChangePercent, null, null);
 
                 // 2. สร้าง DTO และยิง WebSocket ไปหน้าบ้าน
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("FOMO_ALERT", "ระวังกลัวตกรถ!", message, "WARNING"));
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("FOMO_ALERT", "อาการ: กลัวตกรถ (FOMO)", message, "WARNING"));
 
                 orderFrequencyCache.invalidate(cacheKey);
             }
@@ -73,18 +73,18 @@ public class BehavioralAnalyticsService {
             // Rule 2: Selling Winners Too Early
             if (currentProfitPercent > 0 && currentProfitPercent <= config.sellingTooEarlyTriggerPercent &&
                     config.takeProfitExpectedPercent > currentProfitPercent * 2) {
-                String message = "เป้าหมาย R/R คือ +" + config.takeProfitExpectedPercent + "% แต่คุณรีบขายที่ +" + currentProfitPercent + "%";
+                String message = "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้ (เป้าหมาย +" + config.takeProfitExpectedPercent + "%)";
 
                 saveToDatabase(user, symbol, "SELL_EARLY_ALERT", message, "INFO", null, currentProfitPercent, null);
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("SELL_EARLY_ALERT", "รีบขายหมู!", message, "INFO"));
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("SELL_EARLY_ALERT", "อาการ: รีบขายหมู (Sell Early)", message, "INFO"));
             }
 
             // Rule 3: Panic Sell
             if (priceChangePercent <= config.panicSellPriceDropPercent && volumeSoldPercent >= config.panicSellVolumePercent) {
-                String message = "คุณเทขายหุ้น " + volumeSoldPercent + "% ทันทีที่ราคาร่วง " + priceChangePercent + "%";
+                String message = "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง";
 
                 saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, "DANGER", priceChangePercent, currentProfitPercent, volumeSoldPercent);
-                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", "หยุดก่อน! คุณกำลังตื่นตระหนก", message, "DANGER"));
+                sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", "อาการ: ตื่นตระหนก (Panic Sell)", message, "DANGER"));
             }
         }
     }

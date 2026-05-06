@@ -38,8 +38,8 @@ public class RiskConfig {
 
             case DAY_TRADER:
                 config.fomoTimeWindowSeconds = 60;
-                config.fomoMaxOrders = 5;
-                config.fomoPriceSurgePercent = 1.0;
+                config.fomoMaxOrders = 2; // ลดลงมาเหลือ 2 เพื่อทดสอบ
+                config.fomoPriceSurgePercent = 0.1; // ลดลงมาเหลือ 0.1% เพื่อทดสอบ
                 config.takeProfitExpectedPercent = 3.0;
                 config.sellingTooEarlyTriggerPercent = 1.0;
                 config.panicSellPriceDropPercent = -1.5;
