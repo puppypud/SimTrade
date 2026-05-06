@@ -11,6 +11,7 @@ import org.apache.commons.text.similarity.JaroWinklerDistance;
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import jakarta.annotation.PostConstruct; // Import เพิ่ม
 import org.slf4j.Logger;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.cache.annotation.Cacheable;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,7 +75,7 @@ public class MarketDataService {
         }
     }
 
-    public MarketDataService(StockAnalysisService stockAssetRepository, StockAnalysisService stockAnalysisService, StockAssetRepository stockAssetRepository1, BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
+    public MarketDataService(StockAnalysisService stockAssetRepository, StockAnalysisService stockAnalysisService, StockAssetRepository stockAssetRepository1, @Lazy BrokerService brokerService /* ถ้ามี Service อื่นๆ รับมาด้วยก็ใส่ต่อท้ายได้เลย */) {
         this.stockAnalysisService = stockAnalysisService;
         this.stockAssetRepository = stockAssetRepository1;
         this.brokerService = brokerService;

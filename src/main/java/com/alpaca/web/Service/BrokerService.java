@@ -47,6 +47,7 @@ import java.util.*;
 import okhttp3.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.EnableRetry;
 import org.springframework.retry.annotation.Recover;
@@ -68,7 +69,7 @@ public class BrokerService {
 
     public BrokerService(OrderHistoryRepository orderHistoryRepository, AccountRepository accountRepository, 
                         BalanceLogService balanceLogService, OrderManagementService orderManagementService,
-                        BehavioralAnalyticsService behavioralAnalyticsService, MarketDataService marketDataService) {
+                        BehavioralAnalyticsService behavioralAnalyticsService, @Lazy MarketDataService marketDataService) {
         this.orderHistoryRepository = orderHistoryRepository;
         this.accountRepository = accountRepository;
         this.balanceLogService = balanceLogService;
