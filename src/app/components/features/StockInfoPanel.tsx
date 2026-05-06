@@ -67,6 +67,22 @@ const StockInfoPanel: React.FC<StockInfoPanelProps> = ({ symbol }) => {
         return num.toLocaleString();
     };
 
+    const getTraderTypeFromCategory = (category: string) => {
+        if (!category) return "Unknown";
+        const cat = category.toUpperCase();
+        if (cat.includes("SPECULATIVE") || cat.includes("เก็งกำไร") || cat.includes("HIGH_VOLATILITY"))
+            return "Scalper";
+        if (cat.includes("TRENDING") || cat.includes("กระแส"))
+            return "Day Trader";
+        if (cat.includes("SWING") || cat.includes("เล่นรอบ"))
+            return "Swing Trader";
+        if (cat.includes("STABLE") || cat.includes("มั่นคง") || cat.includes("BLUECHIP") || cat.includes("DIVIDEND"))
+            return "Position Trader";
+        return "Unknown";
+    };
+
+    const traderType = getTraderTypeFromCategory(info.category);
+
     return (
         <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-6 mb-6 transition-colors duration-300">
             <div className="flex items-center gap-2 mb-4">
@@ -74,10 +90,15 @@ const StockInfoPanel: React.FC<StockInfoPanelProps> = ({ symbol }) => {
                 <h2 className="text-lg font-bold text-foreground">About {info.name || symbol}</h2>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <div className="bg-background p-3 rounded-lg border border-theme-border">
                     <span className="text-xs text-muted font-semibold uppercase tracking-wider block mb-1">Sector</span>
                     <span className="text-sm text-foreground font-medium">{info.category || '-'}</span>
+                </div>
+
+                <div className="bg-background p-3 rounded-lg border border-theme-border">
+                    <span className="text-xs text-muted font-semibold uppercase tracking-wider block mb-1">Trader Type</span>
+                    <span className="text-sm text-foreground font-medium">{traderType}</span>
                 </div>
 
                 <div className="bg-background p-3 rounded-lg border border-theme-border">
