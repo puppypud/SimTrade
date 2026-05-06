@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import Navbar from "@/src/app/components/layout/Navbar";
 import {
   UsersIcon, ChartBarIcon, ShieldCheckIcon,
   BuildingLibraryIcon, ClipboardDocumentListIcon,
@@ -28,11 +27,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">
-      <div className="fixed top-0 left-0 right-0 z-50">
-        <Navbar />
-      </div>
-
-      <main className="pt-20">
+      <main className="">
         {/* Header */}
         <div className="bg-surface border-b border-theme-border">
           <div className="container mx-auto px-4 py-5">

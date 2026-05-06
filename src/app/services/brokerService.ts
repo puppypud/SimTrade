@@ -346,4 +346,25 @@ export const brokerService = {
     const response = await apiClient.get('/broker/admin/dashboard/stats');
     return response.data;
   },
+
+  // ===== WATCHLIST APIs =====
+
+  getWatchlist: async (userId: number): Promise<string[]> => {
+    const response = await apiClient.get(`/broker/watchlist/${userId}`);
+    return response.data;
+  },
+
+  addToWatchlist: async (userId: number, symbol: string) => {
+    const response = await apiClient.post(`/broker/watchlist/${userId}/add`, null, {
+      params: { symbol }
+    });
+    return response.data;
+  },
+
+  removeFromWatchlist: async (userId: number, symbol: string) => {
+    const response = await apiClient.delete(`/broker/watchlist/${userId}/remove`, {
+      params: { symbol }
+    });
+    return response.data;
+  },
 };

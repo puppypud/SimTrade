@@ -28,19 +28,45 @@ const COMPANY_NAMES: Record<string, string> = {
 export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: WatchlistPanelProps) {
     const { user } = useAuth();
     const [recommendedStocks, setRecommendedStocks] = useState<string[]>([]);
+    const [myWatchlist, setMyWatchlist] = useState<string[]>([]);
     const [quotes, setQuotes] = useState<Record<string, StockQuote>>({});
-    const [bars, setBars] = useState<Record<string, number[]>>({}); // Real sparkline data
+    const [bars, setBars] = useState<Record<string, number[]>>({}); 
     const [loading, setLoading] = useState(true);
     const [expandedSeven, setExpandedSeven] = useState(false);
     const [expandedRecommended, setExpandedRecommended] = useState(false);
+    const [expandedMyWatchlist, setExpandedMyWatchlist] = useState(false);
     const [showGuestModal, setShowGuestModal] = useState(false);
+    const [togglingSymbols, setTogglingSymbols] = useState<Set<string>>(new Set());
 
-    const handleTradeClick = (e: React.MouseEvent, symbol: string) => {
+    const toggleWatchlist = async (e: React.MouseEvent, symbol: string) => {
         e.stopPropagation();
         if (!user) {
             setShowGuestModal(true);
-        } else {
-            onSelectSymbol(symbol);
+            return;
+        }
+
+        if (togglingSymbols.has(symbol)) return;
+
+        setTogglingSymbols(prev => new Set(prev).add(symbol));
+        console.log(`[Watchlist] Toggling ${symbol} for user ${user.id}`);
+
+        try {
+            if (myWatchlist.includes(symbol)) {
+                await brokerService.removeFromWatchlist(user.id, symbol);
+                setMyWatchlist(prev => prev.filter(s => s !== symbol));
+            } else {
+                await brokerService.addToWatchlist(user.id, symbol);
+                setMyWatchlist(prev => [...prev, symbol]);
+            }
+        } catch (error) {
+            console.error("[Watchlist] Failed to update:", error);
+            alert("ไม่สามารถอัปเดต Watchlist ได้ กรุณาลองใหม่อีกครั้ง");
+        } finally {
+            setTogglingSymbols(prev => {
+                const next = new Set(prev);
+                next.delete(symbol);
+                return next;
+            });
         }
     };
 
@@ -52,6 +78,17 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         }
     };
 
+    const fetchMyWatchlist = useCallback(async () => {
+        if (user?.id) {
+            try {
+                const list = await brokerService.getWatchlist(user.id);
+                setMyWatchlist(list);
+            } catch (error) {
+                console.error("Failed to fetch personal watchlist:", error);
+            }
+        }
+    }, [user?.id]);
+
     useEffect(() => {
         const fetchIdentityAndStocks = async () => {
             let currentIdentity = localStorage.getItem('simtrade_identity') || 'Day Trader';
@@ -62,6 +99,8 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         currentIdentity = profile.traderType;
                         localStorage.setItem('simtrade_identity', currentIdentity);
                     }
+                    // Also fetch personal watchlist
+                    fetchMyWatchlist();
                 } catch (e) {
                     console.error("Failed to load trader identity", e);
                 }
@@ -78,7 +117,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 } catch (e) { }
             }
 
-            // Fetch dynamic from API Instead
             try {
                 const selected = await brokerService.getRecommendedStocks(currentIdentity);
                 if (selected && selected.length > 0) {
@@ -90,19 +128,16 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
             }
         };
         fetchIdentityAndStocks();
-    }, [user]);
+    }, [user, fetchMyWatchlist]);
 
     const fetchQuotes = useCallback(async () => {
-        const allSymbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
+        const allSymbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks, ...myWatchlist])];
 
-        // We fetch one by one concurrently. If backend supported batch, it would be better.
         const promises = allSymbols.map(async (sym) => {
             try {
                 const data = await brokerService.getLatestQuote(sym);
                 return { symbol: sym, data };
             } catch (error) {
-                // Return null data for failed fetch to keep processing others
-                console.error(`Error fetching quote for ${sym}:`, error);
                 return { symbol: sym, data: null };
             }
         });
@@ -120,19 +155,17 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         });
         setLoading(false);
 
-    }, [recommendedStocks]);
+    }, [recommendedStocks, myWatchlist]);
 
     const fetchBars = useCallback(async () => {
-        const symbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks])];
+        const symbols = [...new Set([...SEVEN_ANGELS, ...recommendedStocks, ...myWatchlist])];
         const newBars: Record<string, number[]> = {};
 
-        // Fetch bars for each symbol to generate sparklines
         await Promise.all(symbols.map(async (sym) => {
             try {
-                // Requesting 1-day bars (or 15-min bars for the day)
                 const data = await brokerService.getStockBars(sym, '1D');
                 if (data && Array.isArray(data) && data.length > 0) {
-                    newBars[sym] = data.map(b => b.c); // Closing prices
+                    newBars[sym] = data.map(b => b.c); 
                 }
             } catch (error) {
                 console.error(`Error fetching bars for ${sym}:`, error);
@@ -140,14 +173,14 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         }));
 
         setBars(prev => ({ ...prev, ...newBars }));
-    }, [recommendedStocks]);
+    }, [recommendedStocks, myWatchlist]);
 
     // Initial fetch and polling
     useEffect(() => {
         fetchQuotes();
         fetchBars();
-        const quoteInterval = setInterval(fetchQuotes, 5000); // 5s for price
-        const barInterval = setInterval(fetchBars, 60000);   // 1m for charts
+        const quoteInterval = setInterval(fetchQuotes, 5000); 
+        const barInterval = setInterval(fetchBars, 60000);   
         return () => {
             clearInterval(quoteInterval);
             clearInterval(barInterval);
@@ -158,10 +191,11 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         const quote = quotes[symbol];
         const isSelected = symbol === currentSymbol;
         const fullName = COMPANY_NAMES[symbol] || `${symbol} Inc.`;
+        const inWatchlist = myWatchlist.includes(symbol);
+        const isToggling = togglingSymbols.has(symbol);
 
         let percentChange = 0;
         if (quote) {
-            // Use prevClose for more accurate "Today's Change" relative to market open
             const basePrice = quote.prevClose || quote.openPrice;
             if (basePrice) {
                 percentChange = ((quote.price - basePrice) / basePrice) * 100;
@@ -170,10 +204,8 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
 
         const isUp = percentChange >= 0;
 
-        // Sparkline Component using real data
         const RealSparkline = ({ data, up }: { data: number[], up: boolean }) => {
             if (!data || data.length < 2) {
-                // Return a flat line if no data
                 return (
                     <div className="flex-1 flex justify-center px-4">
                         <svg width="80" height="32" viewBox="0 0 80 32" className="opacity-30">
@@ -243,7 +275,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
             );
         }
 
-        // Top 3 numbers are orange, the rest are muted
         const rankColor = index < 3 ? "text-orange-500" : "text-muted";
 
         return (
@@ -253,11 +284,10 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 className={`flex flex-col py-4 px-4 border-b border-theme-border/50 last:border-0 transition-all cursor-pointer group relative hover:bg-gold/5
           ${isSelected ? "bg-gold/10" : "bg-transparent"}`}
             >
-                {/* Top Row: Category and Meta Info */}
                 <div className="flex justify-between items-center mb-2">
                     <div className="flex gap-2">
                         <span className="px-2 py-0.5 rounded-md bg-gold/10 text-gold text-[9px] font-black uppercase tracking-wider border border-gold/20">
-                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : (user ? "หุ้นกลุ่มเดียวกัน" : "Trending")}
+                            {SEVEN_ANGELS.includes(symbol) ? "หุ้นสหรัฐฯ" : (user ? "แนะนำพิเศษ" : "Trending")}
                         </span>
                         {isUp && percentChange > 5 && (
                             <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-wider border border-emerald-500/20">
@@ -265,12 +295,24 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                             </span>
                         )}
                     </div>
-                    <span className={`text-[10px] font-bold ${rankColor}`}>#{index + 1}</span>
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={(e) => toggleWatchlist(e, symbol)}
+                            disabled={isToggling}
+                            className={`p-2.5 rounded-xl transition-all border-2 ${
+                                inWatchlist 
+                                    ? 'bg-gold border-gold text-surface shadow-lg scale-105 shadow-gold/20' 
+                                    : 'bg-surface border-theme-border text-gold hover:border-gold hover:bg-gold/5'
+                            } ${isToggling ? 'opacity-50 animate-pulse' : 'active:scale-95'}`}
+                            title={inWatchlist ? "Remove from Watchlist" : "Add to Watchlist"}
+                        >
+                            <Star className={`w-5 h-5 ${inWatchlist ? 'fill-current' : ''} ${isToggling ? 'animate-spin' : ''}`} />
+                        </button>
+                        <span className={`text-[10px] font-bold ${rankColor}`}>#{index + 1}</span>
+                    </div>
                 </div>
 
-                {/* Main Content Row */}
                 <div className="flex items-center justify-between gap-4">
-                    {/* Symbol & Name */}
                     <div className="flex items-center gap-3 min-w-[120px]">
                         <div className="w-10 h-10 rounded-xl bg-surface border border-theme-border flex items-center justify-center text-gold text-sm font-black shadow-sm group-hover:border-gold/50 transition-colors">
                             {symbol.charAt(0)}
@@ -285,12 +327,10 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                         </div>
                     </div>
 
-                    {/* Chart Center */}
                     <div className="flex-1 flex justify-center">
                         <RealSparkline data={bars[symbol]} up={isUp} />
                     </div>
 
-                    {/* Price and Change */}
                     <div className="flex flex-col items-end min-w-[90px]">
                         <div className={`flex items-center gap-1 text-[11px] font-black mb-1 ${isUp ? 'text-emerald-500' : 'text-red-500'}`}>
                             {isUp ? '↗' : '↘'} {Math.abs(percentChange).toFixed(2)}%
@@ -311,18 +351,8 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
         );
     };
 
-    // Common Header Component
-    const TableHeader = () => (
-        <div className="flex items-center justify-between pb-2 mb-2 border-b border-theme-border text-[10px] font-semibold text-muted uppercase tracking-wider px-1">
-            <span className="w-6 shrink-0">No.</span>
-            <span className="flex-1 min-w-[120px] ml-3">Symbol / Name</span>
-            <span className="flex-1 text-center">Trend</span>
-            <span className="min-w-[80px] shrink-0 text-right">% Change</span>
-        </div>
-    );
-
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full min-h-[500px]">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 w-full">
             {/* Seven Angels Section */}
             <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col max-h-[600px] overflow-hidden">
                 <div className="p-5 border-b border-theme-border flex items-center gap-2">
@@ -345,12 +375,50 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 )}
             </div>
 
+            {/* My Personal Watchlist (New) */}
+            <div className="bg-surface rounded-2xl shadow-sm border border-gold/30 flex flex-col max-h-[600px] overflow-hidden bg-gradient-to-br from-surface to-gold/5">
+                <div className="p-5 border-b border-gold/20 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <Star className="w-5 h-5 text-gold fill-gold" />
+                        My Watchlist
+                    </h2>
+                    <span className="text-[10px] font-black bg-gold/10 text-gold px-2 py-1 rounded-md uppercase tracking-wider">
+                        {myWatchlist.length} Items
+                    </span>
+                </div>
+
+                <div className="flex flex-col flex-1 overflow-y-auto px-5 py-3 custom-scrollbar">
+                    {myWatchlist.length === 0 ? (
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-3 py-12 text-center opacity-60">
+                            <div className="w-12 h-12 rounded-2xl bg-theme-border flex items-center justify-center mb-2">
+                                <Star className="w-6 h-6 text-muted" />
+                            </div>
+                            <p>ไม่มีหุ้นใน Watchlist<br/><span className="text-[10px]">กดดาวที่หุ้นเพื่อบันทึกไว้ดูภายหลัง</span></p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col">
+                            {myWatchlist.slice(0, expandedMyWatchlist ? undefined : 4).map((symbol, index) => renderStockItem(symbol, index, true))}
+                        </div>
+                    )}
+                </div>
+
+                {myWatchlist.length > 4 && (
+                    <button
+                        onClick={() => setExpandedMyWatchlist(!expandedMyWatchlist)}
+                        className="w-full py-3 bg-surface border-t border-theme-border flex items-center justify-center gap-2 text-xs font-black text-muted hover:text-gold transition-colors"
+                    >
+                        {expandedMyWatchlist ? "ย่อลง" : "ดูเพิ่มเติม"}
+                        <Plus className={`w-3 h-3 transition-transform ${expandedMyWatchlist ? 'rotate-45' : ''}`} />
+                    </button>
+                )}
+            </div>
+
             {/* Recommended Stocks Section */}
-            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col h-full max-h-[600px] overflow-hidden">
+            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border flex flex-col max-h-[600px] overflow-hidden">
                 <div className="p-5 border-b border-theme-border flex items-center justify-between">
                     <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <Star className="w-5 h-5 text-gold" />
-                        {user ? "ตัวเลือกหุ้นในกลุ่มเดียวกัน" : "Trending Stocks"}
+                        <TrendingUp className="w-5 h-5 text-gold" />
+                        {user ? "ตัวเลือกแนะนำตามสไตล์คุณ" : "Trending Stocks"}
                     </h2>
                     <button
                         onClick={() => {
@@ -358,9 +426,9 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                             localStorage.removeItem(`simtrade_random_stocks_${currentIdentity}`);
                             window.location.reload();
                         }}
-                        className="text-xs font-bold text-gold border border-gold/30 px-3 py-1.5 rounded-lg hover:bg-gold/10 transition-colors"
+                        className="text-[10px] font-black text-gold border border-gold/30 px-2 py-1 rounded-lg hover:bg-gold/10 transition-colors uppercase"
                     >
-                        สุ่มใหม่
+                        Refresh
                     </button>
                 </div>
 
@@ -368,7 +436,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                     {recommendedStocks.length === 0 ? (
                         <div className="flex-1 flex flex-col items-center justify-center text-muted text-sm space-y-2 py-12 text-center">
                             <Star className="w-8 h-8 text-theme-border animate-pulse" />
-                            <p>Loading similar stocks...</p>
+                            <p>Loading recommendations...</p>
                         </div>
                     ) : (
                         <div className="flex flex-col">
@@ -388,7 +456,6 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
                 )}
             </div>
 
-            {/* Quick CSS for scrollbar inside this component */}
             <style dangerouslySetInnerHTML={{
                 __html: `
         .custom-scrollbar::-webkit-scrollbar {
@@ -405,6 +472,7 @@ export default function WatchlistPanel({ onSelectSymbol, currentSymbol }: Watchl
           background-color: #d1d5db;
         }
       `}} />
+
 
             {/* Guest Modal Overlay */}
             {showGuestModal && (
