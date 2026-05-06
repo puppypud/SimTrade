@@ -45,6 +45,7 @@ public class UserAnalyticsResult {
 
     private String bestPerformingStock;     // หุ้นที่ทำกำไร(รวม)สูงสุด
     private double bestPerformingStockPnL;  // กำไร(%) รวมของตัวนี้
+    private String bestPerformingStockIndustry; // อุตสาหกรรมของหุ้นตัวนี้
 
     private String worstPerformingStock;    // หุ้นที่ขาดทุน(รวม)หนักสุด
     private double worstPerformingStockPnL; // ขาดทุน(%) รวมของตัวนี้
