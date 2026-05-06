@@ -493,32 +493,33 @@ public class UserAnalyticsService {
         } else {
             recommendationText += " จงรักษาวินัยที่ยอดเยี่ยมนี้ไว้";
         }
-        List<String> suggestedStocks = new ArrayList<>();
-
+        List<String> similarStocks = new ArrayList<>();
+        String bestStock = result.getBestPerformingStock();
         // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
         if (bestStock != null && !bestStock.equals("-")) {
-            suggestedStocks = findSimilarStocks(bestStock, stockCat);
-            if (!suggestedStocks.isEmpty()) {
-                String suggestedSymbols = String.join(", ", suggestedStocks);
+            similarStocks = findSimilarStocks(bestStock, stockCat);
+            if (!similarStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", similarStocks);
                 recommendationText += String.format(
                         "\n\n💡 หุ้นที่คุณทำกำไรได้ดีที่สุดคือ %s ระบบขอแนะนำให้คุณลองศึกษาหุ้นในอุตสาหกรรมเดียวกันที่มีพฤติกรรมคล้ายกัน เช่น %s ดูเพิ่มเติม เพราะจริตของคุณเข้ากับหุ้นกลุ่มนี้มาก",
                         bestStock, suggestedSymbols);
+                result.setRecommendedSimilarStocks(similarStocks);
             }
         }
 
         // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดแทน (ต้องแนะนำเสมอ)
-        if (suggestedStocks.isEmpty()) {
-            suggestedStocks = findStocksForTraderType(statedType);
-            if (!suggestedStocks.isEmpty()) {
-                String symbols = String.join(", ", suggestedStocks);
+        if (similarStocks.isEmpty()) {
+            List<String> fallbackStocks = findStocksForTraderType(statedType);
+            if (!fallbackStocks.isEmpty()) {
+                String symbols = String.join(", ", fallbackStocks);
                 recommendationText += String.format(
                         "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติมเพื่อ Scale Up พอร์ต",
                         statedType, symbols);
+                result.setRecommendedSimilarStocks(fallbackStocks);
             } else {
                 recommendationText += " และพยายาม Scale Up พอร์ตการลงทุน";
             }
         }
-        result.setRecommendedSimilarStocks(suggestedStocks);
         result.setRecommendation(recommendationText);
     }
 
@@ -538,19 +539,26 @@ public class UserAnalyticsService {
 
         // ★ แนะนำหุ้นที่เหมาะกับสายของ User แม้จะขาดทุน (ช่วยให้มีทิศทาง)
         String mostTraded = result.getMostTradedStock();
-        List<String> suggestedStocks = new ArrayList<>();
+        List<String> similarStocks = new ArrayList<>();
         if (mostTraded != null && !mostTraded.equals("-")) {
-            suggestedStocks = findSimilarStocks(mostTraded, null);
+            similarStocks = findSimilarStocks(mostTraded, null);
+            if (!similarStocks.isEmpty()) {
+                result.setRecommendedSimilarStocks(similarStocks);
+                String symbols = String.join(", ", similarStocks);
+                deepDiagnostic += String.format(
+                        "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
+                        symbols, statedType);
+            }
         }
-        if (suggestedStocks.isEmpty()) {
-            suggestedStocks = findStocksForTraderType(statedType);
-        }
-        if (!suggestedStocks.isEmpty()) {
-            String symbols = String.join(", ", suggestedStocks);
-            deepDiagnostic += String.format(
-                    "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
-                    symbols, statedType);
-            result.setRecommendedSimilarStocks(suggestedStocks);
+        if (similarStocks.isEmpty()) {
+            List<String> fallbackStocks = findStocksForTraderType(statedType);
+            if (!fallbackStocks.isEmpty()) {
+                String symbols = String.join(", ", fallbackStocks);
+                deepDiagnostic += String.format(
+                        "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
+                        symbols, statedType);
+                result.setRecommendedSimilarStocks(fallbackStocks);
+            }
         }
 
         result.setRecommendation(baseRec + deepDiagnostic);
@@ -578,32 +586,33 @@ public class UserAnalyticsService {
         }
 
         // --- แนะนำหุ้นตามความชอบแอบแฝง ---
-        List<String> suggestedStocks = new ArrayList<>();
+        List<String> similarStocks = new ArrayList<>();
         String bestStock = result.getBestPerformingStock();
         if (bestStock != null && !bestStock.equals("-")) {
-            suggestedStocks = findSimilarStocks(bestStock, stockCat);
-            if (!suggestedStocks.isEmpty()) {
-                String suggestedSymbols = String.join(", ", suggestedStocks);
+            similarStocks = findSimilarStocks(bestStock, stockCat);
+            if (!similarStocks.isEmpty()) {
+                String suggestedSymbols = String.join(", ", similarStocks);
                 rec.append(String.format(
                         "\n จากความสำเร็จแบบไม่ได้ตั้งใจนี้ หุ้นทำเงินของคุณคือ %s เราขอแนะนำให้คุณลองศึกษาหุ้นอุตสาหกรรมเดียวกันที่มีลักษณะคล้ายกัน เช่น %s เพราะนี่อาจเป็น 'ทางถนัดที่แท้จริง' ของคุณ",
                         bestStock, suggestedSymbols));
+                result.setRecommendedSimilarStocks(similarStocks);
             }
         }
 
         // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดจริง (actualType) แทน
-        if (suggestedStocks.isEmpty()) {
-            suggestedStocks = findStocksForTraderType(actualType);
-            if (suggestedStocks.isEmpty()) {
-                suggestedStocks = findStocksForTraderType(statedType);
+        if (similarStocks.isEmpty()) {
+            List<String> fallbackStocks = findStocksForTraderType(actualType);
+            if (fallbackStocks.isEmpty()) {
+                fallbackStocks = findStocksForTraderType(statedType);
             }
-            if (!suggestedStocks.isEmpty()) {
-                String symbols = String.join(", ", suggestedStocks);
+            if (!fallbackStocks.isEmpty()) {
+                String symbols = String.join(", ", fallbackStocks);
                 rec.append(String.format(
                         "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติม",
                         actualType, symbols));
+                result.setRecommendedSimilarStocks(fallbackStocks);
             }
         }
-        result.setRecommendedSimilarStocks(suggestedStocks);
 
         result.setRecommendation(rec.toString());
         result.setSuggestedTraderType(actualType);
@@ -623,13 +632,13 @@ public class UserAnalyticsService {
         }
 
         // ★ แนะนำหุ้นที่ถูกสายสำหรับ statedType (ช่วยชี้ทางกลับมาถูกทาง)
-        List<String> suggestedStocks = findStocksForTraderType(statedType);
-        if (!suggestedStocks.isEmpty()) {
-            String symbols = String.join(", ", suggestedStocks);
+        List<String> fallbackStocks = findStocksForTraderType(statedType);
+        if (!fallbackStocks.isEmpty()) {
+            String symbols = String.join(", ", fallbackStocks);
             deepDiagnostic += String.format(
                     "\n\n📌 ถ้าต้องการกลับมาเป็นสาย %s ลองศึกษาหุ้นเหล่านี้: %s — เหมาะกับสไตล์ที่คุณตั้งเป้าไว้",
                     statedType, symbols);
-            result.setRecommendedSimilarStocks(suggestedStocks);
+            result.setRecommendedSimilarStocks(fallbackStocks);
         }
         // ★ แนะนำให้ลองเปลี่ยนสายตามพฤติกรรมจริง
         result.setSuggestedTraderType(actualType);
@@ -980,8 +989,12 @@ public class UserAnalyticsService {
                     if (e.getValue() > 0) { // ต้องกำไรจริงๆ ถึงจะโชว์
                         result.setBestPerformingStock(e.getKey());
                         result.setBestPerformingStockPnL(e.getValue());
+                        stockAssetRepository.findById(e.getKey()).ifPresent(asset -> {
+                            result.setBestPerformingStockIndustry(asset.getIndustry());
+                        });
                     } else {
                         result.setBestPerformingStock("-"); // ไม่มีตัวไหนกำไรเลย
+                        result.setBestPerformingStockIndustry("-");
                     }
                 });
 
@@ -1282,25 +1295,29 @@ public class UserAnalyticsService {
             String industry = asset.getIndustry();
             String cat = (category != null) ? category : asset.getCategory();
 
-            // ลอง 1: หาตาม Category + Industry (เจาะจงที่สุด)
+            List<String> results = new ArrayList<>();
+
+            // หาตาม Category + Industry (เจาะจงที่สุด) ต้องตรงทั้ง 2 อย่าง
             if (industry != null && !industry.isEmpty() && cat != null) {
-                List<String> results = stockAssetRepository
-                        .findTop3ByCategoryAndIndustryAndSymbolNot(cat, industry, symbol)
+                List<String> temp = stockAssetRepository
+                        .findTop5ByCategoryAndIndustryAndSymbolNot(cat, industry, symbol)
                         .stream().map(StockAsset::getSymbol).collect(Collectors.toList());
-                if (!results.isEmpty()) return results;
+                results.addAll(temp);
             }
 
-            // ลอง 2 (Fallback): หาตาม Category อย่างเดียว (กว้างขึ้น)
-            if (cat != null) {
-                return stockAssetRepository.findTop5ByCategoryAndIsTradableTrue(cat)
+            // ถ้ามีไม่ถึง 5 ตัว ให้เอาหุ้นใน Category เดียวกันมาสุ่มเติมให้เต็ม 5 ตัว
+            if (results.size() < 5 && cat != null) {
+                int needed = 5 - results.size();
+                List<String> fillUps = stockAssetRepository.findTop5ByCategoryAndIsTradableTrue(cat)
                         .stream()
                         .map(StockAsset::getSymbol)
-                        .filter(s -> !s.equals(symbol))
-                        .limit(3)
+                        .filter(s -> !s.equals(symbol) && !results.contains(s))
+                        .limit(needed)
                         .collect(Collectors.toList());
+                results.addAll(fillUps);
             }
 
-            return new ArrayList<String>();
+            return results;
         }).orElse(new ArrayList<>());
     }
 
