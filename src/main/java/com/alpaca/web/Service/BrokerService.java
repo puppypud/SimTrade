@@ -407,8 +407,19 @@ public class BrokerService {
             // เช่น volumeSoldPercent ถ้าเป็น Sell เราอาจจะถือว่าขายหมด (100%) เพื่อให้ Rule ทำงาน
             double volumeSold = side.equalsIgnoreCase("sell") ? 100.0 : 0.0;
             
-            // ดึงสไตล์ของ User
-            com.alpaca.web.enums.TraderType type = com.alpaca.web.enums.TraderType.valueOf(user.getTraderType() != null ? user.getTraderType() : "DAY_TRADER");
+            // ดึงสไตล์ของ User และแปลงค่าจาก "Day Trader" -> "DAY_TRADER" เพื่อให้ match กับ Enum
+            String traderTypeStr = user.getTraderType();
+            com.alpaca.web.enums.TraderType type = com.alpaca.web.enums.TraderType.DAY_TRADER; // default
+
+            if (traderTypeStr != null && !traderTypeStr.isEmpty()) {
+                try {
+                    // แปลง "Day Trader" -> "DAY_TRADER", "Scalper" -> "SCALPER"
+                    String normalizedType = traderTypeStr.toUpperCase().replace(" ", "_");
+                    type = com.alpaca.web.enums.TraderType.valueOf(normalizedType);
+                } catch (IllegalArgumentException e) {
+                    log.warn("⚠️ Unknown TraderType in DB: {}. Falling back to DAY_TRADER", traderTypeStr);
+                }
+            }
 
             behavioralAnalyticsService.evaluateOrderEvent(
                     user.getId(),
