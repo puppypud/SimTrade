@@ -44,38 +44,45 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
 
   // Watchlist State
   const [isFavorite, setIsFavorite] = useState(false);
-  const LOCAL_STORAGE_KEY = "simtrade_my_favorites";
+  const [isToggling, setIsToggling] = useState(false);
 
-  // ดึงข้อมูล Watchlist
+  // ดึงข้อมูล Watchlist จาก Backend
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (stored) {
-        const favorites = JSON.parse(stored) as string[];
-        setIsFavorite(favorites.includes(symbol));
-      }
-    } catch (e) {
-      console.error("Failed to load favorites in TradeTabs", e);
-    }
-  }, [symbol]);
-
-  const toggleFavorite = () => {
-    try {
-      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-      let favorites = stored ? JSON.parse(stored) as string[] : [];
-
-      if (isFavorite) {
-        favorites = favorites.filter(sym => sym !== symbol);
-      } else {
-        if (!favorites.includes(symbol)) {
-          favorites.push(symbol);
+    const fetchWatchlist = async () => {
+      if (user?.id) {
+        try {
+          const list = await brokerService.getWatchlist(user.id);
+          setIsFavorite(list.includes(symbol));
+        } catch (e) {
+          console.error("Failed to fetch watchlist in TradeTabs", e);
         }
       }
+    };
+    fetchWatchlist();
+  }, [user?.id, symbol]);
 
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(favorites));
-      setIsFavorite(!isFavorite);
+  const toggleFavorite = async () => {
+    if (!user) {
+      alert("กรุณาเข้าสู่ระบบเพื่อใช้งาน Watchlist");
+      return;
+    }
+
+    if (isToggling) return;
+    setIsToggling(true);
+
+    try {
+      if (isFavorite) {
+        await brokerService.removeFromWatchlist(user.id, symbol);
+        setIsFavorite(false);
+      } else {
+        await brokerService.addToWatchlist(user.id, symbol);
+        setIsFavorite(true);
+      }
     } catch (e) {
-      console.error("Failed to update favorites in TradeTabs", e);
+      console.error("Failed to update watchlist in TradeTabs", e);
+      alert("ไม่สามารถอัปเดต Watchlist ได้ กรุณาลองใหม่อีกครั้ง");
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -264,7 +271,8 @@ export default function TradeTabs({ symbol }: TradeTabsProps) {
             <h2 className="text-lg font-bold text-foreground tracking-tight">{formatSymbolDisplay(symbol)}</h2>
             <button
               onClick={toggleFavorite}
-              className="p-1 hover:bg-background rounded-full transition-colors"
+              disabled={isToggling}
+              className={`p-1 hover:bg-background rounded-full transition-colors ${isToggling ? 'opacity-50 animate-pulse' : ''}`}
               title={isFavorite ? "Remove from Watchlist" : "Add to Watchlist"}
             >
               <Star
