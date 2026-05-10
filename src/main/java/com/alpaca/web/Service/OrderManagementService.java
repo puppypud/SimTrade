@@ -1,5 +1,6 @@
 package com.alpaca.web.Service;
 import com.alpaca.web.entity.OrderHistory;
+import com.alpaca.web.Repository.AccountRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,21 +22,18 @@ public class OrderManagementService {
     // 3. Inject Service ด้วย final
     private final BalanceLogService balanceLogService;
     private final UserPositionService userPositionService;
+    private final AccountRepository accountRepository;
 
     @Transactional // 4. คลุมด้วย Transaction เพื่อรักษาความถูกต้องของข้อมูล
     public void processOrderFill(OrderHistory historyToSave, UUID accountId, String orderId) {
 
-        if (historyToSave.getUserAccount() == null || historyToSave.getUserAccount().getId() == null) {
-            log.warn("⚠️ Cannot log balance: UserAccount or UserId is missing for Order {}", orderId);
-            return;
-        }
-
         try {
-            // 5. ใช้ ID ที่เป็นตัวเลข หรือ Primary Key ของระบบเราเองแทนการเอา AccountNumber ไปแปลงเป็น Integer
-            Long userId = historyToSave.getUserAccount().getId();
+            // ดึง userId จาก accountId เพื่อแก้ปัญหา LazyInitializationException ของ historyToSave.getUserAccount()
+            Long userId = accountRepository.findByAlpacaAccountId(accountId.toString())
+                    .orElseThrow(() -> new RuntimeException("User not found")).getId();
 
             // ป้องกัน NullPointerException
-            String alpacaAccountIdStr = (accountId != null) ? accountId.toString() : null;
+            String alpacaAccountIdStr = accountId.toString();
 
             log.info("🔄 Triggering BalanceLogService for User {} after Order {} fill.", userId, orderId);
 

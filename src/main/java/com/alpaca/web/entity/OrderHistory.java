@@ -31,7 +31,7 @@ public class OrderHistory {
     @Column(name = "asset_class", length = 20)
     private String assetClass;
 
-    @Column(name = "side", nullable = false, length = 10)
+    @Column(name = "order_side", nullable = false, length = 10)
     private String side; // BUY, SELL
 
     @Column(name = "order_type", length = 20)

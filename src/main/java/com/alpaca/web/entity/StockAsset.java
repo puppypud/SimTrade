@@ -11,10 +11,10 @@ import java.math.BigDecimal;
 public class StockAsset {
 
     @Id
-    @Column(name = "symbol", length = 10, nullable = false)
+    @Column(name = "symbol", length = 20, nullable = false)
     private String symbol; // รหัสหุ้น เช่น AAPL, TSLA, BTC/USD
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", length = 100, nullable = false)
     private String name; // ชื่อบริษัท/เหรียญ
 
     @Column(name = "asset_class", length = 20)
