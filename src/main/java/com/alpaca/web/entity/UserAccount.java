@@ -14,18 +14,20 @@ import java.util.Set;
 public class UserAccount {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id", columnDefinition = "INTEGER")
     private Long id;
 
-    @Column(nullable = false, unique = true)
+    // ชื่อผู้ใช้สำหรับเข้าสู่ระบบ
+    @Column(nullable = false, unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 255)
     private String password;
 
-    @Column(nullable = false)
+    @Column(name = "first_name", nullable = false, length = 100)
     private String firstName;
 
-    @Column(nullable = false)
+    @Column(name = "last_name", nullable = false, length = 100)
     private String lastName;
 
     @Column(name = "account_number")
@@ -34,7 +36,7 @@ public class UserAccount {
     @Column(name = "phone_number")
     private String phoneNumber;
 
-    @Column(name = "status")
+    @Column(name = "status", length = 20)
     private String status;
 
     @Column(name = "alpaca_account_id", unique = true)
@@ -43,7 +45,7 @@ public class UserAccount {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
-    @Column(name = "trader_type", length = 20)
+    @Column(name = "trader_type", length = 50)
     private String traderType;
 
 
