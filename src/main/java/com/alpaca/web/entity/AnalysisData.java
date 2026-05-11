@@ -58,9 +58,10 @@ public class AnalysisData {
     public static java.util.Map<String, FeedbackTemplateDTO> feedbackConfig = new java.util.concurrent.ConcurrentHashMap<>();
     
     static {
-        feedbackConfig.put("FOMO_ALERT", new FeedbackTemplateDTO("อาการ: กลัวตกรถ (FOMO)", "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง", "WARNING"));
-        feedbackConfig.put("SELL_EARLY_ALERT", new FeedbackTemplateDTO("อาการ: รีบขายหมู (Sell Early)", "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้", "INFO"));
-        feedbackConfig.put("PANIC_SELL_ALERT", new FeedbackTemplateDTO("อาการ: ตื่นตระหนก (Panic Sell)", "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง", "DANGER"));
+        feedbackConfig.put("FOMO_ALERT", new FeedbackTemplateDTO("อาการ: กลัวตกรถ (FOMO)", "ตรวจพบพฤติกรรมไล่ราคา (FOMO) เนื่องจากมีการส่งคำสั่งซื้อถี่เกินไปในขณะที่ราคากำลังพุ่งสูง (สะสมความเสี่ยงพฤติกรรม +15 คะแนน)", "WARNING"));
+        feedbackConfig.put("SELL_EARLY_ALERT", new FeedbackTemplateDTO("อาการ: รีบขายหมู (Sell Early)", "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้ (สะสมความเสี่ยงพฤติกรรม +15 คะแนน)", "INFO"));
+        feedbackConfig.put("PANIC_SELL_ALERT", new FeedbackTemplateDTO("อาการ: ตื่นตระหนก (Panic Sell)", "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง (สะสมความเสี่ยงพฤติกรรม +15 คะแนน)", "DANGER"));
+        feedbackConfig.put("HOLDING_LOSERS_ALERT", new FeedbackTemplateDTO("อาการ: ทนถือขาดทุน (Hold Losers)", "ตรวจพบพฤติกรรมทนถือหุ้นที่ขาดทุนหนักเป็นเวลานานเกินไป ควรพิจารณาตั้งจุดตัดขาดทุน (Cut Loss) (สะสมความเสี่ยงพฤติกรรม +20 คะแนน)", "WARNING"));
     }
 
     @PrePersist

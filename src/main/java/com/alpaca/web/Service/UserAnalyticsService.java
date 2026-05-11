@@ -697,6 +697,8 @@ public class UserAnalyticsService {
                 panicScore += 15.0;
             } else if ("SELL_EARLY_ALERT".equals(event.getAlertType())) {
                 earlySellScore += 15.0;
+            } else if ("HOLDING_LOSERS_ALERT".equals(event.getAlertType())) {
+                holdLoserScore += 15.0;
             }
         }
 
@@ -724,21 +726,14 @@ public class UserAnalyticsService {
         for (TradeExecutionRecord t : recentTrades) {
             double pnl = t.getRealizedProfitPercentage().doubleValue();
             long holdingHours = t.getHoldingPeriod().toHours();
-            long holdingDays = t.getHoldingPeriod().toDays();
 
-            // Selling Winners Too Early
+            // Selling Winners Too Early (เก็บไว้เป็น Double-check สำหรับไม้สั้นๆ)
             if (!"Scalper".equalsIgnoreCase(result.getTraderType())) {
                 if (pnl > 0 && pnl < 2.0 && holdingHours < 24)
                     earlySellScore += 15.0;
                 else if (pnl > 5.0 && holdingHours > 48)
                     earlySellScore -= 10.0;
             }
-
-            // Holding Losers Too Long
-            if (pnl <= -10.0 && holdingDays > 14)
-                holdLoserScore += 20.0;
-            else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3)
-                holdLoserScore -= 10.0;
         }
 
         // คุมกรอบคะแนน 0-100 และบันทึกผล

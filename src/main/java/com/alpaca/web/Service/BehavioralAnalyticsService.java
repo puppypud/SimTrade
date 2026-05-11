@@ -7,6 +7,8 @@ import com.alpaca.web.dto.BehaviorAlertDTO;
 
 import com.alpaca.web.entity.AnalysisData;
 import com.alpaca.web.entity.UserAccount;
+import com.alpaca.web.entity.UserPosition;
+import com.alpaca.web.Repository.UserPositionRepository;
 import com.alpaca.web.enums.TraderType;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -14,22 +16,28 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Optional;
 
 @Service
 public class BehavioralAnalyticsService {
     private final SimpMessagingTemplate messagingTemplate;
     private final AnalysisDataRepository analysisDataRepository;
     private final AccountRepository accountRepository;
+    private final UserPositionRepository userPositionRepository;
     private final Cache<String, AtomicInteger> orderFrequencyCache;
 
     public BehavioralAnalyticsService(SimpMessagingTemplate messagingTemplate,
                                       AnalysisDataRepository analysisDataRepository,
-                                      AccountRepository accountRepository) {
+                                      AccountRepository accountRepository,
+                                      UserPositionRepository userPositionRepository) {
         this.messagingTemplate = messagingTemplate;
         this.analysisDataRepository = analysisDataRepository;
         this.accountRepository = accountRepository;
+        this.userPositionRepository = userPositionRepository;
 
         this.orderFrequencyCache = Caffeine.newBuilder()
                 .expireAfterWrite(60, TimeUnit.SECONDS)
@@ -104,6 +112,22 @@ public class BehavioralAnalyticsService {
 
                 saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, template.severity, priceChangePercent, currentProfitPercent, volumeSoldPercent);
                 sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", template.title, message, template.severity));
+            }
+
+            // Rule 4: Holding Losers Too Long
+            if (currentProfitPercent <= config.holdingLoserLossPercent) {
+                Optional<UserPosition> positionOpt = userPositionRepository.findByUserIdAndSymbol(userId, symbol);
+                if (positionOpt.isPresent()) {
+                    long holdingDays = Duration.between(positionOpt.get().getCreatedAt(), LocalDateTime.now()).toDays();
+                    if (holdingDays >= config.holdingLoserMaxDays) {
+                        AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.getOrDefault("HOLDING_LOSERS_ALERT", 
+                            new AnalysisData.FeedbackTemplateDTO("อาการ: ทนถือขาดทุน (Hold Losers)", "ตรวจพบพฤติกรรมทนถือหุ้นที่ขาดทุนหนักเป็นเวลานานเกินไป ควรพิจารณาตั้งจุดตัดขาดทุน (Cut Loss)", "WARNING"));
+                        String message = template.message;
+
+                        saveToDatabase(user, symbol, "HOLDING_LOSERS_ALERT", message, template.severity, null, currentProfitPercent, null);
+                        sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("HOLDING_LOSERS_ALERT", template.title, message, template.severity));
+                    }
+                }
             }
         }
     }
