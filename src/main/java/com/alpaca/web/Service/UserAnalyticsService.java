@@ -486,59 +486,64 @@ public class UserAnalyticsService {
 
     // 1. ถูกสาย - กำไร
     private void handleRightStyleProfitable(UserAnalyticsResult result, String statedType, String stockCat, String behaviorInsight) {
-        result.setPrimaryFeedback("ยอดเยี่ยม! คุณคือนักเทรดที่มีวินัย (Perfect Alignment)");
+        result.setPrimaryFeedback("ยอดเยี่ยม! คุณมาถูกทางแล้ว (System Mastery)");
         
-        String recommendationText = String.format(
-                "คุณทำได้ตามแผน %s ทั้งการเลือกหุ้นกลุ่ม %s และระยะเวลาถือครอง",
-                statedType, stockCat);
+        StringBuilder rec = new StringBuilder();
+        rec.append(String.format("เก่งมากครับ! คุณทำตามแผน '%s' ได้อย่างดีเยี่ยม และเลือกเล่นหุ้นกลุ่ม '%s' ได้ถูกต้อง นี่คือบทพิสูจน์ว่าระบบของคุณใช้งานได้จริง!\n", statedType, stockCat));
+
+        // 🚀 Scale-up Roadmap
+        rec.append("\n📈 แผนการเติบโต (Scale-Up Roadmap):\n");
+        rec.append(String.format("1. ผลงานปัจจุบัน: ความแม่นยำ (Win Rate) ของคุณอยู่ที่ %.1f%% และมีจุดคุ้มทุน (Risk/Reward) ที่ %.2f (ความคุ้มค่ารวม = %.2f) ตัวเลขนี้คือสูตรทำเงินของคุณ จงรักษามันไว้ให้ได้นะครับ!\n", 
+                result.getWinRate(), result.getRiskRewardRatio(), result.getProfitFactor()));
         
-        if (!behaviorInsight.isEmpty()) {
-            recommendationText += "\n\n💡 ข้อสังเกตเพิ่มเติม:" + behaviorInsight;
+        if (result.getProfitFactor() >= 1.5) {
+            rec.append("2. ก้าวต่อไป: ระบบของคุณตอนนี้เสถียรมาก (ความคุ้มค่ารวมเกิน 1.5) ผมแนะนำให้ลองเพิ่มเงินลงทุน (Position Size) ขึ้นอีกนิดหน่อย (ประมาณ 10-20%) ในจังหวะที่คุณมั่นใจที่สุด\n");
         } else {
-            recommendationText += " จงรักษาวินัยที่ยอดเยี่ยมนี้ไว้";
+            rec.append("2. ก้าวต่อไป: แม้จะได้กำไร แต่กำไรรวมยังไม่สูงมาก แนะนำให้พยายาม 'ตัดขาดทุนให้ไวขึ้นอีกนิด' เพื่อให้กำไรสุทธิโตขึ้นไปอีกครับ\n");
         }
+
+        if (!behaviorInsight.isEmpty()) {
+            rec.append("\n💡 จุดที่ต้องระวังแม้อยู่ในช่วงกำไร (Blind Spots):").append(behaviorInsight).append("\n");
+        }
+
+        // --- หาหุ้นทำเงินเพื่อ Scale Up ---
         List<String> similarStocks = new ArrayList<>();
         String bestStock = result.getBestPerformingStock();
-        // ถ้ามีหุ้นทำเงินสูงสุด ให้ทำการหาหุ้นแนะนำ
         if (bestStock != null && !bestStock.equals("-")) {
             similarStocks = findSimilarStocks(bestStock, stockCat);
             if (!similarStocks.isEmpty()) {
                 String suggestedSymbols = String.join(", ", similarStocks);
-                recommendationText += String.format(
-                        "\n\n💡 หุ้นที่คุณทำกำไรได้ดีที่สุดคือ %s ระบบขอแนะนำให้คุณลองศึกษาหุ้นในอุตสาหกรรมเดียวกันที่มีพฤติกรรมคล้ายกัน เช่น %s ดูเพิ่มเติม เพราะจริตของคุณเข้ากับหุ้นกลุ่มนี้มาก",
-                        bestStock, suggestedSymbols);
+                rec.append(String.format(
+                        "\n\n🎯 หุ้นทำเงิน (Golden Goose): หุ้นที่คุณทำกำไรได้ดีที่สุดคือ %s ผมแนะนำให้ลองศึกษาหุ้นที่คล้ายๆ กันเช่น: %s เผื่อเป็นโอกาสในการทำกำไรเพิ่มครับ",
+                        bestStock, suggestedSymbols));
                 result.setRecommendedSimilarStocks(similarStocks);
             }
         }
 
-        // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดแทน (ต้องแนะนำเสมอ)
+        // ★ Fallback
         if (similarStocks.isEmpty()) {
             List<String> fallbackStocks = findStocksForTraderType(statedType);
             if (!fallbackStocks.isEmpty()) {
                 String symbols = String.join(", ", fallbackStocks);
-                recommendationText += String.format(
-                        "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติมเพื่อ Scale Up พอร์ต",
-                        statedType, symbols);
+                rec.append(String.format("\n\n🎯 หุ้นแนะนำสำหรับรอบถัดไป: %s", symbols));
                 result.setRecommendedSimilarStocks(fallbackStocks);
-            } else {
-                recommendationText += " และพยายาม Scale Up พอร์ตการลงทุน";
             }
         }
-        result.setRecommendation(recommendationText);
+        result.setRecommendation(rec.toString());
     }
 
     // 2. ถูกสาย - ขาดทุน
     private void handleRightStyleUnprofitable(UserAnalyticsResult result, String statedType, String behaviorInsight) {
-        result.setPrimaryFeedback("วินัยดีเยี่ยม แต่ผลลัพธ์ยังไม่ตอบโจทย์ (Discipline with Loss)");
+        result.setPrimaryFeedback("วินัยดีเยี่ยม แต่ระบบยังมีช่องโหว่ (Discipline with Flaws)");
 
         String baseRec = String.format(
-                "คุณทำตามระบบ %s ได้เป๊ะมากแต่ยังขาดทุน ปัญหาน่าจะอยู่ที่ 'กลยุทธ์ย่อย' ไม่ใช่ 'วินัย'",
+                "เป็นกำลังใจให้นะครับ! คุณมีวินัยที่ดีมากและทำตามแผนของสาย '%s' ได้เป๊ะ แต่สาเหตุที่ขาดทุนไม่ได้อยู่ที่ 'การคุมอารมณ์' แต่อยู่ที่ 'ตัวระบบเทรด' หรือสภาพตลาดในช่วงนี้\n",
                 statedType);
 
         String deepDiagnostic = diagnoseLossReason(result);
         
         if (!behaviorInsight.isEmpty() && !deepDiagnostic.contains(behaviorInsight.trim())) {
-            deepDiagnostic += "\n\nจุดที่ควรระวัง:" + behaviorInsight;
+            deepDiagnostic += "\n\nจุดที่ควรระวังเพิ่มเติม:" + behaviorInsight;
         }
 
         // ★ แนะนำหุ้นที่เหมาะกับสายของ User แม้จะขาดทุน (ช่วยให้มีทิศทาง)
@@ -550,7 +555,7 @@ public class UserAnalyticsService {
                 result.setRecommendedSimilarStocks(similarStocks);
                 String symbols = String.join(", ", similarStocks);
                 deepDiagnostic += String.format(
-                        "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
+                        "\n\n📌 แผนการซ่อมแซม: ลองเปลี่ยนบรรยากาศ ไปศึกษากราฟของหุ้นกลุ่มนี้แทนครับ: %s (หุ้นเหล่านี้เหมาะกับสาย %s และพฤติกรรมราคาอาจจะถูกโฉลกกับคุณมากกว่า)",
                         symbols, statedType);
             }
         }
@@ -559,8 +564,7 @@ public class UserAnalyticsService {
             if (!fallbackStocks.isEmpty()) {
                 String symbols = String.join(", ", fallbackStocks);
                 deepDiagnostic += String.format(
-                        "\n\n📌 หุ้นที่แนะนำให้ศึกษาเพิ่มเติม: %s — เหมาะสำหรับสาย %s ลองศึกษากราฟและพื้นฐานก่อนเทรดจริง",
-                        symbols, statedType);
+                        "\n\n📌 แผนการซ่อมแซม: ลองเปลี่ยนมาเทรดหุ้นกลุ่มนี้ดูครับ: %s", symbols);
                 result.setRecommendedSimilarStocks(fallbackStocks);
             }
         }
@@ -571,19 +575,23 @@ public class UserAnalyticsService {
     // 3. ผิดสาย - กำไร
     private void handleWrongStyleProfitable(UserAnalyticsResult result, String statedType, String actualType,
                                             String stockCat, boolean stockMatch, String behaviorInsight) {
-        result.setPrimaryFeedback("ค้นพบพรสวรรค์ใหม่? (New Strength Discovered)");
+        result.setPrimaryFeedback("ค้นพบพรสวรรค์ที่ซ่อนอยู่ (Hidden Talent)");
 
         StringBuilder rec = new StringBuilder();
+        rec.append(String.format("น่าประหลาดใจมากครับ! คุณตั้งใจจะเป็นสาย '%s' แต่สถิติฟ้องว่าพฤติกรรมการทำกำไรของคุณจริงๆ แล้วคือสาย '%s' ต่างหาก!\n", statedType, actualType));
+
+        rec.append("\n🔍 วิเคราะห์ความสำเร็จที่ไม่ได้ตั้งใจ (Accidental Success):\n");
         if (!stockMatch) {
             String suitableType = getTraderTypeFromCategory(stockCat);
-            rec.append(String.format(
-                    "คุณตั้งเป้าเป็น %s แต่กำไรครั้งนี้มาจากหุ้นกลุ่ม %s ซึ่งปกติเหมาะกับสาย %s มากกว่า\n",
-                    statedType, stockCat, suitableType));
+            rec.append(String.format("- การเลือกหุ้น: คุณได้กำไรจากหุ้นกลุ่ม '%s' ซึ่งจริงๆ แล้วมันเป็นสนามเด็กเล่นของสาย %s มากกว่าสายที่คุณตั้งเป้าไว้นะครับ\n", stockCat, suitableType));
         } else {
-            rec.append(String.format(
-                    "หุ้นถูกตัวแล้ว แต่พฤติกรรมคุณคือ %s (ไม่ใช่ %s) แล้วได้กำไร แสดงว่าจริตของคุณอาจเหมาะกับสไตล์ใหม่นี้มากกว่า\n",
-                    actualType, statedType));
+            rec.append(String.format("- พฤติกรรมการเทรด: คุณเลือกหุ้นถูกแล้วครับ แต่วิธีการเข้าซื้อและขายของคุณ มันเป็นพฤติกรรมของ %s ชัดเจนเลย\n", actualType));
         }
+        
+        rec.append(String.format("- ตัวเลขไม่เคยโกหก: Win Rate %.1f%% และความคุ้มค่า %.2f เป็นเครื่องยืนยันว่าสไตล์ '%s' นี้ 'เข้ากับจริตของคุณ' มากที่สุด\n", result.getWinRate(), result.getProfitFactor(), actualType));
+
+        rec.append("\n🚀 คำแนะนำ (Pivot Strategy):\n");
+        rec.append(String.format("ผมแนะนำให้คุณ 'ยอมรับ' พรสวรรค์นี้แล้วเปลี่ยนตัวเองไปเป็น %s เต็มตัวเลยครับ! คุณอาจจะไปได้ไกลกว่าการฝืนเป็น %s นะ\n", actualType, statedType));
 
         if (!behaviorInsight.isEmpty()) {
             rec.append("\n⚠️ ข้อควรระวังแม้มันจะได้กำไรก็ตาม:").append(behaviorInsight);
@@ -597,13 +605,13 @@ public class UserAnalyticsService {
             if (!similarStocks.isEmpty()) {
                 String suggestedSymbols = String.join(", ", similarStocks);
                 rec.append(String.format(
-                        "\n จากความสำเร็จแบบไม่ได้ตั้งใจนี้ หุ้นทำเงินของคุณคือ %s เราขอแนะนำให้คุณลองศึกษาหุ้นอุตสาหกรรมเดียวกันที่มีลักษณะคล้ายกัน เช่น %s เพราะนี่อาจเป็น 'ทางถนัดที่แท้จริง' ของคุณ",
+                        "\n\n🎯 หุ้นคู่บุญ (Signature Stocks): จากนี้ไป ให้โฟกัสที่หุ้นหน้าตาคล้ายๆ %s เช่น %s เพราะนี่คือ 'ทางถนัดที่แท้จริง' ของคุณครับ",
                         bestStock, suggestedSymbols));
                 result.setRecommendedSimilarStocks(similarStocks);
             }
         }
 
-        // ★ Fallback: ถ้าหาหุ้นคล้ายไม่ได้ ให้แนะนำหุ้นตามสายเทรดจริง (actualType) แทน
+        // ★ Fallback
         if (similarStocks.isEmpty()) {
             List<String> fallbackStocks = findStocksForTraderType(actualType);
             if (fallbackStocks.isEmpty()) {
@@ -611,9 +619,7 @@ public class UserAnalyticsService {
             }
             if (!fallbackStocks.isEmpty()) {
                 String symbols = String.join(", ", fallbackStocks);
-                rec.append(String.format(
-                        "\n\n📌 หุ้นแนะนำสำหรับสาย %s: %s — ลองศึกษาเพิ่มเติม",
-                        actualType, symbols));
+                rec.append(String.format("\n\n🎯 หุ้นแนะนำสำหรับสไตล์ %s: %s", actualType, symbols));
                 result.setRecommendedSimilarStocks(fallbackStocks);
             }
         }
@@ -626,28 +632,36 @@ public class UserAnalyticsService {
     private void handleWrongStyleUnprofitable(UserAnalyticsResult result, String statedType, String actualType, String stockCat, String behaviorInsight) {
         result.setPrimaryFeedback("สับสนทิศทางและเสียหาย (Total Misalignment)");
 
-        String baseRec = String.format(
-                "สถานการณ์น่าเป็นห่วง: คุณตั้งใจเป็น %s แต่ไปเล่นหุ้น %s และเทรดแบบ %s ผลลัพธ์คือขาดทุน",
-                statedType, stockCat, actualType);
+        StringBuilder rec = new StringBuilder();
+        rec.append(String.format("🚨 ภาวะอันตราย: คุณตั้งใจจะเป็นสาย '%s' แต่คุณกลับเข้าไปเล่นหุ้นกลุ่ม '%s' และแสดงพฤติกรรมการเทรดแบบ '%s' ผลลัพธ์คือการขาดทุนหนักเพราะคุณกำลัง 'ผิดฝาผิดตัว' นะครับ\n", statedType, stockCat, actualType));
 
         String deepDiagnostic = diagnoseLossReason(result);
+        rec.append(deepDiagnostic);
+
         if (!behaviorInsight.isEmpty() && !deepDiagnostic.contains(behaviorInsight.trim())) {
-            deepDiagnostic += "\n\nพฤติกรรมที่เป็นสาเหตุ:" + behaviorInsight;
+            rec.append("\n\nพฤติกรรมเพิ่มเติมที่เป็นสาเหตุ:").append(behaviorInsight);
         }
 
-        // ★ แนะนำหุ้นที่ถูกสายสำหรับ statedType (ช่วยชี้ทางกลับมาถูกทาง)
+        rec.append("\n\n🛠️ แผนการกอบกู้พอร์ต (Reset Roadmap):");
+        rec.append("\nระบบเทรดพังเพราะคุณหยิบเครื่องมือผิดไปใช้ในสภาพแวดล้อมที่ผิด (เหมือนใช้ส้อมกินน้ำซุป) คุณมี 2 ทางเลือกในการแก้ปัญหานี้ครับ:");
+
+        // ★ ทางเลือก 1: กลับไปสายเดิม
         List<String> fallbackStocks = findStocksForTraderType(statedType);
         if (!fallbackStocks.isEmpty()) {
             String symbols = String.join(", ", fallbackStocks);
-            deepDiagnostic += String.format(
-                    "\n\n📌 ถ้าต้องการกลับมาเป็นสาย %s ลองศึกษาหุ้นเหล่านี้: %s — เหมาะกับสไตล์ที่คุณตั้งเป้าไว้",
-                    statedType, symbols);
+            rec.append(String.format(
+                    "\n\n👉 ทางเลือกที่ 1 (กลับสู่เส้นทางเดิม): หากคุณยังอยากเป็นสาย %s คุณต้องหยุดเล่นหุ้นซิ่ง/ผิดประเภทเด็ดขาด และตั้งแต่นี้ไปให้กลับมาเทรดเฉพาะหุ้นกลุ่มนี้เท่านั้นครับ: %s",
+                    statedType, symbols));
             result.setRecommendedSimilarStocks(fallbackStocks);
         }
-        // ★ แนะนำให้ลองเปลี่ยนสายตามพฤติกรรมจริง
-        result.setSuggestedTraderType(actualType);
 
-        result.setRecommendation(baseRec + deepDiagnostic);
+        // ★ ทางเลือก 2: เปลี่ยนสาย
+        rec.append(String.format(
+                "\n\n👉 ทางเลือกที่ 2 (ยอมรับความจริง): หากคุณพบว่าตัวเองห้ามใจไม่ให้เทรดแบบ %s ไม่ได้ ให้คุณไปกดปุ่ม 'เปลี่ยนประเภทนักเทรด' ในหน้าโปรไฟล์เป็น %s ไปเลยครับ เพื่อที่ระบบจะได้ประเมินคุณด้วยมาตรฐานที่ถูกต้องตั้งแต่นี้ไป",
+                actualType, actualType));
+
+        result.setSuggestedTraderType(actualType);
+        result.setRecommendation(rec.toString());
     }
 
     private String getTraderTypeFromCategory(String category) {
@@ -690,17 +704,27 @@ public class UserAnalyticsService {
 
         // --- NEW: Add scores from AnalysisData (Real-time behavioral alerts collected at the back-end) ---
         List<AnalysisData> riskEvents = analysisDataRepository.findByUserAccount_Id(userId);
+        int fomoCnt = 0, panicCnt = 0, earlyCnt = 0, holdCnt = 0;
         for (AnalysisData event : riskEvents) {
             if ("FOMO_ALERT".equals(event.getAlertType())) {
                 fomoScore += 15.0;
+                fomoCnt++;
             } else if ("PANIC_SELL_ALERT".equals(event.getAlertType())) {
                 panicScore += 15.0;
+                panicCnt++;
             } else if ("SELL_EARLY_ALERT".equals(event.getAlertType())) {
                 earlySellScore += 15.0;
+                earlyCnt++;
             } else if ("HOLDING_LOSERS_ALERT".equals(event.getAlertType())) {
                 holdLoserScore += 15.0;
+                holdCnt++;
             }
         }
+        
+        result.setFomoCount(fomoCnt);
+        result.setPanicSellCount(panicCnt);
+        result.setSellingWinnersTooEarlyCount(earlyCnt);
+        result.setHoldingLosersTooLongCount(holdCnt);
 
         if (trades.isEmpty()) {
             // ถ้าไม่มีเทรดเลย ให้โชว์ค่าจาก Quiz เป็นฐานไว้ก่อน
@@ -1220,24 +1244,41 @@ public class UserAnalyticsService {
             diag.append(String.format("- หุ้นตัวร้าย (Capital Drainer): หุ้นที่ดึงเงินจากพอร์ตคุณมากที่สุดคือ %s (ขาดทุนรวม %.2f%%) ระวังการฝืนเล่นหุ้นตัวนี้ด้วยความหวัง (Hope) หรือความดื้อรั้น\n",
                     result.getWorstPerformingStock(), result.getWorstPerformingStockPnL()));
         }
-        // 6. เอาพฤติกรรมเสี่ยง (Risk Behaviors) เข้ามาผสม
+        // 6. เอาพฤติกรรมเสี่ยง (Risk Behaviors) เข้ามาผสม พร้อมระบุจำนวนครั้งแบบเฉพาะเจาะจง
         boolean hasBehavioralIssue = false;
-        if ("พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
-            diag.append("-  อาการ FOMO: คุณมักไล่ซื้อหุ้นตอนที่ราคาวิ่งไปไกลแล้ว (Buy High) ทำให้ดอยง่าย\n");
+        StringBuilder behaviorDiag = new StringBuilder("\n3. พฤติกรรมเสี่ยงที่ต้องแก้ไขด่วน (Behavioral Fixes):\n");
+
+        if (result.getFomoCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
             hasBehavioralIssue = true;
+            int count = Math.max(1, result.getFomoCount());
+            behaviorDiag.append(String.format("   - 🚨 อาการ FOMO (ระบบจับได้และเตือนคุณไป %d ครั้ง): คุณมักไล่ซื้อหุ้นตอนที่ราคาวิ่งไปไกลแล้ว (Buy High)\n", count));
+            behaviorDiag.append("     💡 วิธีแก้สำหรับมือใหม่: ท่องไว้ว่า 'ตกรถดีกว่าติดดอย' ถ้าเห็นแท่งเทียนสีเขียวยาวๆ พุ่งขึ้นไปแล้ว ห้ามกดซื้อตามเด็ดขาด! ให้รอจนกว่าราคาจะ 'ย่อตัว' (Pullback) หรือพักฐานลงมาค่อยหาจังหวะเข้า\n");
         }
-        if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
-            diag.append("-  ขาดวินัย Stop Loss: คุณทนถือหุ้นขาดทุน (Holding Losers) หวังให้มันกลับมา ซึ่งกัดกินพอร์ตอย่างรุนแรง\n");
+        if (result.getHoldingLosersTooLongCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
             hasBehavioralIssue = true;
+            int count = Math.max(1, result.getHoldingLosersTooLongCount());
+            behaviorDiag.append(String.format("   - 🚨 ทนถือขาดทุน / Hold Losers (ระบบเตือนไป %d ครั้ง): คุณปล่อยให้พอร์ตติดลบหนัก หวังลึกๆ ว่ามันจะเด้งกลับมา\n", count));
+            behaviorDiag.append("     💡 วิธีแก้สำหรับมือใหม่: ก่อนกดซื้อทุกครั้ง ให้ตอบตัวเองให้ได้ว่า 'จะยอมแพ้ (Cut Loss) ที่ราคาเท่าไหร่?' ถ้าหุ้นลงมาถึงจุดนั้น ต้องขายทิ้งทันทีแบบไร้หัวใจ ห้ามหาข้ออ้างถือต่อเด็ดขาด!\n");
         }
-        if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
-            diag.append("-  ขายหมูบ่อย (Selling Winners Too Early): รีบขายทำกำไรเกินไป ทำให้เวลาได้กำไรไม่พอชดเชยกับเวลาที่เสียไป\n");
+        if (result.getSellingWinnersTooEarlyCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
             hasBehavioralIssue = true;
+            int count = Math.max(1, result.getSellingWinnersTooEarlyCount());
+            behaviorDiag.append(String.format("   - 🚨 ขายหมู / Sell Early (ระบบเตือนไป %d ครั้ง): พอเห็นกำไรนิดหน่อยคุณก็รีบขายทิ้งเพราะกลัวกำไรหาย\n", count));
+            behaviorDiag.append("     💡 วิธีแก้สำหรับมือใหม่: 'ทนรวยให้เป็น' ปล่อยให้กำไรมันไหลไป (Let profit run) ลองใช้เส้นค่าเฉลี่ย (เช่น EMA 15) หรือตั้งจุดขายล็อคกำไร (Trailing Stop) ถ้าราคายังไม่หลุดจุดนี้ ก็อย่าเพิ่งรีบขาย\n");
+        }
+        if (result.getPanicSellCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getPanicSellStatus())) {
+            hasBehavioralIssue = true;
+            int count = Math.max(1, result.getPanicSellCount());
+            behaviorDiag.append(String.format("   - 🚨 ตกใจขาย / Panic Sell (ระบบเตือนไป %d ครั้ง): หุ้นตกนิดเดียวคุณก็ตกใจรีบโยนทิ้ง แล้วสักพักมันก็เด้งกลับไปที่เดิม\n", count));
+            behaviorDiag.append("     💡 วิธีแก้สำหรับมือใหม่: อย่าเฝ้าจอตลอดเวลา! การเห็นตัวเลขกระพริบสีแดงจะกระตุ้นความกลัว ให้ยึดตาม 'แผน' ที่วางไว้แต่แรก ถ้ายังไม่หลุดแนวรับสำคัญ (Support line) ก็ไม่ต้องสนใจเสียงรบกวนในตลาด\n");
         }
 
-        if (hasBehavioralIssue || result.getMaxConsecutiveLosses() >= 4) {
-            diag.append("\nคำแนะนำจากมืออาชีพ: ปัญหาหลักของคุณตอนนี้ไม่ใช่ 'ความรู้ทางเทคนิค' แต่เป็น 'วินัยและอารมณ์' จงจำกัดความเสี่ยงต่อไม้ (Risk per trade) ไม่เกิน 1-2% ของพอร์ต และตั้ง Stop Loss เสมอ");
+        if (hasBehavioralIssue) {
+            diag.append(behaviorDiag);
+        } else if (result.getMaxConsecutiveLosses() >= 4) {
+            diag.append(String.format("\n3. ภาวะอารมณ์ (Emotional Tilt):\n   - คุณมีการเทรดเสียติดต่อกันถึง %d ไม้ อาการหัวร้อน (Revenge Trading) เริ่มครอบงำ ควรตั้งกฎ Daily Loss Limit ด่วน!\n", result.getMaxConsecutiveLosses()));
         }
+
         return diag.toString();
     }
 
@@ -1245,19 +1286,24 @@ public class UserAnalyticsService {
     private String analyzeBehavioralInsight(UserAnalyticsResult result) {
         StringBuilder insight = new StringBuilder();
         
-        if ("พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
-            insight.append("\n- พบพฤติกรรม FOMO: คุณมักไล่ราคาซื้อตอนหุ้นพุ่งแรง ซึ่งเสี่ยงมากหากตลาดกลับตัว");
+        if (result.getFomoCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getFomoStatus())) {
+            int count = Math.max(1, result.getFomoCount());
+            insight.append(String.format("\n- พบพฤติกรรม FOMO (เตือนไป %d ครั้ง): คุณมักไล่ราคาซื้อตอนหุ้นพุ่งแรง ซึ่งเสี่ยงมากหากตลาดกลับตัว\n  💡 ทิปส์: หัดรอให้ราคา 'ย่อตัว' (Pullback) ลงมาพักฐานก่อนค่อยเข้าซื้อ เพื่อลดความเสี่ยง", count));
         }
-        if ("พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
-            insight.append("\n- ขาดวินัย Stop Loss: คุณมีแนวโน้มถือหุ้นขาดทุนนานเกินไป หวังเพียงแค่ให้มันกลับมาเท่าทุน");
+        if (result.getHoldingLosersTooLongCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getHoldingLosersTooLongStatus())) {
+            int count = Math.max(1, result.getHoldingLosersTooLongCount());
+            insight.append(String.format("\n- ขาดวินัย Stop Loss (เตือนไป %d ครั้ง): คุณมีแนวโน้มถือหุ้นขาดทุนนานเกินไป หวังเพียงแค่ให้มันกลับมาเท่าทุน\n  💡 ทิปส์: ต้องตั้งจุดยอมแพ้ (Cut Loss) ไว้ในใจทุกครั้งก่อนซื้อ และทำตามอย่างเคร่งครัด", count));
         }
-        if ("พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
-            insight.append("\n- ขายหมูบ่อย: คุณรีบขายทำกำไรไวเกินไป ทำให้ภาพรวมพอร์ตเติบโตได้ไม่เต็มที่");
+        if (result.getSellingWinnersTooEarlyCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getSellingWinnersTooEarlyStatus())) {
+            int count = Math.max(1, result.getSellingWinnersTooEarlyCount());
+            insight.append(String.format("\n- ขายหมูบ่อย (เตือนไป %d ครั้ง): คุณรีบขายทำกำไรไวเกินไป ทำให้ภาพรวมพอร์ตเติบโตได้ไม่เต็มที่\n  💡 ทิปส์: ลองตั้งจุดขายล็อคกำไร (Trailing Stop) แทนการรีบขายทิ้งทั้งหมด เพื่อปล่อยให้กำไรไหลต่อไป", count));
         }
-        if ("พฤติกรรมเสี่ยง".equals(result.getPanicSellStatus())) {
-            insight.append("\n- พบภาวะ Panic Sell: คุณมักเทขายหุ้นด้วยความตกใจในช่วงที่ราคาผันผวนแรง");
+        if (result.getPanicSellCount() > 0 || "พฤติกรรมเสี่ยง".equals(result.getPanicSellStatus())) {
+            int count = Math.max(1, result.getPanicSellCount());
+            insight.append(String.format("\n- พบภาวะ Panic Sell (เตือนไป %d ครั้ง): คุณมักเทขายหุ้นด้วยความตกใจในช่วงที่ราคาผันผวนแรง\n  💡 ทิปส์: ยึดตาม 'แผน' ที่วางไว้ ถ้ายังไม่หลุดแนวรับสำคัญ อย่าปล่อยให้สีแดงในกระดานหลอกให้คุณกลัว", count));
         }
         
         return insight.toString();
     }
 }
+

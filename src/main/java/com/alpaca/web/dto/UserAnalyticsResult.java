@@ -37,6 +37,12 @@ public class UserAnalyticsResult {
     private double panicSellScore;
     private String panicSellStatus;
 
+    // จำนวนครั้งที่ระบบจับได้และแจ้งเตือน (Popup)
+    private int fomoCount;
+    private int panicSellCount;
+    private int sellingWinnersTooEarlyCount;
+    private int holdingLosersTooLongCount;
+
     // คำแนะนำเพิ่มเติมสำหรับพฤติกรรมเสี่ยง
     private String behavioralFeedback;
 
