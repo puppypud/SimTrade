@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
 
 import net.jacobpeterson.alpaca.openapi.marketdata.model.StockBar;
 import org.springframework.stereotype.Service;
+import com.alpaca.web.Repository.AnalysisDataRepository;
+import com.alpaca.web.entity.AnalysisData;
 
 @Service
 public class UserAnalyticsService {
@@ -28,6 +30,7 @@ public class UserAnalyticsService {
     private final AccountRepository accountRepository;
     private final MarketDataService marketDataService;
     private final StockAnalysisService stockAnalysisService;
+    private final AnalysisDataRepository analysisDataRepository;
     private double totalRealizedPnL; // กำไร/ขาดทุนสุทธิรวม
     private double averageWinPct; // กำไรเฉลี่ยต่อไม้ (%)
     private double averageLossPct; // ขาดทุนเฉลี่ยต่อไม้ (%)
@@ -39,12 +42,13 @@ public class UserAnalyticsService {
 
     public UserAnalyticsService(OrderHistoryRepository orderRepository, StockAssetRepository stockAssetRepository,
             AccountRepository accountRepository, MarketDataService marketDataService,
-            StockAnalysisService stockAnalysisService) {
+            StockAnalysisService stockAnalysisService, AnalysisDataRepository analysisDataRepository) {
         this.orderRepository = orderRepository;
         this.stockAssetRepository = stockAssetRepository;
         this.accountRepository = accountRepository;
         this.marketDataService = marketDataService;
         this.stockAnalysisService = stockAnalysisService;
+        this.analysisDataRepository = analysisDataRepository;
     }
 
     private static class RemainingOrder {
@@ -76,7 +80,7 @@ public class UserAnalyticsService {
             emptyResult.setTraderType(statedType);
             emptyResult.setPrimaryFeedback("ยังไม่มีข้อมูลการเทรดที่สมบูรณ์เพียงพอ");
             // ยังคงต้องเรียก analyzeRiskBehaviors เพื่อดึงค่า Quiz จาก DB มาโชว์
-            analyzeRiskBehaviors(emptyResult, new ArrayList<>(), new ArrayList<>(), user.getRiskBehavior());
+            analyzeRiskBehaviors(emptyResult, new ArrayList<>(), new ArrayList<>(), user.getRiskBehavior(), userId);
             return emptyResult;
         }
 
@@ -91,7 +95,7 @@ public class UserAnalyticsService {
         calculateAdvancedMetrics(result, closedTrades);
 
         // วิเคราะห์ความเสี่ยง (FOMO, Panic, etc. — ส่งค่า riskBehavior จาก DB ไปด้วย)
-        analyzeRiskBehaviors(result, closedTrades, orders, user.getRiskBehavior());
+        analyzeRiskBehaviors(result, closedTrades, orders, user.getRiskBehavior(), userId);
 
         // ★ สร้างคำแนะนำเชิงลึก — ต้องทำ "หลังสุด" เพราะ diagnoseLossReason() ต้องอ่านค่าจากทุก Module ข้างบน
         generateFinalRecommendation(result, statedType, actualBehaviorType, closedTrades);
@@ -662,9 +666,9 @@ public class UserAnalyticsService {
         return "Unknown";
     }
 
-    // วิเคราะห์พฤติกรมมเสี่ยง
+    // วิเคราะห์พฤติกรรมเสี่ยง
     private void analyzeRiskBehaviors(UserAnalyticsResult result, List<TradeExecutionRecord> trades,
-            List<OrderHistory> allOrders, String dbRiskBehavior) {
+            List<OrderHistory> allOrders, String dbRiskBehavior, Long userId) {
 
         double fomoScore = 0.0;
         double panicScore = 0.0;
@@ -684,16 +688,28 @@ public class UserAnalyticsService {
                 panicScore = 40.0;
         }
 
+        // --- NEW: Add scores from AnalysisData (Real-time behavioral alerts collected at the back-end) ---
+        List<AnalysisData> riskEvents = analysisDataRepository.findByUserAccount_Id(userId);
+        for (AnalysisData event : riskEvents) {
+            if ("FOMO_ALERT".equals(event.getAlertType())) {
+                fomoScore += 15.0;
+            } else if ("PANIC_SELL_ALERT".equals(event.getAlertType())) {
+                panicScore += 15.0;
+            } else if ("SELL_EARLY_ALERT".equals(event.getAlertType())) {
+                earlySellScore += 15.0;
+            }
+        }
+
         if (trades.isEmpty()) {
             // ถ้าไม่มีเทรดเลย ให้โชว์ค่าจาก Quiz เป็นฐานไว้ก่อน
-            result.setFomoScore(fomoScore);
-            result.setPanicSellScore(panicScore);
-            result.setSellingWinnersTooEarlyScore(earlySellScore);
-            result.setHoldingLosersTooLongScore(holdLoserScore);
-            result.setFomoStatus(evaluateRiskLevel(fomoScore));
-            result.setPanicSellStatus(evaluateRiskLevel(panicScore));
-            result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(earlySellScore));
-            result.setHoldingLosersTooLongStatus(evaluateRiskLevel(holdLoserScore));
+            result.setFomoScore(clamp(fomoScore));
+            result.setPanicSellScore(clamp(panicScore));
+            result.setSellingWinnersTooEarlyScore(clamp(earlySellScore));
+            result.setHoldingLosersTooLongScore(clamp(holdLoserScore));
+            result.setFomoStatus(evaluateRiskLevel(result.getFomoScore()));
+            result.setPanicSellStatus(evaluateRiskLevel(result.getPanicSellScore()));
+            result.setSellingWinnersTooEarlyStatus(evaluateRiskLevel(result.getSellingWinnersTooEarlyScore()));
+            result.setHoldingLosersTooLongStatus(evaluateRiskLevel(result.getHoldingLosersTooLongScore()));
             generateBehavioralFeedback(result);
             return;
         }
@@ -723,63 +739,6 @@ public class UserAnalyticsService {
                 holdLoserScore += 20.0;
             else if (pnl < 0 && pnl >= -5.0 && holdingDays <= 3)
                 holdLoserScore -= 10.0;
-        }
-
-        // 2. วิเคราะห์จาก Orders
-        Map<String, List<OrderHistory>> ordersBySymbol = allOrders.stream()
-                .sorted(Comparator.comparing(OrderHistory::getFilledAt).reversed())
-                .limit(RECENT_WINDOW * 2)
-                .collect(Collectors.groupingBy(OrderHistory::getSymbol));
-
-        ZoneId marketZone = ZoneId.of("America/New_York");
-
-        for (Map.Entry<String, List<OrderHistory>> entry : ordersBySymbol.entrySet()) {
-            String symbol = entry.getKey();
-            List<OrderHistory> symbolOrders = entry.getValue();
-
-            if (symbolOrders.isEmpty())
-                continue;
-
-            Instant minTime = symbolOrders.stream().map(OrderHistory::getFilledAt).min(Instant::compareTo)
-                    .orElse(Instant.now());
-            Instant maxTime = symbolOrders.stream().map(OrderHistory::getFilledAt).max(Instant::compareTo)
-                    .orElse(Instant.now());
-
-            ZonedDateTime fetchStart = minTime.atZone(marketZone).minusHours(100);
-            ZonedDateTime fetchEnd = maxTime.atZone(marketZone).plusHours(2);
-
-            List<StockBar> cachedBars = new ArrayList<>();
-            try {
-                // ส่ง limit = 10000 เพื่อขอข้อมูลสูงสุดเท่าที่ API ให้
-                cachedBars = marketDataService.getHistoricalBars(symbol, fetchStart, fetchEnd, "1Hour", 10000);
-            } catch (Exception e) {
-                System.err.println("Failed to fetch batch market data for " + symbol);
-                continue;
-            }
-
-            for (OrderHistory order : symbolOrders) {
-                try {
-                    double rsi = calculateRsiFromCache(cachedBars, order.getFilledAt());
-                    double priceChangePct = calculatePriceChangeFromCache(cachedBars, order.getFilledAt());
-
-                    // Logic เดิม แต่ตรวจสอบว่า RSI ต้องไม่ใช่ 50.0 (ค่ากลาง)
-                    if (rsi != 50.0) {
-                        if ("buy".equalsIgnoreCase(order.getSide())) {
-                            if (priceChangePct > 5.0 && rsi > 70.0)
-                                fomoScore += 15.0;
-                            else if (rsi < 45.0)
-                                fomoScore -= 10.0;
-                        } else if ("sell".equalsIgnoreCase(order.getSide())) {
-                            if (priceChangePct < -5.0 && rsi < 30.0)
-                                panicScore += 15.0;
-                            else if (rsi > 55.0)
-                                panicScore -= 10.0;
-                        }
-                    }
-                } catch (Exception e) {
-                    continue;
-                }
-            }
         }
 
         // คุมกรอบคะแนน 0-100 และบันทึกผล
@@ -831,99 +790,6 @@ public class UserAnalyticsService {
         } else {
             result.setBehavioralFeedback("การควบคุมอารมณ์ในการเทรดอยู่ในเกณฑ์ดี ไม่มีพฤติกรรมเสี่ยงที่ชัดเจน");
         }
-    }
-
-    private double getMarketRsiAtTime(String symbol, java.time.Instant time) {
-        try {
-            // RSI 14 ใช้ข้อมูลย้อนหลัง 14 แท่ง แต่เราดึงเผื่อ 30 แท่ง (Timeframe 1Hour)
-            // เพื่อให้ครอบคลุมช่วงเวลาเทรด
-            ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
-            ZonedDateTime startTime = tradeTime.minusHours(40); // ดึงเผื่อ
-
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour", 10000);
-
-            if (bars.size() < 15)
-                return 50.0; // ข้อมูลไม่พอคำนวณ RSI
-
-            // คำนวณ RSI (Standard 14 Periods)
-            return calculateRSI(bars, 14);
-
-        } catch (Exception e) {
-            System.err.println("Error calculating RSI: " + e.getMessage());
-            return 50.0; // ค่ากลางๆ
-        }
-    }
-
-    private double getPriceChangeBeforeTrade(String symbol, java.time.Instant time) {
-        try {
-            // เทียบราคา ณ เวลาเทรด กับ 24 ชั่วโมงก่อนหน้า
-            ZonedDateTime tradeTime = time.atZone(ZoneId.of("America/New_York"));
-            ZonedDateTime startTime = tradeTime.minusHours(25);
-
-            List<StockBar> bars = marketDataService.getHistoricalBars(symbol, startTime, tradeTime, "1Hour", 10000);
-
-            if (bars.isEmpty())
-                return 0.0;
-
-            double currentPrice = bars.get(bars.size() - 1).getC(); // ราคาปิดแท่งล่าสุด (ตอนเทรด)
-            double prevPrice = bars.get(0).getC(); // ราคาปิดเมื่อ 24 ชม. ที่แล้ว (ประมาณแท่งแรกๆ)
-
-            // หาแท่งที่เวลาใกล้เคียง 24 ชม. ที่แล้วที่สุด
-            for (StockBar bar : bars) {
-                long hoursDiff = java.time.Duration.between(bar.getT(), tradeTime).toHours();
-                if (hoursDiff >= 24) {
-                    prevPrice = bar.getC();
-                } else {
-                    break; // หยุดเมื่อเจอแท่งที่ใหม่กว่า 24 ชม.
-                }
-            }
-
-            if (prevPrice == 0)
-                return 0.0;
-
-            // สูตร: ((ราคาปัจจุบัน - ราคาเก่า) / ราคาเก่า) * 100
-            return ((currentPrice - prevPrice) / prevPrice) * 100.0;
-
-        } catch (Exception e) {
-            System.err.println("Error calculating Price Change: " + e.getMessage());
-            return 0.0;
-        }
-    }
-
-    // สูตรคำนวณ RSI มาตรฐาน
-    private double calculateRSI(List<StockBar> bars, int period) {
-        if (bars.size() <= period)
-            return 50.0;
-
-        double avgGain = 0.0;
-        double avgLoss = 0.0;
-
-        // คำนวณ RSI รอบแรก
-        for (int i = 1; i <= period; i++) {
-            double change = bars.get(i).getC() - bars.get(i - 1).getC();
-            if (change > 0)
-                avgGain += change;
-            else
-                avgLoss += Math.abs(change);
-        }
-
-        avgGain /= period;
-        avgLoss /= period;
-
-        // คำนวณ RSI แบบ Smoothing (Wilder's Smoothing) สำหรับแท่งที่เหลือ
-        for (int i = period + 1; i < bars.size(); i++) {
-            double change = bars.get(i).getC() - bars.get(i - 1).getC();
-            double gain = (change > 0) ? change : 0.0;
-            double loss = (change < 0) ? Math.abs(change) : 0.0;
-
-            avgGain = ((avgGain * (period - 1)) + gain) / period;
-            avgLoss = ((avgLoss * (period - 1)) + loss) / period;
-        }
-
-        if (avgLoss == 0)
-            return 100.0; // กำไรล้วน
-        double rs = avgGain / avgLoss;
-        return 100.0 - (100.0 / (1.0 + rs));
     }
 
     public void updateTraderType(Long userId, String newType) {
@@ -1232,60 +1098,6 @@ public class UserAnalyticsService {
                 result.setSizingFeedback("ขนาดไม้อยู่ในเกณฑ์ปกติ ยังไม่มีข้อมูลเพียงพอวิเคราะห์เชิงลึก");
             }
         }
-    }
-
-    private double calculateRsiFromCache(List<StockBar> bars, Instant tradeTimeInstant) {
-        if (bars == null || bars.isEmpty())
-            return 50.0;
-
-        ZonedDateTime tradeTime = tradeTimeInstant.atZone(ZoneId.of("America/New_York"));
-
-        // กรองเอาเฉพาะ Bar ที่เกิดก่อนหรือเท่ากับเวลาเทรด
-        List<StockBar> relevantBars = bars.stream()
-                .filter(b -> !b.getT().isAfter(tradeTime.toOffsetDateTime())) // เอา bar ที่ time <= tradeTime
-                .sorted(Comparator.comparing(StockBar::getT)) // เรียงเก่า -> ใหม่
-                .collect(Collectors.toList());
-
-        if (relevantBars.size() < 15)
-            return 50.0;
-
-        // ตัดเอาแค่ส่วนท้ายๆ มาคำนวณ RSI (ใช้ฟังก์ชันเดิมได้เลย)
-        return calculateRSI(relevantBars, 14);
-    }
-
-    private double calculatePriceChangeFromCache(List<StockBar> bars, Instant tradeTimeInstant) {
-        if (bars == null || bars.isEmpty())
-            return 0.0;
-
-        ZonedDateTime tradeTime = tradeTimeInstant.atZone(ZoneId.of("America/New_York"));
-
-        // หา Bar ล่าสุด ณ เวลาเทรด (Current Price)
-        StockBar currentBar = null;
-        for (int i = bars.size() - 1; i >= 0; i--) {
-            if (!bars.get(i).getT().isAfter(tradeTime.toOffsetDateTime())) {
-                currentBar = bars.get(i);
-                break;
-            }
-        }
-        if (currentBar == null)
-            return 0.0;
-
-        // หา Bar เมื่อ 24 ชม. ที่แล้ว (Previous Price)
-        StockBar prevBar = bars.get(0);
-        for (StockBar bar : bars) {
-            long hoursDiff = Duration.between(bar.getT(), tradeTime).toHours();
-            if (hoursDiff <= 24) {
-                prevBar = bar; // เจอแท่งแรกที่อยู่ใน range 24 ชม.
-                break;
-            }
-        }
-
-        double currentPrice = currentBar.getC();
-        double prevPrice = prevBar.getC();
-
-        if (prevPrice == 0)
-            return 0.0;
-        return ((currentPrice - prevPrice) / prevPrice) * 100.0;
     }
 
     private List<String> findSimilarStocks(String symbol, String category){

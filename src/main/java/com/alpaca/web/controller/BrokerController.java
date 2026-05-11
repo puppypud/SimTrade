@@ -41,12 +41,13 @@ public class BrokerController {
     private final StockImportService stockImportService;
     private final UserPositionRepository userPositionRepository;
     private final PortfolioHistoryRepository portfolioHistoryRepository;
-    
 
     // เพิ่มใน Constructor ให้ Spring ส่งเข้ามาให้
     public BrokerController(BrokerService brokerService, MarketDataService marketDataService,
-                            AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
-                            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository, StockImportService stockImportService, UserPositionRepository userPositionRepository, PortfolioHistoryRepository portfolioHistoryRepository) {
+            AccountRepository accountReapository, StockAnalysisService stockAnalysisService,
+            StockAnalysisService stockAnalysisService1, OrderHistoryRepository orderHistoryRepository,
+            StockImportService stockImportService, UserPositionRepository userPositionRepository,
+            PortfolioHistoryRepository portfolioHistoryRepository) {
         this.brokerService = brokerService;
         this.marketDataService = marketDataService;
         this.accountRepository = accountReapository;
@@ -119,6 +120,24 @@ public class BrokerController {
         } catch (IllegalArgumentException e) {
             log.error("Validation Error: {}", e.getMessage());
             return ResponseEntity.badRequest().body("❌ Validation Error: " + e.getMessage());
+        } catch (ApiException e) {
+            String msg = e.getMessage();
+            if (msg != null) {
+                String lowerMsg = msg.toLowerCase();
+                if (lowerMsg.contains("insufficient balance") || lowerMsg.contains("insufficient buying power")) {
+                    return ResponseEntity.badRequest().body("❌ ยอดเงินในบัญชีไม่พอสำหรับการทำรายการ");
+                }
+                if (lowerMsg.contains("insufficient qty")) {
+                    return ResponseEntity.badRequest().body("❌ จำนวนหุ้นไม่พอสำหรับการขาย");
+                }
+                if (lowerMsg.contains("exceeds max notional")) {
+                    return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อสูงเกินกำหนด (สูงสุด $200,000 ต่อออเดอร์)");
+                }
+                if (lowerMsg.contains("minimal amount")) {
+                    return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อต่ำเกินไป (ต้องไม่ต่ำกว่า $1)");
+                }
+            }
+            return ResponseEntity.badRequest().body("❌ Error: " + msg);
         } catch (Exception e) {
             log.error("Internal Error", e);
             return ResponseEntity.internalServerError().body("❌ Error: " + e.getMessage());
@@ -396,6 +415,24 @@ public class BrokerController {
                     accountId, symbol, qty, notional, side, type, tif, limitPrice, stopPrice);
             return ResponseEntity.ok(order);
 
+        } catch (ApiException e) {
+            String msg = e.getMessage();
+            if (msg != null) {
+                String lowerMsg = msg.toLowerCase();
+                if (lowerMsg.contains("insufficient balance") || lowerMsg.contains("insufficient buying power")) {
+                    return ResponseEntity.badRequest().body("❌ ยอดเงินในบัญชีไม่พอสำหรับการทำรายการ");
+                }
+                if (lowerMsg.contains("insufficient qty")) {
+                    return ResponseEntity.badRequest().body("❌ จำนวนเหรียญคริปโตไม่พอสำหรับการขาย");
+                }
+                if (lowerMsg.contains("exceeds max notional")) {
+                    return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อสูงเกินกำหนด (สูงสุด $200,000 ต่อออเดอร์)");
+                }
+                if (lowerMsg.contains("minimal amount")) {
+                    return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อต่ำเกินไป (ต้องไม่ต่ำกว่า $1)");
+                }
+            }
+            return ResponseEntity.badRequest().body("❌ Error: " + msg);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("❌ Error: " + e.getMessage());
         }
@@ -452,8 +489,7 @@ public class BrokerController {
         try {
             // ✅ เรียกใช้ระบบ Hybrid ที่เราทำไว้ใน MarketDataService
             List<StockSearchResultDTO> results = marketDataService.hybridSearchAndFilter(
-                    keyword, category, industry, sortBy, direction
-            );
+                    keyword, category, industry, sortBy, direction);
 
             // ถ้าไม่เจอข้อมูลเลย
             if (results.isEmpty()) {
@@ -608,7 +644,7 @@ public class BrokerController {
         }
     }
 
-    //ADmin ดึงตัวหุ้นมาคำนวณเพื่อเพิ่มลง database
+    // ADmin ดึงตัวหุ้นมาคำนวณเพื่อเพิ่มลง database
     @PostMapping("/import-stocks")
     public ResponseEntity<?> importStocks() {
 
@@ -618,8 +654,8 @@ public class BrokerController {
         // 2. ตอบกลับ Postman ทันที โดยไม่ต้องรอ 30 นาทีให้เสร็จ
         return ResponseEntity.ok(Map.of(
                 "status", "Processing",
-                "message", "🚀 เริ่มกระบวนการนำเข้าหุ้นจาก CSV แล้ว กรุณาตรวจสอบความคืบหน้าได้ที่หน้าจอ Console Log ของ Spring Boot"
-        ));
+                "message",
+                "🚀 เริ่มกระบวนการนำเข้าหุ้นจาก CSV แล้ว กรุณาตรวจสอบความคืบหน้าได้ที่หน้าจอ Console Log ของ Spring Boot"));
     }
 
     @GetMapping("/user/{userId}/UserPortfolio")
@@ -641,7 +677,8 @@ public class BrokerController {
     @GetMapping("/all/Positions")
     public ResponseEntity<List<UserPosition>> getAllPositionsInSystem() {
         // ดึงรายการทั้งหมดในตาราง
-        // [ข้อควรระวัง] ถ้าระบบมีผู้ใช้เยอะมาก ควรทำ Pagination ไม่ควรดึง .findAll() ตรงๆ
+        // [ข้อควรระวัง] ถ้าระบบมีผู้ใช้เยอะมาก ควรทำ Pagination ไม่ควรดึง .findAll()
+        // ตรงๆ
         List<UserPosition> allPositions = userPositionRepository.findAll();
 
         return ResponseEntity.ok(allPositions);
@@ -658,7 +695,8 @@ public class BrokerController {
 
     @GetMapping("/user/{userId}/UserHistory")
     public ResponseEntity<List<com.alpaca.web.entity.PortfolioHistory>> getUserHistory(@PathVariable Long userId) {
-        List<com.alpaca.web.entity.PortfolioHistory> historyList = portfolioHistoryRepository.findByUserIdOrderByRecordedAtAsc(userId);
+        List<com.alpaca.web.entity.PortfolioHistory> historyList = portfolioHistoryRepository
+                .findByUserIdOrderByRecordedAtAsc(userId);
 
         if (historyList.isEmpty()) {
             return ResponseEntity.noContent().build();
@@ -668,7 +706,8 @@ public class BrokerController {
 
     // ------------------------------------------------------------------
     // API 2: ดูประวัติทั้งหมดของระบบ (บังคับใช้ Pagination แบบมืออาชีพ)
-    // ใช้งาน: GET http://localhost:8080/api/admin/portfolio-history/all?page=0&size=20
+    // ใช้งาน: GET
+    // http://localhost:8080/api/admin/portfolio-history/all?page=0&size=20
     // ------------------------------------------------------------------
     @GetMapping("/all/History/Positions")
     public ResponseEntity<Page<com.alpaca.web.entity.PortfolioHistory>> getAllHistory(
@@ -684,7 +723,7 @@ public class BrokerController {
     // ============================================================
     // WATCHLIST MANAGEMENT
     // ============================================================
-    
+
     @GetMapping("/watchlist/{userId}")
     public ResponseEntity<?> getWatchlist(@PathVariable Long userId) {
         Optional<UserAccount> userOpt = accountRepository.findById(userId);

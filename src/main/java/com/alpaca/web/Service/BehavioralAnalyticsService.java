@@ -44,6 +44,14 @@ public class BehavioralAnalyticsService {
         // ดึง UserAccount เพื่อเอาไปเซฟลง DB (ป้องกัน Error Foreign Key)
         UserAccount user = accountRepository.findById(userId).orElseThrow();
 
+        // --- เพิ่ม Logging เพื่อ Debug ---
+        org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BehavioralAnalyticsService.class);
+        log.info("📊 [Evaluate] userId={}, symbol={}, side={}, priceChange={}%, ConfigTraderType={}", 
+                userId, symbol, side, priceChangePercent, traderType);
+        log.info("   [Config Values] fomoMaxOrders={}, fomoPriceSurgePercent={}%", 
+                config.fomoMaxOrders, config.fomoPriceSurgePercent);
+        // -----------------------------
+
         // -----------------------------------------------------
         // Rule 1: FOMO (ฝั่งซื้อ)
         // -----------------------------------------------------
@@ -51,6 +59,9 @@ public class BehavioralAnalyticsService {
             String cacheKey = userId + "-buy";
             AtomicInteger orderCount = orderFrequencyCache.get(cacheKey, k -> new AtomicInteger(0));
             int currentCount = orderCount.incrementAndGet();
+
+            log.info("   [FOMO Check] currentCount={}, requiredCount={}. priceChange={} >= requiredSurge={}", 
+                    currentCount, config.fomoMaxOrders, priceChangePercent, config.fomoPriceSurgePercent);
 
             if (currentCount >= config.fomoMaxOrders && priceChangePercent >= config.fomoPriceSurgePercent) {
                 AnalysisData.FeedbackTemplateDTO template = AnalysisData.feedbackConfig.getOrDefault("FOMO_ALERT", 

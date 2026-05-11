@@ -423,6 +423,9 @@ public class BrokerService {
                 }
             }
 
+            log.info("📊 [Behavior] User={}, TraderTypeDB='{}', NormalizedType={}, Symbol={}, Side={}, PriceChange={}%", 
+                    user.getId(), traderTypeStr, type, symbol, side, priceChange);
+
             behavioralAnalyticsService.evaluateOrderEvent(
                     user.getId(),
                     symbol,

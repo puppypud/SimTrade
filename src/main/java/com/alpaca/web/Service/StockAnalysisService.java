@@ -57,7 +57,8 @@ public class StockAnalysisService {
                     "KO", "WMT", "LLY", // กลุ่มมั่นคง (Stable)
                     "NVDA", "TSLA", "NFLX", // กลุ่มกระแส (Trending)
                     "JPM", "DIS", "NKE", // กลุ่มเล่นรอบ (Swing)
-                    "MSTR", "COIN", "MARA" // กลุ่มเก็งกำไร (Speculative)
+                    "MSTR", "COIN", "MARA", // กลุ่มเก็งกำไร (Speculative)
+                    "BTC/USD", "ETH/USD" // กลุ่ม Crypto
             );
 
             for (String symbol : seedSymbols) {
@@ -72,7 +73,7 @@ public class StockAnalysisService {
                         StockAsset newStock = new StockAsset();
                         newStock.setSymbol(dto.getSymbol());
                         newStock.setName(dto.getName());
-                        newStock.setAssetClass("US_EQUITY");
+                        newStock.setAssetClass(symbol.contains("/") ? "CRYPTO" : "US_EQUITY");
                         newStock.setBeta(dto.getBeta());
                         newStock.setMarketCap(dto.getMarketCap());
                         newStock.setAvgVolume(dto.getVolume());
@@ -526,6 +527,17 @@ public class StockAnalysisService {
         RestTemplate restTemplate = new RestTemplate();
         String apiKey = apiKeystock;
 
+        if (cleanSymbol.equals("BTC/USD") || cleanSymbol.equals("BTC")) {
+            return new StockInfoDatabaseDTO(
+                    "BTC/USD", "Bitcoin", new BigDecimal("1.60"), 
+                    1590000000000L, 40500000000L, "กระแส (Trending)", "Crypto");
+        }
+        if (cleanSymbol.equals("ETH/USD") || cleanSymbol.equals("ETH")) {
+            return new StockInfoDatabaseDTO(
+                    "ETH/USD", "Ethereum", new BigDecimal("1.92"), 
+                    281600000000L, 15200000000L, "กระแส (Trending)", "Crypto");
+        }
+
         try {
             String quoteUrl = "https://finnhub.io/api/v1/quote?symbol=" + cleanSymbol + "&token=" + apiKey;
             FinnhubStockDTO quote = restTemplate.getForObject(quoteUrl, FinnhubStockDTO.class);
@@ -586,6 +598,37 @@ public class StockAnalysisService {
         try {
             RestTemplate restTemplate = new RestTemplate();
             String apiKey = apiKeystock;
+
+            if (cleanSymbol.equals("BTC/USD") || cleanSymbol.equals("BTC")) {
+                StockAsset btc = new StockAsset();
+                btc.setSymbol("BTC/USD");
+                btc.setName("Bitcoin");
+                btc.setAssetClass("CRYPTO");
+                btc.setBeta(new BigDecimal("1.60"));
+                btc.setMarketCap(1590000000000L);
+                btc.setAvgVolume(40500000000L);
+                btc.setCategory("กระแส (Trending)");
+                btc.setIndustry("Crypto");
+                btc.setTradable(true);
+                stockAssetRepository.save(btc);
+                log.info("✅ บันทึกคริปโต BTC/USD เข้า Database แบบ Hardcode สำเร็จ");
+                return;
+            }
+            if (cleanSymbol.equals("ETH/USD") || cleanSymbol.equals("ETH")) {
+                StockAsset eth = new StockAsset();
+                eth.setSymbol("ETH/USD");
+                eth.setName("Ethereum");
+                eth.setAssetClass("CRYPTO");
+                eth.setBeta(new BigDecimal("1.92"));
+                eth.setMarketCap(281600000000L);
+                eth.setAvgVolume(15200000000L);
+                eth.setCategory("กระแส (Trending)");
+                eth.setIndustry("Crypto");
+                eth.setTradable(true);
+                stockAssetRepository.save(eth);
+                log.info("✅ บันทึกคริปโต ETH/USD เข้า Database แบบ Hardcode สำเร็จ");
+                return;
+            }
 
             // 1. ยิง API 3 เส้นเพื่อดึงข้อมูลดิบ (เหมือนที่คุณเคยเขียนไว้)
             String quoteUrl = "https://finnhub.io/api/v1/quote?symbol=" + cleanSymbol + "&token=" + apiKey;
