@@ -78,6 +78,7 @@ export default function Navbar() {
         <nav className="flex items-center space-x-1 flex-1">
           {navLinks.map((link) => {
             if (!user && ['History', 'Portfolio', 'Analytics', 'Admin'].includes(link.name)) return null;
+            if (link.name === 'Admin' && user?.role !== 'ADMIN') return null;
             return (
               <Link
                 key={link.href}

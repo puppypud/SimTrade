@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../context/AuthContext";
 import {
   UsersIcon, ChartBarIcon, ShieldCheckIcon,
   BuildingLibraryIcon, ClipboardDocumentListIcon,
-  ArrowTrendingUpIcon, CpuChipIcon, Cog6ToothIcon
+  CpuChipIcon, Cog6ToothIcon, LockClosedIcon,
 } from "@heroicons/react/24/outline";
 
 // Tab components
@@ -26,6 +28,60 @@ const TABS = [
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("overview");
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && (!user || user.role !== "ADMIN")) {
+      const timer = setTimeout(() => router.push("/"), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [user, isLoading, router]);
+
+  // ---- Loading State ----
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-muted">
+          <div className="w-10 h-10 border-4 border-gold/30 border-t-gold rounded-full animate-spin" />
+          <p className="text-sm">กำลังตรวจสอบสิทธิ์...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Access Denied ----
+  if (!user || user.role !== "ADMIN") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-5 max-w-sm mx-auto px-6">
+          {/* Icon */}
+          <div className="flex justify-center">
+            <div className="w-20 h-20 bg-red-500/10 border border-red-500/30 rounded-full flex items-center justify-center">
+              <LockClosedIcon className="w-10 h-10 text-red-400" />
+            </div>
+          </div>
+          {/* Message */}
+          <div>
+            <h2 className="text-2xl font-extrabold text-foreground mb-2">Access Denied</h2>
+            <p className="text-muted text-sm leading-relaxed">
+              {!user
+                ? "กรุณาเข้าสู่ระบบก่อนเข้าใช้งานหน้านี้"
+                : "คุณไม่มีสิทธิ์เข้าถึงหน้า Admin Panel"}
+            </p>
+            <p className="text-xs text-muted/60 mt-3">กำลังพาคุณกลับหน้าหลักใน 3 วินาที...</p>
+          </div>
+          {/* Redirect button */}
+          <button
+            onClick={() => router.push("/")}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-gold text-black font-bold rounded-xl hover:bg-gold/90 transition-all duration-200 text-sm"
+          >
+            กลับหน้าหลัก
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans">

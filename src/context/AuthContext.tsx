@@ -12,6 +12,7 @@ export interface User {
     lastName?: string;
     alpacaAccountId?: string;
     traderType?: string;  // ประเภทนักเทรดที่ผู้ใช้เลือกตอน Onboarding (Pre-Test)
+    role?: string;        // สิทธิ์ผู้ใช้ (USER, ADMIN)
     name?: string; // keeping name for backwards compatibility
 }
 

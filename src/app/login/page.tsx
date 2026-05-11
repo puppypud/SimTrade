@@ -59,6 +59,7 @@ export default function LoginPage() {
                 firstName: data.firstName,
                 lastName: data.lastName,
                 alpacaAccountId: data.alpacaAccountId,
+                role: data.role,
                 name: data.firstName || data.email.split('@')[0]
             });
 
