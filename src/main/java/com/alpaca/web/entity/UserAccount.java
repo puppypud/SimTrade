@@ -39,6 +39,9 @@ public class UserAccount {
     @Column(name = "status", length = 20)
     private String status;
 
+    @Column(name = "role", length = 20)
+    private String role = "USER";
+
     @Column(name = "alpaca_account_id", unique = true)
     private String alpacaAccountId;
 

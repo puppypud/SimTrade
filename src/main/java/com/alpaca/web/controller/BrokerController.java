@@ -605,6 +605,7 @@ public class BrokerController {
         responseData.put("lastName", user.getLastName());
         responseData.put("alpacaAccountId", user.getAlpacaAccountId());
         responseData.put("traderType", user.getTraderType() != null ? user.getTraderType() : "Unknown");
+        responseData.put("role", user.getRole() != null ? user.getRole() : "USER");
         return ResponseEntity.ok(responseData);
     }
 

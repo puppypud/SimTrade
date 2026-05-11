@@ -80,6 +80,9 @@ public class AdminController {
             if (request.getRiskBehavior() != null && !request.getRiskBehavior().isBlank()) {
                 user.setRiskBehavior(request.getRiskBehavior());
             }
+            if (request.getRole() != null && !request.getRole().isBlank()) {
+                user.setRole(request.getRole().toUpperCase());
+            }
 
             accountRepository.save(user);
             log.info("✅ Admin updated user {}", userId);

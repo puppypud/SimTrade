@@ -12,4 +12,5 @@ public class AdminUpdateUserRequest {
     private String status;       // ACTIVE / INACTIVE
     private String traderType;   // Day Trader / Swing Trader / Position Trader
     private String riskBehavior; // Conservative / Moderate / Aggressive
+    private String role;         // USER / ADMIN
 }
