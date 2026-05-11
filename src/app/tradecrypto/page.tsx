@@ -3,8 +3,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import StockLWChart from '@/src/app/components/ui/Chart';
-// ✅ Import ตัวที่เราเพิ่งสร้าง
 import TradeTabsCrypto from '@/src/app/components/features/TradeTabsCrypto';
+import StockInfoPanel from '@/src/app/components/features/StockInfoPanel';
 import { ArrowLeft } from 'lucide-react';
 
 export default function TradeCryptoPage() {
@@ -65,15 +65,18 @@ function TradeCryptoPageContent() {
                     {/* Left Column: Chart Area */}
                     <div className="flex-1 w-full lg:w-auto min-w-0 flex flex-col">
                         {/* Chart */}
-                        <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 w-full flex-1 min-h-[500px]">
-                            {currentSymbol ? (
-                                <StockLWChart symbol={currentSymbol} />
-                            ) : (
-                                <div className="h-full flex flex-col items-center justify-center text-muted w-full">
-                                    <p className="text-lg font-medium">Please search for a coin to view chart</p>
+                        {currentSymbol ? (
+                            <>
+                                <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 w-full flex-1 min-h-[500px]">
+                                    <StockLWChart symbol={currentSymbol} />
                                 </div>
-                            )}
-                        </div>
+                                <StockInfoPanel symbol={currentSymbol} />
+                            </>
+                        ) : (
+                            <div className="bg-surface rounded-2xl shadow-sm border border-theme-border p-4 mb-6 relative z-10 w-full flex-1 min-h-[500px] flex flex-col items-center justify-center text-muted">
+                                <p className="text-lg font-medium">Please search for a coin to view chart</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Trade Panel Section (Right) */}

@@ -17,6 +17,37 @@ const StockInfoPanel: React.FC<StockInfoPanelProps> = ({ symbol }) => {
     useEffect(() => {
         const fetchInfo = async () => {
             if (!symbol) return;
+            
+            // --- Hardcode for Crypto ---
+            const cleanSymbol = symbol.trim().toUpperCase();
+            if (cleanSymbol === 'BTC/USD' || cleanSymbol === 'BTC') {
+                setInfo({
+                    symbol: 'BTC/USD',
+                    name: 'Bitcoin',
+                    beta: 1.60,
+                    marketCap: 1590000000000,
+                    volume: 40500000000,
+                    category: 'กระแส (Trending)',
+                    industry: 'Crypto'
+                } as any);
+                setIsLoading(false);
+                return;
+            }
+            if (cleanSymbol === 'ETH/USD' || cleanSymbol === 'ETH') {
+                setInfo({
+                    symbol: 'ETH/USD',
+                    name: 'Ethereum',
+                    beta: 1.92,
+                    marketCap: 281600000000,
+                    volume: 15200000000,
+                    category: 'กระแส (Trending)',
+                    industry: 'Crypto'
+                } as any);
+                setIsLoading(false);
+                return;
+            }
+            // ---------------------------
+
             setIsLoading(true);
             setError(null);
             try {
