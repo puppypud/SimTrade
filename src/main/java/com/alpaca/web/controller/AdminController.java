@@ -4,6 +4,7 @@ import com.alpaca.web.Repository.AccountRepository;
 import com.alpaca.web.Repository.OrderHistoryRepository;
 import com.alpaca.web.Repository.StockAssetRepository;
 import com.alpaca.web.Service.BrokerService;
+import com.alpaca.web.Service.PortfolioHistoryService;
 import com.alpaca.web.dto.AdminUpdateUserRequest;
 import com.alpaca.web.dto.AdminAddStockRequest;
 import com.alpaca.web.entity.OrderHistory;
@@ -32,15 +33,18 @@ public class AdminController {
     private final OrderHistoryRepository orderHistoryRepository;
     private final StockAssetRepository stockAssetRepository;
     private final BrokerService brokerService;
+    private final PortfolioHistoryService portfolioHistoryService;
 
     public AdminController(AccountRepository accountRepository,
                            OrderHistoryRepository orderHistoryRepository,
                            StockAssetRepository stockAssetRepository,
-                           BrokerService brokerService) {
+                           BrokerService brokerService,
+                           PortfolioHistoryService portfolioHistoryService) {
         this.accountRepository = accountRepository;
         this.orderHistoryRepository = orderHistoryRepository;
         this.stockAssetRepository = stockAssetRepository;
         this.brokerService = brokerService;
+        this.portfolioHistoryService = portfolioHistoryService;
     }
 
     // ============================================================
@@ -602,6 +606,54 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error updating feedback template", e);
             return ResponseEntity.internalServerError().body(Map.of("error", "อัปเดตข้อความแจ้งเตือนไม่สำเร็จ"));
+        }
+    }
+
+    // ============================================================
+    // 6. PORTFOLIO HISTORY — Manual Snapshot Trigger
+    // ============================================================
+
+    /**
+     * POST /broker/admin/portfolio/snapshot
+     * Admin สั่งถ่าย Portfolio Snapshot ทุก User ทันที (ไม่ต้องรอ Cron)
+     */
+    @PostMapping("/portfolio/snapshot")
+    public ResponseEntity<?> triggerPortfolioSnapshot() {
+        try {
+            log.info("📸 Admin: สั่งถ่าย Portfolio Snapshot ทุก User...");
+            int count = portfolioHistoryService.snapshotAllUsers();
+            return ResponseEntity.ok(Map.of(
+                    "message", "✅ ถ่าย Portfolio Snapshot สำเร็จ",
+                    "usersSnapshotted", count
+            ));
+        } catch (Exception e) {
+            log.error("❌ Error triggering portfolio snapshot", e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "ถ่าย Snapshot ไม่สำเร็จ: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * POST /broker/admin/portfolio/snapshot/{userId}
+     * Admin สั่งถ่าย Portfolio Snapshot ของ User คนเดียว
+     */
+    @PostMapping("/portfolio/snapshot/{userId}")
+    public ResponseEntity<?> triggerUserSnapshot(@PathVariable Long userId) {
+        try {
+            com.alpaca.web.entity.UserAccount user = accountRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+            portfolioHistoryService.snapshotUser(user);
+            return ResponseEntity.ok(Map.of(
+                    "message", "✅ Snapshot สำเร็จสำหรับ User: " + userId,
+                    "userId", userId
+            ));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            log.error("❌ Error snapshotting user {}", userId, e);
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("error", "Snapshot ไม่สำเร็จ: " + e.getMessage()));
         }
     }
 }
