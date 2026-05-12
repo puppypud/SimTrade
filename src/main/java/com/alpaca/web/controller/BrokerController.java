@@ -133,8 +133,11 @@ public class BrokerController {
                 if (lowerMsg.contains("exceeds max notional")) {
                     return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อสูงเกินกำหนด (สูงสุด $200,000 ต่อออเดอร์)");
                 }
-                if (lowerMsg.contains("minimal amount")) {
-                    return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อต่ำเกินไป (ต้องไม่ต่ำกว่า $1)");
+                if (lowerMsg.contains("pattern day trading") || msg.contains("40310100")) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("❌ บัญชีของคุณถูกระงับการเทรดชั่วคราวเนื่องจากกฎ Pattern Day Trading (PDT)\n" +
+                                  "กฎนี้เกิดขึ้นเมื่อคุณทำ ซื้อขายหุ้น มากกว่า 3 ครั้งใน 5 วันทำการ โดยมีเงินในบัญชีต่ำกว่า $25,000\n" +
+                                  "💡 วิธีแก้ไข: กรุณาเติมเงินเข้าบัญชีให้มียอดรวมเกิน $25,000 หรือรอให้พ้นช่วงระยะเวลา 5 วันทำการ");
                 }
             }
             return ResponseEntity.badRequest().body("❌ Error: " + msg);
@@ -430,6 +433,11 @@ public class BrokerController {
                 }
                 if (lowerMsg.contains("minimal amount")) {
                     return ResponseEntity.badRequest().body("❌ มูลค่าคำสั่งซื้อต่ำเกินไป (ต้องไม่ต่ำกว่า $1)");
+                }
+                if (lowerMsg.contains("pattern day trading") || msg.contains("40310100")) {
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body("❌ การเทรดถูกปฏิเสธเนื่องจากกฎ Pattern Day Trading (PDT)\n" +
+                                  "กรุณาเติมเงินให้เกิน $25,000 เพื่อปลดล็อกการเทรด");
                 }
             }
             return ResponseEntity.badRequest().body("❌ Error: " + msg);

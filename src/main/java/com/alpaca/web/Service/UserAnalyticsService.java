@@ -427,23 +427,51 @@ public class UserAnalyticsService {
         }
 
         // ★ 3. เติมช่องหุ้นแนะนำเฉพาะทาง (New Features)
-        populateSpecificRecommendations(result, statedType);
+        populateSpecificRecommendations(result, statedType, actualBehaviorType);
     }
 
-    private void populateSpecificRecommendations(UserAnalyticsResult result, String currentType) {
-        // 3.1 หุ้นในอุตสาหกรรมเดียวกับตัวที่ทำกำไรดีที่สุด
+    private void populateSpecificRecommendations(UserAnalyticsResult result, String statedType, String actualBehaviorType) {
         String bestStock = result.getBestPerformingStock();
-        if (bestStock != null && !bestStock.equals("-")) {
-            result.setRecommendedIndustryStocks(findStocksByIndustry(bestStock));
+        boolean hasBestStock = bestStock != null && !bestStock.equals("-");
+
+        // ── PATH 1: Industry ของหุ้นที่กำไรดีสุด + สายที่ประกาศตัว (Declared TraderType) ──
+        if (hasBestStock) {
+            List<String> path1 = findCorrelatedStocks(bestStock, statedType);
+            if (!path1.isEmpty()) {
+                result.setRecommendedSimilarStocks(path1);
+            }
+        }
+        // Fallback Path 1: ถ้าหาไม่ได้ ให้ใช้สายเดิมล้วนๆ
+        if (result.getRecommendedSimilarStocks() == null || result.getRecommendedSimilarStocks().isEmpty()) {
+            result.setRecommendedSimilarStocks(findStocksForTraderType(statedType));
         }
 
-        // 3.2 หุ้นสำหรับสายใหม่ที่แนะนำ
-        if (result.getSuggestedTraderType() != null && !result.getSuggestedTraderType().equals(currentType)) {
+        // ── PATH 2: Industry ของหุ้นที่กำไรดีสุด + สายที่ Analytics วิเคราะห์ได้จริง ──
+        String analyticsType = (actualBehaviorType != null && !actualBehaviorType.equals("Unknown"))
+                ? actualBehaviorType : statedType;
+        if (hasBestStock) {
+            List<String> path2 = findCorrelatedStocks(bestStock, analyticsType);
+            // กรองไม่ให้ซ้ำกับ Path 1
+            List<String> path1Result = result.getRecommendedSimilarStocks();
+            if (path1Result != null) path2.removeAll(path1Result);
+            if (!path2.isEmpty()) {
+                result.setRecommendedIndustryStocks(path2);
+            }
+        }
+        // Fallback Path 2: ถ้าหาไม่ได้ ให้ใช้ analyticsType ล้วนๆ
+        if (result.getRecommendedIndustryStocks() == null || result.getRecommendedIndustryStocks().isEmpty()) {
+            List<String> fallback2 = findStocksForTraderType(analyticsType);
+            if (result.getRecommendedSimilarStocks() != null) fallback2.removeAll(result.getRecommendedSimilarStocks());
+            if (!fallback2.isEmpty()) result.setRecommendedIndustryStocks(fallback2);
+        }
+
+        // ── 3.2 หุ้นสำหรับสายใหม่ที่แนะนำ (Adaptive Strategy) ──
+        if (result.getSuggestedTraderType() != null && !result.getSuggestedTraderType().equals(statedType)) {
             result.setRecommendedNewTypeStocks(findStocksForTraderType(result.getSuggestedTraderType()));
         }
 
-        // 3.3 หุ้นสำหรับสายเดิม (ไม่สนอุตสาหกรรม)
-        result.setRecommendedCurrentTypeStocks(findStocksForTraderType(currentType));
+        // ── 3.3 หุ้นสำหรับสายเดิม (Profile Matched) ──
+        result.setRecommendedCurrentTypeStocks(findStocksForTraderType(statedType));
     }
 
     private List<String> findStocksByIndustry(String symbol) {
@@ -1117,6 +1145,62 @@ public class UserAnalyticsService {
                 result.setSizingFeedback("ขนาดไม้อยู่ในเกณฑ์ปกติ ยังไม่มีข้อมูลเพียงพอวิเคราะห์เชิงลึก");
             }
         }
+    }
+
+    /**
+     * Hybrid Correlated Filter:
+     * ดึงหุ้นที่ตรง Industry ของ bestStock (อุตสาหกรรมที่คุณทำกำไรดีสุด)
+     * AND ตรง Category ของ TraderType ปัจจุบัน (สไตล์ที่ตรงกับคุณ)
+     * ถ้าหาแบบ Hybrid ไม่พอ → Fallback เฉพาะ Industry → เฉพาะ Category
+     */
+    private List<String> findCorrelatedStocks(String bestSymbol, String traderType) {
+        if (bestSymbol == null || bestSymbol.equals("-")) return new ArrayList<>();
+
+        // แปลง TraderType → DB Category
+        String traderCategory = switch (traderType != null ? traderType : "Unknown") {
+            case "Scalper"         -> "เก็งกำไร (Speculative)";
+            case "Day Trader"      -> "กระแส (Trending)";
+            case "Swing Trader"    -> "เล่นรอบ (Swing)";
+            case "Position Trader" -> "มั่นคง (Stable)";
+            default                -> null;
+        };
+
+        return stockAssetRepository.findById(bestSymbol).map(asset -> {
+            String industry = asset.getIndustry();
+            List<String> results = new ArrayList<>();
+
+            // ★ Step 1: Hybrid — ตรง Industry + ตรง TraderType Category
+            if (industry != null && !industry.isEmpty() && traderCategory != null) {
+                results = stockAssetRepository
+                        .findTop5ByCategoryAndIndustryAndSymbolNot(traderCategory, industry, bestSymbol)
+                        .stream()
+                        .filter(StockAsset::isTradable)
+                        .map(StockAsset::getSymbol)
+                        .collect(Collectors.toList());
+            }
+
+            // Step 2: Fallback — เฉพาะ Industry (ไม่สน Category)
+            if (results.isEmpty() && industry != null && !industry.isEmpty()) {
+                results = stockAssetRepository
+                        .findTop5ByIndustryAndSymbolNot(industry, bestSymbol)
+                        .stream()
+                        .filter(StockAsset::isTradable)
+                        .map(StockAsset::getSymbol)
+                        .collect(Collectors.toList());
+            }
+
+            // Step 3: Fallback — เฉพาะ TraderType Category (ไม่สน Industry)
+            if (results.isEmpty() && traderCategory != null) {
+                results = stockAssetRepository
+                        .findTop5ByCategoryAndIsTradableTrue(traderCategory)
+                        .stream()
+                        .map(StockAsset::getSymbol)
+                        .filter(s -> !s.equals(bestSymbol))
+                        .collect(Collectors.toList());
+            }
+
+            return results;
+        }).orElse(new ArrayList<>());
     }
 
     private List<String> findSimilarStocks(String symbol, String category){
