@@ -462,23 +462,28 @@ export default function AnalyticsPage() {
                                 </div>
                             </div>
 
-                            {/* Section 1: Correlated Opportunities (Original) */}
+                            {/* Section 1: Path 1 — Industry + Declared TraderType */}
                             {analytics.recommendedSimilarStocks && analytics.recommendedSimilarStocks.length > 0 && (
                                 <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm">
-                                    <div className="flex items-center gap-2 mb-2">
+                                    <div className="flex items-center gap-2 mb-1">
                                         <Bot className="w-5 h-5 text-gold" />
-                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Correlated Opportunities (โอกาสที่สัมพันธ์กัน)</h3>
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Signature Sector Matched (หุ้นแนะนำในกลุ่มที่คุณถนัด)</h3>
                                     </div>
+                                    <p className="text-[10px] text-gold/70 font-bold uppercase tracking-widest mb-3">
+                                        อุตสาหกรรมที่คุณถนัด × สไตล์การเทรดที่คุณเลือกไว้
+                                    </p>
                                     <p className="text-xs text-muted mb-4 leading-relaxed">
                                         {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' ? (
                                             <>
-                                                เนื่องจากระบบเราได้เห็นว่าคุณเทรดหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span>
-                                                <span className="text-foreground/60 ml-1">({analytics.bestPerformingStockIndustry || 'N/A'})</span> แล้วได้กำไร <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> มากที่สุดในพอร์ต
-                                                เราจึงแนะนำหุ้นที่อยู่ใน <span className="text-blue-400 font-bold">อุตสาหกรรม {analytics.bestPerformingStockIndustry || 'N/A'}</span> และมีพฤติกรรมตรงกับสาย <span className="text-gold font-bold">{dbTraderType}</span> ซึ่งเป็นประเภทนักเทรดปัจจุบันของคุณ
+                                                เห็นคุณทำกำไรจากหุ้น <span className="text-gold font-bold">{analytics.bestPerformingStock}</span>
+                                                {analytics.bestPerformingStockIndustry && (
+                                                    <span className="text-blue-400 font-bold ml-1">({analytics.bestPerformingStockIndustry})</span>
+                                                )}
+                                                {' '}ได้ดีที่สุดถึง <span className="text-emerald-500 font-bold">{analytics.bestPerformingStockPnL?.toFixed(2)}%</span> เราเลยคัดหุ้นตัวอื่นในกลุ่มเดียวกันที่เหมาะกับสไตล์ <span className="text-gold font-bold">{dbTraderType}</span> ของคุณมาให้ลองศึกษาเพิ่มครับ
                                             </>
                                         ) : (
                                             <>
-                                                เนื่องจากคุณเป็นนักเทรดสาย <span className="text-gold font-bold">{dbTraderType}</span> ระบบจึงแนะนำรายชื่อหุ้นที่มีพฤติกรรมสอดคล้องกับสไตล์การเทรดของคุณ เพื่อช่วยให้คุณหาโอกาสทำกำไรได้แม่นยำขึ้น
+                                                เราเลือกหุ้นที่มีจังหวะการวิ่งของราคาเหมาะกับสไตล์ <span className="text-gold font-bold">{dbTraderType}</span> ที่คุณถนัดมาให้ เพื่อช่วยให้คุณหาโอกาสทำกำไรได้ง่ายขึ้นครับ
                                             </>
                                         )}
                                     </p>
@@ -491,15 +496,34 @@ export default function AnalyticsPage() {
                                 </div>
                             )}
 
-                            {/* Section 3.1: Same Industry (New) */}
+                            {/* Section 3.1: Path 2 — Industry + Analytics TraderType */}
                             {analytics.recommendedIndustryStocks && analytics.recommendedIndustryStocks.length > 0 && (
-                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm border-l-4 border-l-emerald-500/50">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <Database className="w-5 h-5 text-emerald-500" />
-                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Industry Specialists (หุ้นกลุ่มอุตสาหกรรมเดียวกัน)</h3>
+                                <div className="bg-surface rounded-2xl p-6 md:p-8 border border-theme-border shadow-sm border-l-4 border-l-blue-500/50">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <Activity className="w-5 h-5 text-blue-400" />
+                                        <h3 className="font-bold text-lg text-foreground tracking-tight">Actual Performance Correlation (สไตล์ทำกำไรที่ระบบค้นพบ)</h3>
                                     </div>
+                                    <p className="text-[10px] text-blue-400/70 font-bold uppercase tracking-widest mb-3">
+                                        อุตสาหกรรมที่คุณถนัด × วิธีการเทรดที่คุณทำเงินได้จริง
+                                    </p>
                                     <p className="text-xs text-muted mb-4 leading-relaxed">
-                                        แนะนำหุ้นในกลุ่มอุตสาหกรรมเดียวกับหุ้น <span className="text-emerald-500 font-bold">{analytics.bestPerformingStock}</span> ที่คุณทำกำไรได้มากที่สุด เพราะคุณมีความเข้าใจในอุตสาหกรรมนี้เป็นอย่างดี
+                                        {analytics.bestPerformingStock && analytics.bestPerformingStock !== '-' ? (
+                                            <>
+                                                จากสถิติในกลุ่ม <span className="text-gold font-bold">{analytics.bestPerformingStockIndustry || 'อุตสาหกรรมเดิม'}</span> พบว่าคุณเทรดแบบ <span className="text-blue-400 font-bold">
+                                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType
+                                                        ? analytics.suggestedTraderType
+                                                        : analytics.traderType || dbTraderType}
+                                                </span> แล้วได้ผลดีที่สุด ลองดูหุ้นกลุ่มนี้ที่ตรงกับ 'วิธีการทำเงิน' จริงๆ ของคุณดูครับ
+                                            </>
+                                        ) : (
+                                            <>
+                                                แนะนำหุ้นที่เหมาะกับสไตล์ <span className="text-blue-400 font-bold">
+                                                    {analytics.suggestedTraderType && analytics.suggestedTraderType !== dbTraderType
+                                                        ? analytics.suggestedTraderType
+                                                        : analytics.traderType || dbTraderType}
+                                                </span> ซึ่งเป็นวิธีที่ระบบวิเคราะห์แล้วว่าคุณถนัดและทำกำไรได้ดีที่สุดครับ
+                                            </>
+                                        )}
                                     </p>
 
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
