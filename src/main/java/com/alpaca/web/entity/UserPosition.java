@@ -5,12 +5,11 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "User_Position") // ชื่อตาราง
+@Table(name = "user_position")
 @Getter
 @Setter
 public class UserPosition {
@@ -19,26 +18,25 @@ public class UserPosition {
     private Long id;
 
     @Column(name = "user_id", nullable = false)
-    private Long userId; // เก็บ ID ของผู้ใช้
+    private Long userId; // เชื่อมกับ UserAccount
 
     @Column(name = "symbol", nullable = false, length = 20)
-    private String symbol; // ตัวย่อสินทรัพย์ เช่น AAPL, BTC/USD
+    private String symbol; // เช่น AAPL, BTC/USD
 
-    // [แก้ไขได้] หากระบบคุณรองรับหลายประเภทสินทรัพย์ (หุ้น, คริปโต) ควรเพิ่ม Column นี้
     @Column(name = "asset_class", length = 20)
-    private String assetClass;
+    private String assetClass; // EQUITY / CRYPTO
 
     @Column(name = "quantity", nullable = false, precision = 18, scale = 8)
-    private BigDecimal quantity; // จำนวนที่ถือครอง
+    private BigDecimal quantity; // จำนวนที่ถือครอง (ละเอียดถึง 8 ตำแหน่งสำหรับคริปโต)
 
     @Column(name = "average_entry_price", nullable = false, precision = 18, scale = 4)
     private BigDecimal averageEntryPrice; // ราคาต้นทุนเฉลี่ย
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt; // เวลาที่ซื้อหุ้นตัวนี้ครั้งแรก
+    private LocalDateTime createdAt; // วันที่เริ่มถือครอง
 
     @UpdateTimestamp
     @Column(name = "updated_at")
-    private LocalDateTime updatedAt; // เวลาที่มีการอัปเดต (ซื้อเพิ่ม/ขายออก) ล่าสุด
+    private LocalDateTime updatedAt; // วันที่อัปเดตล่าสุด
 }

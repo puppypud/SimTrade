@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "UserBalance") // ชื่อตาราง
+@Table(name = "user_balance")
 @Getter
 @Setter
 public class UserBalance {
@@ -20,14 +20,16 @@ public class UserBalance {
     @Column(name = "user_id", nullable = false)
     private Integer userId; // FK เจ้าของกระเป๋า
 
+    // ยอดที่ดึงมาจาก Alpaca (ทศนิยม 2 ตำแหน่ง)
     @Column(name = "available_balance", precision = 15, scale = 2, nullable = false)
-    private BigDecimal availableBalance; // ยอดที่ดึงมาจาก Alpaca
+    private BigDecimal availableBalance;
 
-    @Column(name = "updated_at", nullable = false, updatable = false)
-    private LocalDateTime updatedAt; // เวลาที่ดึงข้อมูล
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt; // เวลาที่ดึงข้อมูลล่าสุด
 
     @PrePersist
-    protected void onCreate() {
-        this.updatedAt = LocalDateTime.now(); // บันทึกเวลาอัตโนมัติก่อน Save ลง DB
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now(); // อัปเดตเวลาอัตโนมัติทุกครั้งที่ Save/Update
     }
 }

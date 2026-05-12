@@ -77,7 +77,7 @@ public class BehavioralAnalyticsService {
                 String message = template.message;
 
                 // 1. บันทึกลง Database
-                saveToDatabase(user, symbol, "FOMO_ALERT", message, template.severity, priceChangePercent, null, null);
+                saveToDatabase(user, symbol, "FOMO_ALERT", message, template.severity, priceChangePercent, null);
 
                 // 2. สร้าง DTO และยิง WebSocket ไปหน้าบ้าน
                 sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("FOMO_ALERT", template.title, message, template.severity));
@@ -99,7 +99,7 @@ public class BehavioralAnalyticsService {
                     new AnalysisData.FeedbackTemplateDTO("อาการ: รีบขายหมู (Sell Early)", "ตรวจพบพฤติกรรมรีบขายทำกำไร (Sell Early) ก่อนถึงเป้าหมายที่วางไว้", "INFO"));
                 String message = template.message;
 
-                saveToDatabase(user, symbol, "SELL_EARLY_ALERT", message, template.severity, null, currentProfitPercent, null);
+                saveToDatabase(user, symbol, "SELL_EARLY_ALERT", message, template.severity, null, currentProfitPercent);
                 sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("SELL_EARLY_ALERT", template.title, message, template.severity));
             }
 
@@ -110,7 +110,7 @@ public class BehavioralAnalyticsService {
                     new AnalysisData.FeedbackTemplateDTO("อาการ: ตื่นตระหนก (Panic Sell)", "ตรวจพบพฤติกรรมตื่นตระหนก (Panic Sell) โดยการเทขายหุ้นสัดส่วนสูงในขณะที่ราคาร่วงลงรุนแรง", "DANGER"));
                 String message = template.message;
 
-                saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, template.severity, priceChangePercent, currentProfitPercent, volumeSoldPercent);
+                saveToDatabase(user, symbol, "PANIC_SELL_ALERT", message, template.severity, priceChangePercent, currentProfitPercent);
                 sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("PANIC_SELL_ALERT", template.title, message, template.severity));
             }
 
@@ -124,7 +124,7 @@ public class BehavioralAnalyticsService {
                             new AnalysisData.FeedbackTemplateDTO("อาการ: ทนถือขาดทุน (Hold Losers)", "ตรวจพบพฤติกรรมทนถือหุ้นที่ขาดทุนหนักเป็นเวลานานเกินไป ควรพิจารณาตั้งจุดตัดขาดทุน (Cut Loss)", "WARNING"));
                         String message = template.message;
 
-                        saveToDatabase(user, symbol, "HOLDING_LOSERS_ALERT", message, template.severity, null, currentProfitPercent, null);
+                        saveToDatabase(user, symbol, "HOLDING_LOSERS_ALERT", message, template.severity, null, currentProfitPercent);
                         sendPopupAlertToFrontend(userId.toString(), new BehaviorAlertDTO("HOLDING_LOSERS_ALERT", template.title, message, template.severity));
                     }
                 }
@@ -136,7 +136,7 @@ public class BehavioralAnalyticsService {
     // ตัวช่วย: ฟังก์ชันเซฟลง Database แยกออกมาเพื่อให้โค้ดสะอาด
     // -----------------------------------------------------
     private void saveToDatabase(UserAccount user, String symbol, String alertType, String message, String severity,
-                                Double priceChange, Double profit, Double volumeSold) {
+                                Double priceChange, Double profit) {
         AnalysisData data = new AnalysisData();
         data.setUserAccount(user);
         data.setSymbol(symbol);
@@ -145,9 +145,7 @@ public class BehavioralAnalyticsService {
         data.setSeverity(severity);
         data.setPriceChangePercent(priceChange);
         data.setProfitPercent(profit);
-        data.setVolumeSoldPercent(volumeSold);
-
-        analysisDataRepository.save(data); // 💾 เซฟลงตาราง Analysis_Data
+        analysisDataRepository.save(data);
     }
 
     // -----------------------------------------------------

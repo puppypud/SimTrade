@@ -1,4 +1,5 @@
 package com.alpaca.web.entity;
+
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -7,7 +8,7 @@ import java.math.BigDecimal;
 @Entity
 @Getter
 @Setter
-@Table(name = "StockAsset")
+@Table(name = "stock_asset")
 public class StockAsset {
 
     @Id
@@ -30,7 +31,7 @@ public class StockAsset {
     @Column(name = "avg_volume")
     private Long avgVolume; // ปริมาณซื้อขายเฉลี่ย
 
-    // --- ข้อมูลที่เรา "จัดหมวดหมู่" ไว้ล่วงหน้า ---
+    // --- ข้อมูลที่เรา "จัดหมวดหมู่" ไว้ล่วงหน้า (ใช้ในการวิเคราะห์พฤติกรรม) ---
     @Column(name = "category", length = 50)
     private String category; // STABLE, SWING, TRENDING, SPECULATIVE
 
@@ -38,6 +39,6 @@ public class StockAsset {
     @Column(name = "is_tradable", nullable = false)
     private boolean isTradable = true; // เอาไว้ให้ Admin บล็อกหุ้นตัวนี้ไม่ให้คนซื้อได้
 
-    @Column(name = "industry" , length = 50 )
+    @Column(name = "industry", length = 50)
     private String industry;
 }

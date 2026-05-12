@@ -2,7 +2,6 @@ package com.alpaca.web.entity;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
@@ -15,17 +14,16 @@ import lombok.Setter;
 @Table(name = "OrderHistory")
 public class OrderHistory {
     @Id
-    @Column(name = "order_id", updatable = false, nullable = false)
-    @JsonProperty("id") // แปลง orderId ให้กลายเป็นคำว่า id ตอนส่ง JSON
-    private String orderId; // แก้ไขได้: ถ้าอยากให้ DB gen ID เอง ให้แยก id ออกมาเป็น Auto Increment และเก็บ orderId เป็น Unique Column
+    @Column(name = "order_id", updatable = false, nullable = false, length = 50)
+    @JsonProperty("id")
+    private String orderId; // ID จาก Alpaca
 
-    // ชี้กลับไปที่ UserAccount ของคุณ
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnore
     private UserAccount userAccount;
 
-    @Column(name = "symbol", nullable = false, length = 10)
+    @Column(name = "symbol", nullable = false, length = 20)
     private String symbol;
 
     @Column(name = "asset_class", length = 20)
@@ -41,7 +39,6 @@ public class OrderHistory {
     @Column(name = "status", nullable = false, length = 20)
     private String status;
 
-    // การใช้ BigDecimal สำคัญมาก (19,4 หมายถึง ตัวเลขรวม 19 หลัก ทศนิยม 4 ตำแหน่ง)
     @Column(name = "qty", precision = 19, scale = 4)
     private BigDecimal qty;
 
@@ -61,22 +58,20 @@ public class OrderHistory {
     @Column(name = "filled_at")
     private Instant filledAt;
 
-    // 💡 เพิ่ม Field ใหม่: notional (มูลค่าที่สั่งซื้อ กรณีไม่ได้ระบุจำนวนหุ้น/เหรียญ)
     @Column(name = "notional", precision = 19, scale = 4)
     private BigDecimal notional;
 
-    // 💡 เพิ่ม Field ใหม่: limit_price (ราคาเป้าหมาย กรณีซื้อแบบ Limit)
     @Column(name = "limit_price", precision = 19, scale = 4)
-    @JsonProperty("limitPrice") // 💡 แปลงเป็น limitPrice (CamalCase) ให้ตรงกับหน้าบ้าน
+    @JsonProperty("limitPrice")
     private BigDecimal limitPrice;
 
-    @Column(name = "client_order_id")
+    @Column(name = "client_order_id", length = 100)
     private String clientOrderId;
 
     @Column(name = "time_in_force", length = 10)
     private String timeInForce;
 
-    @Column(name = "asset_id")
+    @Column(name = "asset_id", length = 100)
     private String assetId;
 
     @Column(name = "extended_hours")
