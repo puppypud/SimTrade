@@ -1,0 +1,7 @@
+/bin/
+build/
+.gradle/
+.settings
+.DS_Store
+.idea/
+.env
