@@ -362,11 +362,9 @@ public class MarketDataService {
 
         try {
             // 2. ดึงราคา Trade ล่าสุด (Latest Trade)
-            // URL: /v1beta3/crypto/us/latest/trades
             String tradeUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/trades?symbols=" + cleanSymbol;
             try {
-                ResponseEntity<Map> response = restTemplate.exchange(URI.create(tradeUrl), HttpMethod.GET, entity,
-                        Map.class);
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(tradeUrl), HttpMethod.GET, entity, Map.class);
                 if (response.getBody() != null && response.getBody().containsKey("trades")) {
                     Map<String, Object> tradesMap = (Map<String, Object>) response.getBody().get("trades");
                     if (tradesMap.containsKey(cleanSymbol)) {
@@ -385,16 +383,13 @@ public class MarketDataService {
             }
 
             // 3. ดึงราคา Bid/Ask ล่าสุด (Latest Quote)
-            // URL: /v1beta3/crypto/us/latest/quotes
             String quoteUrl = "https://data.alpaca.markets/v1beta3/crypto/us/latest/quotes?symbols=" + cleanSymbol;
             try {
-                ResponseEntity<Map> response = restTemplate.exchange(URI.create(quoteUrl), HttpMethod.GET, entity,
-                        Map.class);
+                ResponseEntity<Map> response = restTemplate.exchange(URI.create(quoteUrl), HttpMethod.GET, entity, Map.class);
                 if (response.getBody() != null && response.getBody().containsKey("quotes")) {
                     Map<String, Object> quotesMap = (Map<String, Object>) response.getBody().get("quotes");
                     if (quotesMap.containsKey(cleanSymbol)) {
                         Map<String, Object> quoteDetail = (Map<String, Object>) quotesMap.get(cleanSymbol);
-                        // ap = Ask Price, as = Ask Size, bp = Bid Price, bs = Bid Size
                         data.put("askPrice", quoteDetail.get("ap"));
                         data.put("askSize", quoteDetail.get("as"));
                         data.put("bidPrice", quoteDetail.get("bp"));
@@ -404,6 +399,33 @@ public class MarketDataService {
             } catch (Exception e) {
                 data.put("askPrice", 0.0);
                 data.put("bidPrice", 0.0);
+            }
+
+            // ✅ 4. ดึงราคาปิดเมื่อวาน (prevClose) จาก Daily Bar — สำคัญมาก! ใช้คำนวณ priceChange%
+            // ถ้าไม่มีค่านี้ priceChange จะเป็น 0 ตลอด ทำให้ FOMO และ Panic Sell ไม่ทำงาน
+            try {
+                ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
+                String startStr = now.minusDays(2).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+                String barsUrl = String.format(
+                        "https://data.alpaca.markets/v1beta3/crypto/us/bars?symbols=%s&timeframe=1Day&limit=2&start=%s",
+                        cleanSymbol, startStr);
+                ResponseEntity<Map> barsResponse = restTemplate.exchange(URI.create(barsUrl), HttpMethod.GET, entity, Map.class);
+                if (barsResponse.getBody() != null && barsResponse.getBody().containsKey("bars")) {
+                    Map<String, Object> barsMap = (Map<String, Object>) barsResponse.getBody().get("bars");
+                    if (barsMap.containsKey(cleanSymbol)) {
+                        List<Map<String, Object>> barList = (List<Map<String, Object>>) barsMap.get(cleanSymbol);
+                        if (barList != null && !barList.isEmpty()) {
+                            // เอา Bar ตัวแรก (เก่าสุด) เป็น prevClose
+                            Map<String, Object> prevBar = barList.get(0);
+                            if (prevBar.get("c") != null) {
+                                data.put("prevClose", ((Number) prevBar.get("c")).doubleValue());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Could not fetch crypto prevClose for {}: {}", cleanSymbol, e.getMessage());
+                // ถ้าดึงไม่ได้ก็ไม่ใส่ prevClose (triggerBehavioralAnalysis จะใช้ price แทน → priceChange = 0)
             }
 
             return data;

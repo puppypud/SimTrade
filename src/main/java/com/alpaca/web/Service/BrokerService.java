@@ -654,8 +654,8 @@ public class BrokerService {
                     saveOrderHistory(order, user);
                     log.info("✅ บันทึกออร์เดอร์คริปโตสถานะ NEW ลง Database สำเร็จ: {}", order.getId());
 
-                    // 🚀 Trigger Behavioral Analytics
-                    triggerBehavioralAnalysis(user, symbol, side.name());
+                    // 🚀 Trigger Behavioral Analytics (ส่ง cleanSymbol ที่มี /USD แล้ว)
+                    triggerBehavioralAnalysis(user, cleanSymbol, side.name());
 
                 } catch (Exception dbEx) {
                     log.error("❌ เกิดข้อผิดพลาดในการบันทึกประวัติออร์เดอร์คริปโตลง Database: {}", order.getId(), dbEx);
