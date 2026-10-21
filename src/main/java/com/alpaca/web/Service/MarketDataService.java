@@ -47,10 +47,10 @@ public class MarketDataService {
     private AlpacaAPI alpacaAPI;
     private boolean isMaintenanceActive = false; // ตั้งค่าเริ่มต้นเป็น false
     private String mintenanceMessage = "";
-    @Value("***REDACTED_TRADING_KEY***")
+    @Value("${alpaca.api-key}")
     private String apiKey;
 
-    @Value("***REDACTED_TRADING_SECRET***")
+    @Value("${alpaca.api-secret}")
     private String apiSecret;
 
     // พิม Timezone ของ New York (เพื่อรองรับ 21:30 / 20:30 อัตโนมัติ)
